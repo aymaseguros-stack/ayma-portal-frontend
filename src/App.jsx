@@ -417,9 +417,49 @@ function App() {
             ) : (
               <div className="space-y-4">
                 {polizas.map(poliza => (
-                  <div key={poliza.id} className="border border-gray-200 rounded-lg p-4">
-                    <p className="font-semibold">{poliza.numero_poliza}</p>
-                    <p className="text-sm text-gray-600">{poliza.tipo_seguro}</p>
+                  <div key={poliza.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+                    <div className="flex justify-between items-start mb-2">
+                      <p className="font-bold text-lg text-blue-600">Póliza {poliza.numero_poliza}</p>
+                      <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-semibold">
+                        {poliza.estado}
+                      </span>
+                    </div>
+                    
+                    {poliza.vehiculo_descripcion && (
+                      <p className="text-gray-800 font-semibold">
+                        🚗 {poliza.vehiculo_descripcion}
+                        {poliza.vehiculo_dominio && <span className="text-gray-600"> ({poliza.vehiculo_dominio})</span>}
+                      </p>
+                    )}
+                    
+                    <div className="grid grid-cols-2 gap-2 mt-3 text-sm">
+                      <div>
+                        <p className="text-gray-500">Titular:</p>
+                        <p className="font-medium">{poliza.titular_nombre} {poliza.titular_apellido}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Compañía:</p>
+                        <p className="font-medium">{poliza.compania}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Cobertura:</p>
+                        <p className="font-medium">{poliza.tipo_cobertura}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Premio Total:</p>
+                        <p className="font-medium text-green-600">${poliza.premio_total?.toLocaleString('es-AR')}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Vencimiento:</p>
+                        <p className="font-medium">{new Date(poliza.fecha_vencimiento).toLocaleDateString('es-AR')}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Días restantes:</p>
+                        <p className={`font-medium ${poliza.dias_para_vencimiento < 30 ? 'text-red-600' : 'text-green-600'}`}>
+                          {poliza.dias_para_vencimiento} días
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -439,9 +479,30 @@ function App() {
             ) : (
               <div className="space-y-4">
                 {vehiculos.map(vehiculo => (
-                  <div key={vehiculo.id} className="border border-gray-200 rounded-lg p-4">
-                    <p className="font-semibold">{vehiculo.marca} {vehiculo.modelo}</p>
-                    <p className="text-sm text-gray-600">Patente: {vehiculo.patente}</p>
+                  <div key={vehiculo.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+                    <div className="flex justify-between items-start mb-2">
+                      <p className="font-bold text-lg text-blue-600">{vehiculo.descripcion_completa}</p>
+                      {vehiculo.tiene_poliza_vigente && (
+                        <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-semibold">
+                          ✅ Asegurado
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2 mt-3 text-sm">
+                      <div>
+                        <p className="text-gray-500">Dominio/Patente:</p>
+                        <p className="font-bold text-xl">{vehiculo.dominio}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Año:</p>
+                        <p className="font-medium">{vehiculo.anio}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Estado:</p>
+                        <p className="font-medium capitalize">{vehiculo.estado}</p>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
