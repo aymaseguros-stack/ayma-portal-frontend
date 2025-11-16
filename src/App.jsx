@@ -415,47 +415,50 @@ function App() {
                 {userRole === 'cliente' ? 'No tienes pólizas registradas' : 'No hay pólizas en el sistema'}
               </p>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {polizas.map(poliza => (
-                  <div key={poliza.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
-                    <div className="flex justify-between items-start mb-2">
-                      <p className="font-bold text-lg text-blue-600">Póliza {poliza.numero_poliza}</p>
-                      <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-semibold">
+                  <div key={poliza.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-lg transition bg-white">
+                    <div className="flex justify-between items-center mb-3 pb-2 border-b border-gray-100">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">📄</span>
+                        <div>
+                          <p className="font-bold text-blue-600">Póliza {poliza.numero_poliza}</p>
+                          {poliza.vehiculo_descripcion && (
+                            <p className="text-sm text-gray-600">
+                              🚗 {poliza.vehiculo_descripcion} <span className="font-bold">({poliza.vehiculo_dominio})</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-semibold uppercase">
                         {poliza.estado}
                       </span>
                     </div>
                     
-                    {poliza.vehiculo_descripcion && (
-                      <p className="text-gray-800 font-semibold">
-                        🚗 {poliza.vehiculo_descripcion}
-                        {poliza.vehiculo_dominio && <span className="text-gray-600"> ({poliza.vehiculo_dominio})</span>}
-                      </p>
-                    )}
-                    
-                    <div className="grid grid-cols-2 gap-2 mt-3 text-sm">
+                    <div className="grid grid-cols-3 gap-4 text-sm">
                       <div>
-                        <p className="text-gray-500">Titular:</p>
-                        <p className="font-medium">{poliza.titular_nombre} {poliza.titular_apellido}</p>
+                        <p className="text-gray-500 text-xs mb-1">Titular</p>
+                        <p className="font-semibold">{poliza.titular_nombre} {poliza.titular_apellido}</p>
                       </div>
                       <div>
-                        <p className="text-gray-500">Compañía:</p>
-                        <p className="font-medium">{poliza.compania}</p>
+                        <p className="text-gray-500 text-xs mb-1">Compañía</p>
+                        <p className="font-semibold">{poliza.compania}</p>
                       </div>
                       <div>
-                        <p className="text-gray-500">Cobertura:</p>
-                        <p className="font-medium">{poliza.tipo_cobertura}</p>
+                        <p className="text-gray-500 text-xs mb-1">Cobertura</p>
+                        <p className="font-semibold">{poliza.tipo_cobertura}</p>
                       </div>
                       <div>
-                        <p className="text-gray-500">Premio Total:</p>
-                        <p className="font-medium text-green-600">${poliza.premio_total?.toLocaleString('es-AR')}</p>
+                        <p className="text-gray-500 text-xs mb-1">Premio Total</p>
+                        <p className="font-bold text-green-600 text-lg">${poliza.premio_total?.toLocaleString('es-AR')}</p>
                       </div>
                       <div>
-                        <p className="text-gray-500">Vencimiento:</p>
-                        <p className="font-medium">{new Date(poliza.fecha_vencimiento).toLocaleDateString('es-AR')}</p>
+                        <p className="text-gray-500 text-xs mb-1">Vencimiento</p>
+                        <p className="font-semibold">{new Date(poliza.fecha_vencimiento).toLocaleDateString('es-AR')}</p>
                       </div>
                       <div>
-                        <p className="text-gray-500">Días restantes:</p>
-                        <p className={`font-medium ${poliza.dias_para_vencimiento < 30 ? 'text-red-600' : 'text-green-600'}`}>
+                        <p className="text-gray-500 text-xs mb-1">Días restantes</p>
+                        <p className={`font-bold text-lg ${poliza.dias_para_vencimiento < 30 ? 'text-red-600' : 'text-green-600'}`}>
                           {poliza.dias_para_vencimiento} días
                         </p>
                       </div>
@@ -479,9 +482,15 @@ function App() {
             ) : (
               <div className="space-y-4">
                 {vehiculos.map(vehiculo => (
-                  <div key={vehiculo.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
-                    <div className="flex justify-between items-start mb-2">
-                      <p className="font-bold text-lg text-blue-600">{vehiculo.descripcion_completa}</p>
+                  <div key={vehiculo.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-lg transition bg-white">
+                    <div className="flex justify-between items-center mb-3 pb-2 border-b border-gray-100">
+                      <div className="flex items-center gap-3">
+                        <span className="text-3xl">🚗</span>
+                        <div>
+                          <p className="font-bold text-lg text-blue-600">{vehiculo.descripcion_completa}</p>
+                          <p className="text-sm text-gray-500">Estado: <span className="capitalize font-medium">{vehiculo.estado}</span></p>
+                        </div>
+                      </div>
                       {vehiculo.tiene_poliza_vigente && (
                         <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-semibold">
                           ✅ Asegurado
@@ -489,18 +498,14 @@ function App() {
                       )}
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-2 mt-3 text-sm">
-                      <div>
-                        <p className="text-gray-500">Dominio/Patente:</p>
-                        <p className="font-bold text-xl">{vehiculo.dominio}</p>
+                    <div className="flex gap-6 items-center">
+                      <div className="flex-1">
+                        <p className="text-gray-500 text-xs mb-1">Dominio/Patente</p>
+                        <p className="font-black text-3xl text-blue-600">{vehiculo.dominio}</p>
                       </div>
-                      <div>
-                        <p className="text-gray-500">Año:</p>
-                        <p className="font-medium">{vehiculo.anio}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Estado:</p>
-                        <p className="font-medium capitalize">{vehiculo.estado}</p>
+                      <div className="flex-1">
+                        <p className="text-gray-500 text-xs mb-1">Año de Fabricación</p>
+                        <p className="font-bold text-2xl text-gray-800">{vehiculo.anio}</p>
                       </div>
                     </div>
                   </div>
