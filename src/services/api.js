@@ -1,15 +1,54 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta name="viewport" content="width=device-width, initial-scale=0.75, maximum-scale=1.0, user-scalable=yes" />
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <title>Pastebin.com - Not Found (#404)</title>
-</head>
-<body>
+import axios from 'axios'
 
+const API_URL = 'https://ayma-portal-backend.onrender.com'
 
-<h1>Not Found (#404)</h1>
-<p>This page is no longer available. It has either expired, been removed by its creator, or removed by one of the Pastebin staff.</p>
+const api = axios.create({
+  baseURL: API_URL
+})
 
-</body>
-</html>
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+export const dashboardService = {
+  async getResumen() {
+    const response = await api.get('/api/v1/dashboard/')
+    return response.data
+  },
+  async getScoring() {
+    const response = await api.get('/api/v1/dashboard/scoring')
+    return response.data
+  },
+  async getActividades() {
+    const response = await api.get('/api/v1/dashboard/actividades')
+    return response.data
+  }
+}
+
+export const polizasService = {
+  async listar() {
+    const response = await api.get('/api/v1/polizas/')
+    return response.data
+  },
+  async obtener(id) {
+    const response = await api.get('/api/v1/polizas/' + id)
+    return response.data
+  }
+}
+
+export const vehiculosService = {
+  async listar() {
+    const response = await api.get('/api/v1/vehiculos/')
+    return response.data
+  },
+  async obtener(id) {
+    const response = await api.get('/api/v1/vehiculos/' + id)
+    return response.data
+  }
+}
+
+export default api
