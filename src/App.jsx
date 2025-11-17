@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
-import { authService, dashboardService, polizasService, vehiculosService, adminService, pdfService } from "./services/api"
+import { dashboardService, polizasService, vehiculosService, adminService, pdfService } from "./services/api"
 import './App.css'
 
 const API_URL = 'https://ayma-portal-backend.onrender.com'
@@ -180,7 +180,6 @@ function App() {
       console.error("Error descargando PDF:", error)
       alert("Error al obtener el PDF")
     }
-  }
   }
   const getTabs = () => {
     const baseTabs = [
@@ -673,6 +672,7 @@ function App() {
                             </button>
                           </td>
                         </tr>
+                      )
                     })}
                   </tbody>
                 </table>
