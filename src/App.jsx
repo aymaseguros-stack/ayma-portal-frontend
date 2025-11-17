@@ -165,6 +165,23 @@ function App() {
     }
   }
 
+  const handleDownloadPDFByVehiculo = async (vehiculoId) => {
+    try {
+      // Buscar póliza asociada al vehículo
+      const polizaAsociada = polizas.find(p => p.vehiculo_id === vehiculoId)
+      
+      if (!polizaAsociada) {
+        alert("Este vehículo no tiene una póliza asociada")
+        return
+      }
+      
+      await handleDownloadPDF(polizaAsociada.id)
+    } catch (error) {
+      console.error("Error descargando PDF:", error)
+      alert("Error al obtener el PDF")
+    }
+  }
+  }
   const getTabs = () => {
     const baseTabs = [
       { id: 'dashboard', label: '📊 Dashboard', roles: ['admin', 'administrador', 'empleado', 'cliente'] }
@@ -690,6 +707,7 @@ function App() {
                       {(userRole === 'admin' || userRole === 'administrador') && (
                         <th className="px-4 py-3 text-left text-sm font-semibold">Propietario</th>
                       )}
+                      <th className="px-4 py-3 text-left text-sm font-semibold">PDF</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -712,6 +730,14 @@ function App() {
                             {vehiculo.cliente_nombre && `${vehiculo.cliente_nombre} ${vehiculo.cliente_apellido || ''}`.trim()}
                           </td>
                         )}
+                        <td className="px-4 py-3">
+                          <button 
+                            onClick={() => handleDownloadPDFByVehiculo(vehiculo.id)}
+                            className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm font-semibold"
+                          >
+                            📥 PDF
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
