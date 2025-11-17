@@ -272,6 +272,7 @@ function App() {
           </div>
         )}
 
+        {/* DASHBOARD - MANTENER TARJETAS */}
         {activeTab === 'dashboard' && !loadingDashboard && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-gray-800">
@@ -363,29 +364,89 @@ function App() {
           </div>
         )}
 
+        {/* USUARIOS - TABLA HORIZONTAL */}
         {activeTab === 'usuarios' && (userRole === 'admin' || userRole === 'administrador') && (
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">Gestión de Usuarios</h2>
-            <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
-              <p className="text-yellow-800">🚧 Módulo en desarrollo</p>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-blue-600 text-white">
+                    <th className="px-4 py-3 text-left text-sm font-semibold">👤</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Email</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Rol</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Estado</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Fecha Registro</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Último Acceso</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-gray-200">
+                    <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
+                      📋 Módulo en desarrollo - Pronto podrás gestionar usuarios desde aquí
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         )}
 
+        {/* CRM - TABLA HORIZONTAL */}
         {activeTab === 'crm' && (userRole === 'admin' || userRole === 'administrador' || userRole === 'empleado') && (
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">CRM - Gestión Comercial</h2>
-            <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
-              <p className="text-yellow-800">🚧 Módulo en desarrollo</p>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-blue-600 text-white">
+                    <th className="px-4 py-3 text-left text-sm font-semibold">📊</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Cliente</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Estado</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Última Actividad</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Scoring</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Próxima Acción</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Responsable</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-gray-200">
+                    <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
+                      📈 Módulo en desarrollo - Sistema de seguimiento comercial próximamente
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         )}
 
+        {/* CLIENTES - TABLA HORIZONTAL */}
         {activeTab === 'clientes' && (userRole === 'admin' || userRole === 'administrador' || userRole === 'empleado') && (
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">Gestión de Clientes</h2>
-            <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
-              <p className="text-yellow-800">🚧 Módulo en desarrollo</p>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-blue-600 text-white">
+                    <th className="px-4 py-3 text-left text-sm font-semibold">👤</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Nombre Completo</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Email</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">DNI/CUIT</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Teléfono</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Pólizas Activas</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-gray-200">
+                    <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
+                      👥 Módulo en desarrollo - Base de datos de clientes próximamente
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         )}
@@ -423,15 +484,15 @@ function App() {
           </div>
         )}
 
-        {/* TABLA HORIZONTAL DE PÓLIZAS CON TITULAR Y DÍAS RESTANTES */}
+        {/* PÓLIZAS - TABLA HORIZONTAL */}
         {activeTab === 'polizas' && (
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">
               {userRole === 'cliente' ? 'Mis Pólizas' : 'Gestión de Pólizas'}
             </h2>
             {polizas.length === 0 ? (
-              <p className="text-gray-500">
-                {userRole === 'cliente' ? 'No tienes pólizas registradas' : 'No hay pólizas en el sistema'}
+              <p className="text-gray-500 text-center py-8">
+                {userRole === 'cliente' ? '📄 No tienes pólizas registradas' : '📄 No hay pólizas en el sistema'}
               </p>
             ) : (
               <div className="overflow-x-auto">
@@ -489,15 +550,15 @@ function App() {
           </div>
         )}
 
-        {/* TABLA HORIZONTAL DE VEHÍCULOS */}
+        {/* VEHÍCULOS - TABLA HORIZONTAL */}
         {activeTab === 'vehiculos' && (
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">
               {userRole === 'cliente' ? 'Mis Vehículos' : 'Gestión de Vehículos'}
             </h2>
             {vehiculos.length === 0 ? (
-              <p className="text-gray-500">
-                {userRole === 'cliente' ? 'No tienes vehículos registrados' : 'No hay vehículos en el sistema'}
+              <p className="text-gray-500 text-center py-8">
+                {userRole === 'cliente' ? '🚗 No tienes vehículos registrados' : '🚗 No hay vehículos en el sistema'}
               </p>
             ) : (
               <div className="overflow-x-auto">
@@ -538,25 +599,46 @@ function App() {
           </div>
         )}
 
+        {/* SOPORTE/TICKETS - TABLA HORIZONTAL */}
         {activeTab === 'tickets' && userRole === 'cliente' && (
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">Soporte - Mis Tickets</h2>
-            <div className="space-y-4">
+            <div className="mb-4">
               <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition">
                 ➕ Crear Nuevo Ticket
               </button>
-              <div className="bg-gray-50 p-6 rounded-lg text-center">
-                <p className="text-gray-500">No tienes tickets abiertos</p>
-              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-blue-600 text-white">
+                    <th className="px-4 py-3 text-left text-sm font-semibold">🎫</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Ticket #</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Asunto</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Estado</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Prioridad</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Fecha Creación</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Última Actualización</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-gray-200">
+                    <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
+                      🎫 No tienes tickets abiertos - Crea uno si necesitas asistencia
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         )}
 
+        {/* REPORTES - MANTENER COMO ESTÁ */}
         {activeTab === 'reportes' && (userRole === 'admin' || userRole === 'administrador') && (
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">Reportes y Analytics</h2>
             <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
-              <p className="text-yellow-800">🚧 Módulo en desarrollo</p>
+              <p className="text-yellow-800">📊 Módulo en desarrollo - Dashboards y reportes avanzados próximamente</p>
             </div>
           </div>
         )}
