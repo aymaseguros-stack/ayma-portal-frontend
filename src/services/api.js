@@ -78,3 +78,11 @@ export const adminService = {
     return response.data
   }
 }
+
+// PDF
+export const pdfService = {
+  getPolizaPDF: async (polizaId) => {
+    const response = await axios.get(`${API_URL}/pdf/poliza/${polizaId}`, getAuthHeaders())
+    return response.data
+  }
+}

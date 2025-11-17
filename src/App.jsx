@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
-import { dashboardService, polizasService, vehiculosService, adminService } from './services/api'
+import { authService, dashboardService, polizasService, vehiculosService, adminService, pdfService } from "./services/api"
 import './App.css'
 
 const API_URL = 'https://ayma-portal-backend.onrender.com'
@@ -149,6 +149,20 @@ function App() {
     const diffTime = expiry - today
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
     return diffDays
+  }
+
+  const handleDownloadPDF = async (polizaId) => {
+    try {
+      const result = await pdfService.getPolizaPDF(polizaId)
+      if (result.pdf && result.pdf.download_url) {
+        window.open(result.pdf.download_url, "_blank")
+      } else {
+        alert("PDF no disponible para esta póliza")
+      }
+    } catch (error) {
+      console.error("Error descargando PDF:", error)
+      alert("Error al obtener el PDF")
+    }
   }
 
   const getTabs = () => {
@@ -633,8 +647,15 @@ function App() {
                               {diasRestantes !== '-' ? `${diasRestantes} días` : '-'}
                             </span>
                           </td>
+                          <td className="px-4 py-3">
+                            <button 
+                              onClick={() => handleDownloadPDF(poliza.id)}
+                              className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm font-semibold"
+                            >
+                              📥 PDF
+                            </button>
+                          </td>
                         </tr>
-                      )
                     })}
                   </tbody>
                 </table>
