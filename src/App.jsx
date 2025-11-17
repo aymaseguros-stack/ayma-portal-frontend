@@ -101,6 +101,7 @@ function App() {
   const getRoleName = () => {
     const roles = {
       'admin': 'Administrador',
+      'administrador': 'Administrador',
       'empleado': 'Empleado',
       'cliente': 'Cliente'
     }
@@ -110,18 +111,28 @@ function App() {
   const getRoleColor = () => {
     const colors = {
       'admin': 'text-red-600',
+      'administrador': 'text-red-600',
       'empleado': 'text-blue-600',
       'cliente': 'text-green-600'
     }
     return colors[userRole] || 'text-gray-600'
   }
 
+  const calculateDaysToExpiry = (fechaVencimiento) => {
+    if (!fechaVencimiento) return '-'
+    const today = new Date()
+    const expiry = new Date(fechaVencimiento)
+    const diffTime = expiry - today
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return diffDays
+  }
+
   const getTabs = () => {
     const baseTabs = [
-      { id: 'dashboard', label: '📊 Dashboard', roles: ['admin', 'empleado', 'cliente'] }
+      { id: 'dashboard', label: '📊 Dashboard', roles: ['admin', 'administrador', 'empleado', 'cliente'] }
     ]
 
-    if (userRole === 'admin') {
+    if (userRole === 'admin' || userRole === 'administrador') {
       return [
         ...baseTabs,
         { id: 'usuarios', label: '👥 Usuarios', roles: ['admin'] },
@@ -264,13 +275,13 @@ function App() {
         {activeTab === 'dashboard' && !loadingDashboard && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-gray-800">
-              Dashboard {userRole === 'admin' && '(Vista Administrador)'}
+              Dashboard {userRole === 'admin' || userRole === 'administrador' ? '(Vista Administrador)' : ''}
               {userRole === 'empleado' && '(Vista Empleado)'}
               {userRole === 'cliente' && '(Vista Cliente)'}
             </h2>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {userRole === 'admin' && dashboardData && (
+              {(userRole === 'admin' || userRole === 'administrador') && dashboardData && (
                 <>
                   <div className="bg-white p-6 rounded-lg shadow">
                     <p className="text-gray-600 text-sm">Total Usuarios</p>
@@ -344,7 +355,7 @@ function App() {
                 Rol: <span className={`font-bold ${getRoleColor()}`}>{getRoleName()}</span>
               </p>
               <p className="text-sm text-blue-600 mt-2">
-                {userRole === 'admin' && '✅ Acceso completo al sistema - Puede gestionar usuarios, ver CRM y reportes'}
+                {(userRole === 'admin' || userRole === 'administrador') && '✅ Acceso completo al sistema - Puede gestionar usuarios, ver CRM y reportes'}
                 {userRole === 'empleado' && '✅ Acceso a gestión y CRM - Puede gestionar clientes y pólizas'}
                 {userRole === 'cliente' && '✅ Acceso a tus datos y pólizas - Puedes ver tu información y crear tickets'}
               </p>
@@ -352,7 +363,7 @@ function App() {
           </div>
         )}
 
-        {activeTab === 'usuarios' && userRole === 'admin' && (
+        {activeTab === 'usuarios' && (userRole === 'admin' || userRole === 'administrador') && (
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">Gestión de Usuarios</h2>
             <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
@@ -361,7 +372,7 @@ function App() {
           </div>
         )}
 
-        {activeTab === 'crm' && (userRole === 'admin' || userRole === 'empleado') && (
+        {activeTab === 'crm' && (userRole === 'admin' || userRole === 'administrador' || userRole === 'empleado') && (
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">CRM - Gestión Comercial</h2>
             <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
@@ -370,7 +381,7 @@ function App() {
           </div>
         )}
 
-        {activeTab === 'clientes' && (userRole === 'admin' || userRole === 'empleado') && (
+        {activeTab === 'clientes' && (userRole === 'admin' || userRole === 'administrador' || userRole === 'empleado') && (
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">Gestión de Clientes</h2>
             <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
@@ -379,23 +390,34 @@ function App() {
           </div>
         )}
 
+        {/* MIS DATOS - FORMATO HORIZONTAL */}
         {activeTab === 'datos' && userRole === 'cliente' && (
           <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Mis Datos Personales</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-600">Email</label>
-                <p className="text-lg text-gray-800">{userEmail}</p>
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Mis Datos Personales</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <label className="text-sm font-medium text-gray-600 block mb-2">Email</label>
+                <p className="text-lg font-semibold text-gray-800">{userEmail}</p>
               </div>
-              <div>
-                <label className="text-sm font-medium text-gray-600">Rol</label>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <label className="text-sm font-medium text-gray-600 block mb-2">Rol</label>
                 <p className={`text-lg font-semibold ${getRoleColor()}`}>{getRoleName()}</p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <label className="text-sm font-medium text-gray-600 block mb-2">Estado</label>
+                <span className="inline-block bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold">
+                  ✅ Activo
+                </span>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <label className="text-sm font-medium text-gray-600 block mb-2">Pólizas Activas</label>
+                <p className="text-lg font-semibold text-blue-600">{polizas.length}</p>
               </div>
             </div>
           </div>
         )}
 
-        {/* TABLA HORIZONTAL DE PÓLIZAS */}
+        {/* TABLA HORIZONTAL DE PÓLIZAS CON TITULAR Y DÍAS RESTANTES */}
         {activeTab === 'polizas' && (
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">
@@ -418,29 +440,42 @@ function App() {
                       <th className="px-4 py-3 text-left text-sm font-semibold">Cobertura</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold">Premio Total</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold">Vencimiento</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Días Restantes</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {polizas.map((poliza, index) => (
-                      <tr key={poliza.id || index} className="border-b border-gray-200 hover:bg-gray-50">
-                        <td className="px-4 py-3">📄</td>
-                        <td className="px-4 py-3 font-semibold text-blue-600">{poliza.numero_poliza}</td>
-                        <td className="px-4 py-3">
-                          <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-semibold uppercase">
-                            {poliza.estado || 'vigente'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">{poliza.titular_nombre || 'Titular'} {poliza.titular_apellido || ''}</td>
-                        <td className="px-4 py-3">{poliza.compania || 'N/A'}</td>
-                        <td className="px-4 py-3">{poliza.tipo_cobertura || '-'}</td>
-                        <td className="px-4 py-3 font-bold text-green-600">
-                          ${poliza.premio_total ? Number(poliza.premio_total).toLocaleString('es-AR', {minimumFractionDigits: 2}) : '0,00'}
-                        </td>
-                        <td className="px-4 py-3">
-                          {poliza.fecha_vencimiento ? new Date(poliza.fecha_vencimiento).toLocaleDateString('es-AR') : '-'}
-                        </td>
-                      </tr>
-                    ))}
+                    {polizas.map((poliza, index) => {
+                      const diasRestantes = calculateDaysToExpiry(poliza.fecha_vencimiento)
+                      const nombreTitular = poliza.titular_nombre 
+                        ? `${poliza.titular_nombre} ${poliza.titular_apellido || ''}`.trim()
+                        : (poliza.cliente_nombre ? `${poliza.cliente_nombre} ${poliza.cliente_apellido || ''}`.trim() : 'Titular')
+                      
+                      return (
+                        <tr key={poliza.id || index} className="border-b border-gray-200 hover:bg-gray-50">
+                          <td className="px-4 py-3">📄</td>
+                          <td className="px-4 py-3 font-semibold text-blue-600">{poliza.numero_poliza}</td>
+                          <td className="px-4 py-3">
+                            <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-semibold uppercase">
+                              {poliza.estado || 'vigente'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 font-medium">{nombreTitular}</td>
+                          <td className="px-4 py-3">{poliza.compania || 'N/A'}</td>
+                          <td className="px-4 py-3">{poliza.tipo_cobertura || '-'}</td>
+                          <td className="px-4 py-3 font-bold text-green-600">
+                            ${poliza.premio_total ? Number(poliza.premio_total).toLocaleString('es-AR', {minimumFractionDigits: 2}) : '0,00'}
+                          </td>
+                          <td className="px-4 py-3">
+                            {poliza.fecha_vencimiento ? new Date(poliza.fecha_vencimiento).toLocaleDateString('es-AR') : '-'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`font-bold ${diasRestantes < 30 ? 'text-red-600' : diasRestantes < 60 ? 'text-orange-600' : 'text-green-600'}`}>
+                              {diasRestantes !== '-' ? `${diasRestantes} días` : '-'}
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -511,7 +546,7 @@ function App() {
           </div>
         )}
 
-        {activeTab === 'reportes' && userRole === 'admin' && (
+        {activeTab === 'reportes' && (userRole === 'admin' || userRole === 'administrador') && (
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">Reportes y Analytics</h2>
             <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
