@@ -73,11 +73,11 @@ function App() {
       
       localStorage.setItem('token', access_token)
       localStorage.setItem('email', userEmail)
-      localStorage.setItem('role', tipo_usuario)
+      localStorage.setItem('role', tipo_usuario.toLowerCase())
       
       setIsLoggedIn(true)
       setUserEmail(userEmail)
-      setUserRole(tipo_usuario)
+      setUserRole(tipo_usuario.toLowerCase())
       setError('')
       
       // Cargar datos después del login
