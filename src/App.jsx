@@ -15,7 +15,6 @@ function App() {
   const [userRole, setUserRole] = useState('')
   const [activeTab, setActiveTab] = useState('dashboard')
   
-  // Estados para datos del dashboard
   const [dashboardData, setDashboardData] = useState(null)
   const [loadingDashboard, setLoadingDashboard] = useState(false)
   const [polizas, setPolizas] = useState([])
@@ -29,12 +28,10 @@ function App() {
       setIsLoggedIn(true)
       setUserEmail(savedEmail)
       setUserRole(savedRole || 'cliente')
-      // Cargar datos al iniciar sesión
       loadDashboardData()
     }
   }, [])
 
-  // Cargar datos del dashboard
   const loadDashboardData = async () => {
     setLoadingDashboard(true)
     try {
@@ -44,7 +41,6 @@ function App() {
       ])
       setDashboardData({ ...resumen, scoring })
       
-      // Cargar pólizas y vehículos
       const [polizasData, vehiculosData] = await Promise.all([
         polizasService.listar(),
         vehiculosService.listar()
@@ -80,7 +76,6 @@ function App() {
       setUserRole(tipo_usuario.toLowerCase())
       setError('')
       
-      // Cargar datos después del login
       await loadDashboardData()
     } catch (err) {
       console.error('Error de login:', err)
@@ -218,7 +213,6 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
@@ -239,7 +233,6 @@ function App() {
         </div>
       </header>
 
-      {/* Tabs Navigation */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex space-x-8 overflow-x-auto">
@@ -260,7 +253,6 @@ function App() {
         </div>
       </div>
 
-      {/* Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {loadingDashboard && activeTab === 'dashboard' && (
           <div className="text-center py-12">
@@ -269,7 +261,6 @@ function App() {
           </div>
         )}
 
-        {/* DASHBOARD */}
         {activeTab === 'dashboard' && !loadingDashboard && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-gray-800">
@@ -361,7 +352,6 @@ function App() {
           </div>
         )}
 
-        {/* Resto de pestañas sin cambios... */}
         {activeTab === 'usuarios' && userRole === 'admin' && (
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">Gestión de Usuarios</h2>
@@ -405,6 +395,7 @@ function App() {
           </div>
         )}
 
+        {/* TABLA HORIZONTAL DE PÓLIZAS */}
         {activeTab === 'polizas' && (
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">
@@ -415,61 +406,49 @@ function App() {
                 {userRole === 'cliente' ? 'No tienes pólizas registradas' : 'No hay pólizas en el sistema'}
               </p>
             ) : (
-              <div className="space-y-3">
-                {polizas.map(poliza => (
-                  <div key={poliza.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-lg transition bg-white">
-                    <div className="flex justify-between items-center mb-3 pb-2 border-b border-gray-100">
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">📄</span>
-                        <div>
-                          <p className="font-bold text-blue-600">Póliza {poliza.numero_poliza}</p>
-                          {poliza.vehiculo_descripcion && (
-                            <p className="text-sm text-gray-600">
-                              🚗 {poliza.vehiculo_descripcion} <span className="font-bold">({poliza.vehiculo_dominio})</span>
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-semibold uppercase">
-                        {poliza.estado}
-                      </span>
-                    </div>
-                    
-                    <div className="grid grid-cols-3 gap-4 text-sm">
-                      <div>
-                        <p className="text-gray-500 text-xs mb-1">Titular</p>
-                        <p className="font-semibold">{poliza.titular_nombre} {poliza.titular_apellido}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500 text-xs mb-1">Compañía</p>
-                        <p className="font-semibold">{poliza.compania}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500 text-xs mb-1">Cobertura</p>
-                        <p className="font-semibold">{poliza.tipo_cobertura}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500 text-xs mb-1">Premio Total</p>
-                        <p className="font-bold text-green-600 text-lg">${poliza.premio_total?.toLocaleString('es-AR')}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500 text-xs mb-1">Vencimiento</p>
-                        <p className="font-semibold">{new Date(poliza.fecha_vencimiento).toLocaleDateString('es-AR')}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500 text-xs mb-1">Días restantes</p>
-                        <p className={`font-bold text-lg ${poliza.dias_para_vencimiento < 30 ? 'text-red-600' : 'text-green-600'}`}>
-                          {poliza.dias_para_vencimiento} días
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-blue-600 text-white">
+                      <th className="px-4 py-3 text-left text-sm font-semibold">📄</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Póliza</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Estado</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Titular</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Compañía</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Cobertura</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Premio Total</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Vencimiento</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {polizas.map((poliza, index) => (
+                      <tr key={poliza.id || index} className="border-b border-gray-200 hover:bg-gray-50">
+                        <td className="px-4 py-3">📄</td>
+                        <td className="px-4 py-3 font-semibold text-blue-600">{poliza.numero_poliza}</td>
+                        <td className="px-4 py-3">
+                          <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-semibold uppercase">
+                            {poliza.estado || 'vigente'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">{poliza.titular_nombre || 'Titular'} {poliza.titular_apellido || ''}</td>
+                        <td className="px-4 py-3">{poliza.compania || 'N/A'}</td>
+                        <td className="px-4 py-3">{poliza.tipo_cobertura || '-'}</td>
+                        <td className="px-4 py-3 font-bold text-green-600">
+                          ${poliza.premio_total ? Number(poliza.premio_total).toLocaleString('es-AR', {minimumFractionDigits: 2}) : '0,00'}
+                        </td>
+                        <td className="px-4 py-3">
+                          {poliza.fecha_vencimiento ? new Date(poliza.fecha_vencimiento).toLocaleDateString('es-AR') : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
         )}
 
+        {/* TABLA HORIZONTAL DE VEHÍCULOS */}
         {activeTab === 'vehiculos' && (
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">
@@ -480,36 +459,39 @@ function App() {
                 {userRole === 'cliente' ? 'No tienes vehículos registrados' : 'No hay vehículos en el sistema'}
               </p>
             ) : (
-              <div className="space-y-4">
-                {vehiculos.map(vehiculo => (
-                  <div key={vehiculo.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-lg transition bg-white">
-                    <div className="flex justify-between items-center mb-3 pb-2 border-b border-gray-100">
-                      <div className="flex items-center gap-3">
-                        <span className="text-3xl">🚗</span>
-                        <div>
-                          <p className="font-bold text-lg text-blue-600">{vehiculo.descripcion_completa}</p>
-                          <p className="text-sm text-gray-500">Estado: <span className="capitalize font-medium">{vehiculo.estado}</span></p>
-                        </div>
-                      </div>
-                      {vehiculo.tiene_poliza_vigente && (
-                        <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-semibold">
-                          ✅ Asegurado
-                        </span>
-                      )}
-                    </div>
-                    
-                    <div className="flex gap-6 items-center">
-                      <div className="flex-1">
-                        <p className="text-gray-500 text-xs mb-1">Dominio/Patente</p>
-                        <p className="font-black text-3xl text-blue-600">{vehiculo.dominio}</p>
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-gray-500 text-xs mb-1">Año de Fabricación</p>
-                        <p className="font-bold text-2xl text-gray-800">{vehiculo.anio}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-blue-600 text-white">
+                      <th className="px-4 py-3 text-left text-sm font-semibold">🚗</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Estado</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Dominio/Patente</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Año</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Marca</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Modelo</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Tipo</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Uso</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vehiculos.map((vehiculo, index) => (
+                      <tr key={vehiculo.id || index} className="border-b border-gray-200 hover:bg-gray-50">
+                        <td className="px-4 py-3">🚗</td>
+                        <td className="px-4 py-3">
+                          <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-semibold">
+                            {vehiculo.estado || 'activo'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 font-bold text-blue-600 text-lg">{vehiculo.dominio || '-'}</td>
+                        <td className="px-4 py-3 font-semibold">{vehiculo.anio || '-'}</td>
+                        <td className="px-4 py-3">{vehiculo.marca || '-'}</td>
+                        <td className="px-4 py-3">{vehiculo.modelo || '-'}</td>
+                        <td className="px-4 py-3">{vehiculo.tipo_vehiculo || '-'}</td>
+                        <td className="px-4 py-3">{vehiculo.uso || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
