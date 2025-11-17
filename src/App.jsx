@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
-import { dashboardService, polizasService, vehiculosService } from './services/api'
+import { dashboardService, polizasService, vehiculosService, adminService } from './services/api'
 import './App.css'
 
 const API_URL = 'https://ayma-portal-backend.onrender.com'
@@ -19,6 +19,8 @@ function App() {
   const [loadingDashboard, setLoadingDashboard] = useState(false)
   const [polizas, setPolizas] = useState([])
   const [vehiculos, setVehiculos] = useState([])
+  const [usuarios, setUsuarios] = useState([])
+  const [clientes, setClientes] = useState([])
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -28,25 +30,45 @@ function App() {
       setIsLoggedIn(true)
       setUserEmail(savedEmail)
       setUserRole(savedRole || 'cliente')
-      loadDashboardData()
+      loadDashboardData(savedRole)
     }
   }, [])
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = async (role = userRole) => {
     setLoadingDashboard(true)
     try {
-      const [resumen, scoring] = await Promise.all([
-        dashboardService.getResumen(),
-        dashboardService.getScoring()
-      ])
-      setDashboardData({ ...resumen, scoring })
+      const isAdmin = role === 'admin' || role === 'administrador'
       
-      const [polizasData, vehiculosData] = await Promise.all([
-        polizasService.listar(),
-        vehiculosService.listar()
-      ])
-      setPolizas(polizasData)
-      setVehiculos(vehiculosData)
+      if (isAdmin) {
+        // ADMIN: Cargar datos de todo el sistema
+        const [adminDash, adminUsuarios, adminClientes, adminPolizas, adminVehiculos] = await Promise.all([
+          adminService.getDashboard(),
+          adminService.listarUsuarios(),
+          adminService.listarClientes(),
+          adminService.listarPolizas(),
+          adminService.listarVehiculos()
+        ])
+        
+        setDashboardData(adminDash)
+        setUsuarios(adminUsuarios)
+        setClientes(adminClientes)
+        setPolizas(adminPolizas)
+        setVehiculos(adminVehiculos)
+      } else {
+        // CLIENTE/EMPLEADO: Cargar solo sus datos
+        const [resumen, scoring] = await Promise.all([
+          dashboardService.getResumen(),
+          dashboardService.getScoring()
+        ])
+        setDashboardData({ ...resumen, scoring })
+        
+        const [polizasData, vehiculosData] = await Promise.all([
+          polizasService.listar(),
+          vehiculosService.listar()
+        ])
+        setPolizas(polizasData)
+        setVehiculos(vehiculosData)
+      }
     } catch (err) {
       console.error('Error cargando dashboard:', err)
     } finally {
@@ -76,7 +98,7 @@ function App() {
       setUserRole(tipo_usuario.toLowerCase())
       setError('')
       
-      await loadDashboardData()
+      await loadDashboardData(tipo_usuario.toLowerCase())
     } catch (err) {
       console.error('Error de login:', err)
       setError('⚠️ Email o contraseña incorrectos')
@@ -96,6 +118,8 @@ function App() {
     setDashboardData(null)
     setPolizas([])
     setVehiculos([])
+    setUsuarios([])
+    setClientes([])
   }
 
   const getRoleName = () => {
@@ -272,7 +296,7 @@ function App() {
           </div>
         )}
 
-        {/* DASHBOARD - MANTENER TARJETAS */}
+        {/* DASHBOARD */}
         {activeTab === 'dashboard' && !loadingDashboard && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-gray-800">
@@ -287,7 +311,7 @@ function App() {
                   <div className="bg-white p-6 rounded-lg shadow">
                     <p className="text-gray-600 text-sm">Total Usuarios</p>
                     <p className="text-3xl font-bold text-red-600">
-                      {dashboardData.total_usuarios || 3}
+                      {dashboardData.total_usuarios || 0}
                     </p>
                   </div>
                   <div className="bg-white p-6 rounded-lg shadow">
@@ -297,9 +321,27 @@ function App() {
                     </p>
                   </div>
                   <div className="bg-white p-6 rounded-lg shadow">
-                    <p className="text-gray-600 text-sm">Scoring Promedio</p>
+                    <p className="text-gray-600 text-sm">Total Pólizas</p>
                     <p className="text-3xl font-bold text-purple-600">
-                      {dashboardData.scoring?.scoring_total || 0}
+                      {dashboardData.total_polizas || 0}
+                    </p>
+                  </div>
+                  <div className="bg-white p-6 rounded-lg shadow">
+                    <p className="text-gray-600 text-sm">Total Vehículos</p>
+                    <p className="text-3xl font-bold text-green-600">
+                      {dashboardData.total_vehiculos || 0}
+                    </p>
+                  </div>
+                  <div className="bg-white p-6 rounded-lg shadow">
+                    <p className="text-gray-600 text-sm">Pólizas Vigentes</p>
+                    <p className="text-3xl font-bold text-green-600">
+                      {dashboardData.polizas_vigentes || 0}
+                    </p>
+                  </div>
+                  <div className="bg-white p-6 rounded-lg shadow">
+                    <p className="text-gray-600 text-sm">Pólizas Vencidas</p>
+                    <p className="text-3xl font-bold text-red-600">
+                      {dashboardData.polizas_vencidas || 0}
                     </p>
                   </div>
                 </>
@@ -356,7 +398,7 @@ function App() {
                 Rol: <span className={`font-bold ${getRoleColor()}`}>{getRoleName()}</span>
               </p>
               <p className="text-sm text-blue-600 mt-2">
-                {(userRole === 'admin' || userRole === 'administrador') && '✅ Acceso completo al sistema - Puede gestionar usuarios, ver CRM y reportes'}
+                {(userRole === 'admin' || userRole === 'administrador') && '✅ Acceso completo al sistema - Visualizando datos de TODOS los usuarios'}
                 {userRole === 'empleado' && '✅ Acceso a gestión y CRM - Puede gestionar clientes y pólizas'}
                 {userRole === 'cliente' && '✅ Acceso a tus datos y pólizas - Puedes ver tu información y crear tickets'}
               </p>
@@ -364,10 +406,10 @@ function App() {
           </div>
         )}
 
-        {/* USUARIOS - TABLA HORIZONTAL */}
+        {/* USUARIOS - TABLA CON DATOS REALES */}
         {activeTab === 'usuarios' && (userRole === 'admin' || userRole === 'administrador') && (
           <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Gestión de Usuarios</h2>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Gestión de Usuarios ({usuarios.length})</h2>
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
@@ -377,16 +419,45 @@ function App() {
                     <th className="px-4 py-3 text-left text-sm font-semibold">Rol</th>
                     <th className="px-4 py-3 text-left text-sm font-semibold">Estado</th>
                     <th className="px-4 py-3 text-left text-sm font-semibold">Fecha Registro</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Último Acceso</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Acciones</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Última Actualización</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="border-b border-gray-200">
-                    <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
-                      📋 Módulo en desarrollo - Pronto podrás gestionar usuarios desde aquí
-                    </td>
-                  </tr>
+                  {usuarios.length === 0 ? (
+                    <tr className="border-b border-gray-200">
+                      <td colSpan="6" className="px-4 py-8 text-center text-gray-500">
+                        👥 No hay usuarios registrados
+                      </td>
+                    </tr>
+                  ) : (
+                    usuarios.map((usuario) => (
+                      <tr key={usuario.id} className="border-b border-gray-200 hover:bg-gray-50">
+                        <td className="px-4 py-3">👤</td>
+                        <td className="px-4 py-3 font-semibold text-blue-600">{usuario.email}</td>
+                        <td className="px-4 py-3">
+                          <span className={`font-semibold ${
+                            usuario.tipo_usuario === 'admin' || usuario.tipo_usuario === 'administrador' ? 'text-red-600' :
+                            usuario.tipo_usuario === 'empleado' ? 'text-blue-600' : 'text-green-600'
+                          }`}>
+                            {usuario.tipo_usuario}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                            usuario.activo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          }`}>
+                            {usuario.activo ? '✅ Activo' : '❌ Inactivo'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          {usuario.created_at ? new Date(usuario.created_at).toLocaleDateString('es-AR') : '-'}
+                        </td>
+                        <td className="px-4 py-3">
+                          {usuario.updated_at ? new Date(usuario.updated_at).toLocaleDateString('es-AR') : '-'}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -422,10 +493,10 @@ function App() {
           </div>
         )}
 
-        {/* CLIENTES - TABLA HORIZONTAL */}
+        {/* CLIENTES - TABLA CON DATOS REALES */}
         {activeTab === 'clientes' && (userRole === 'admin' || userRole === 'administrador' || userRole === 'empleado') && (
           <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Gestión de Clientes</h2>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Gestión de Clientes ({clientes.length})</h2>
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
@@ -433,18 +504,40 @@ function App() {
                     <th className="px-4 py-3 text-left text-sm font-semibold">👤</th>
                     <th className="px-4 py-3 text-left text-sm font-semibold">Nombre Completo</th>
                     <th className="px-4 py-3 text-left text-sm font-semibold">Email</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">DNI/CUIT</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Documento</th>
                     <th className="px-4 py-3 text-left text-sm font-semibold">Teléfono</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Pólizas Activas</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Scoring</th>
                     <th className="px-4 py-3 text-left text-sm font-semibold">Estado</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="border-b border-gray-200">
-                    <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
-                      👥 Módulo en desarrollo - Base de datos de clientes próximamente
-                    </td>
-                  </tr>
+                  {clientes.length === 0 ? (
+                    <tr className="border-b border-gray-200">
+                      <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
+                        👥 No hay clientes registrados
+                      </td>
+                    </tr>
+                  ) : (
+                    clientes.map((cliente) => (
+                      <tr key={cliente.id} className="border-b border-gray-200 hover:bg-gray-50">
+                        <td className="px-4 py-3">👤</td>
+                        <td className="px-4 py-3 font-semibold">{cliente.nombre} {cliente.apellido}</td>
+                        <td className="px-4 py-3 text-blue-600">{cliente.email}</td>
+                        <td className="px-4 py-3">
+                          {cliente.tipo_documento} {cliente.numero_documento}
+                        </td>
+                        <td className="px-4 py-3">{cliente.telefono || '-'}</td>
+                        <td className="px-4 py-3 font-bold text-purple-600">{cliente.scoring_comercial}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                            cliente.activo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          }`}>
+                            {cliente.activo ? '✅ Activo' : '❌ Inactivo'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -488,7 +581,7 @@ function App() {
         {activeTab === 'polizas' && (
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">
-              {userRole === 'cliente' ? 'Mis Pólizas' : 'Gestión de Pólizas'}
+              {userRole === 'cliente' ? 'Mis Pólizas' : `Gestión de Pólizas (${polizas.length})`}
             </h2>
             {polizas.length === 0 ? (
               <p className="text-gray-500 text-center py-8">
@@ -554,7 +647,7 @@ function App() {
         {activeTab === 'vehiculos' && (
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">
-              {userRole === 'cliente' ? 'Mis Vehículos' : 'Gestión de Vehículos'}
+              {userRole === 'cliente' ? 'Mis Vehículos' : `Gestión de Vehículos (${vehiculos.length})`}
             </h2>
             {vehiculos.length === 0 ? (
               <p className="text-gray-500 text-center py-8">
@@ -573,6 +666,9 @@ function App() {
                       <th className="px-4 py-3 text-left text-sm font-semibold">Modelo</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold">Tipo</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold">Uso</th>
+                      {(userRole === 'admin' || userRole === 'administrador') && (
+                        <th className="px-4 py-3 text-left text-sm font-semibold">Propietario</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -590,6 +686,11 @@ function App() {
                         <td className="px-4 py-3">{vehiculo.modelo || '-'}</td>
                         <td className="px-4 py-3">{vehiculo.tipo_vehiculo || '-'}</td>
                         <td className="px-4 py-3">{vehiculo.uso || '-'}</td>
+                        {(userRole === 'admin' || userRole === 'administrador') && (
+                          <td className="px-4 py-3 font-medium">
+                            {vehiculo.cliente_nombre && `${vehiculo.cliente_nombre} ${vehiculo.cliente_apellido || ''}`.trim()}
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -633,7 +734,7 @@ function App() {
           </div>
         )}
 
-        {/* REPORTES - MANTENER COMO ESTÁ */}
+        {/* REPORTES */}
         {activeTab === 'reportes' && (userRole === 'admin' || userRole === 'administrador') && (
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">Reportes y Analytics</h2>

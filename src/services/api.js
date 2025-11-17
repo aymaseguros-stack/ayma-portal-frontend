@@ -1,54 +1,80 @@
 import axios from 'axios'
 
-const API_URL = 'https://ayma-portal-backend.onrender.com'
+const API_URL = 'https://ayma-portal-backend.onrender.com/api/v1'
 
-const api = axios.create({
-  baseURL: API_URL
-})
-
-api.interceptors.request.use((config) => {
+const getAuthHeaders = () => {
   const token = localStorage.getItem('token')
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
+  return {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
   }
-  return config
-})
+}
 
 export const dashboardService = {
-  async getResumen() {
-    const response = await api.get('/api/v1/dashboard/')
+  getResumen: async () => {
+    const response = await axios.get(`${API_URL}/dashboard/`, getAuthHeaders())
     return response.data
   },
-  async getScoring() {
-    const response = await api.get('/api/v1/dashboard/scoring')
+  getScoring: async () => {
+    const response = await axios.get(`${API_URL}/dashboard/scoring`, getAuthHeaders())
     return response.data
   },
-  async getActividades() {
-    const response = await api.get('/api/v1/dashboard/actividades')
+  getActividades: async () => {
+    const response = await axios.get(`${API_URL}/dashboard/actividades`, getAuthHeaders())
     return response.data
   }
 }
 
 export const polizasService = {
-  async listar() {
-    const response = await api.get('/api/v1/polizas/')
+  listar: async () => {
+    const response = await axios.get(`${API_URL}/polizas/`, getAuthHeaders())
     return response.data
   },
-  async obtener(id) {
-    const response = await api.get('/api/v1/polizas/' + id)
+  obtener: async (id) => {
+    const response = await axios.get(`${API_URL}/polizas/${id}`, getAuthHeaders())
+    return response.data
+  },
+  descargarPDF: async (id) => {
+    const response = await axios.get(`${API_URL}/polizas/${id}/pdf`, {
+      ...getAuthHeaders(),
+      responseType: 'blob'
+    })
     return response.data
   }
 }
 
 export const vehiculosService = {
-  async listar() {
-    const response = await api.get('/api/v1/vehiculos/')
+  listar: async () => {
+    const response = await axios.get(`${API_URL}/vehiculos/`, getAuthHeaders())
     return response.data
   },
-  async obtener(id) {
-    const response = await api.get('/api/v1/vehiculos/' + id)
+  obtener: async (id) => {
+    const response = await axios.get(`${API_URL}/vehiculos/${id}`, getAuthHeaders())
     return response.data
   }
 }
 
-export default api
+export const adminService = {
+  listarUsuarios: async () => {
+    const response = await axios.get(`${API_URL}/admin/usuarios`, getAuthHeaders())
+    return response.data
+  },
+  listarClientes: async () => {
+    const response = await axios.get(`${API_URL}/admin/clientes`, getAuthHeaders())
+    return response.data
+  },
+  listarPolizas: async () => {
+    const response = await axios.get(`${API_URL}/admin/polizas`, getAuthHeaders())
+    return response.data
+  },
+  listarVehiculos: async () => {
+    const response = await axios.get(`${API_URL}/admin/vehiculos`, getAuthHeaders())
+    return response.data
+  },
+  getDashboard: async () => {
+    const response = await axios.get(`${API_URL}/admin/dashboard`, getAuthHeaders())
+    return response.data
+  }
+}
