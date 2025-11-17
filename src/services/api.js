@@ -35,7 +35,7 @@ export const polizasService = {
     return response.data
   },
   async obtener(id) {
-    const response = await api.get('/api/v1/polizas/' + id)
+    const response = await api.get(`/api/v1/polizas/${id}`)
     return response.data
   }
 }
@@ -46,7 +46,7 @@ export const vehiculosService = {
     return response.data
   },
   async obtener(id) {
-    const response = await api.get('/api/v1/vehiculos/' + id)
+    const response = await api.get(`/api/v1/vehiculos/${id}`)
     return response.data
   }
 }
