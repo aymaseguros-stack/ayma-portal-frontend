@@ -390,29 +390,35 @@ function App() {
           </div>
         )}
 
-        {/* MIS DATOS - FORMATO HORIZONTAL */}
+        {/* MIS DATOS - TABLA HORIZONTAL */}
         {activeTab === 'datos' && userRole === 'cliente' && (
           <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Mis Datos Personales</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <label className="text-sm font-medium text-gray-600 block mb-2">Email</label>
-                <p className="text-lg font-semibold text-gray-800">{userEmail}</p>
-              </div>
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <label className="text-sm font-medium text-gray-600 block mb-2">Rol</label>
-                <p className={`text-lg font-semibold ${getRoleColor()}`}>{getRoleName()}</p>
-              </div>
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <label className="text-sm font-medium text-gray-600 block mb-2">Estado</label>
-                <span className="inline-block bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold">
-                  ✅ Activo
-                </span>
-              </div>
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <label className="text-sm font-medium text-gray-600 block mb-2">Pólizas Activas</label>
-                <p className="text-lg font-semibold text-blue-600">{polizas.length}</p>
-              </div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Mis Datos Personales</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-blue-600 text-white">
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Email</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Rol</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Estado</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Pólizas Activas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-gray-200 hover:bg-gray-50">
+                    <td className="px-4 py-3 font-semibold text-gray-800">{userEmail}</td>
+                    <td className="px-4 py-3">
+                      <span className={`font-semibold ${getRoleColor()}`}>{getRoleName()}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-semibold">
+                        ✅ Activo
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 font-bold text-blue-600 text-lg">{polizas.length}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         )}
