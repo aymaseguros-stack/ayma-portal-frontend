@@ -167,8 +167,16 @@ function App() {
 
   const handleDownloadPDFByVehiculo = async (vehiculoId) => {
     try {
-      // Buscar póliza asociada al vehículo
-      const polizaAsociada = polizas.find(p => p.vehiculo_id === vehiculoId)
+      // Encontrar el vehículo por ID
+      const vehiculo = vehiculos.find(v => v.id === vehiculoId)
+      
+      if (!vehiculo) {
+        alert("Vehículo no encontrado")
+        return
+      }
+      
+      // Buscar póliza por dominio del vehículo
+      const polizaAsociada = polizas.find(p => p.vehiculo?.dominio === vehiculo.dominio)
       
       if (!polizaAsociada) {
         alert("Este vehículo no tiene una póliza asociada")
