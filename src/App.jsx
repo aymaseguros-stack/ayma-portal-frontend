@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { dashboardService, polizasService, vehiculosService, adminService, pdfService } from "./services/api"
+import AdminDashboard from "./components/Admin/AdminDashboard"
 import './App.css'
 
 const API_URL = 'https://ayma-portal-backend.onrender.com'
@@ -198,6 +199,7 @@ function App() {
       return [
         ...baseTabs,
         { id: 'usuarios', label: '👥 Usuarios', roles: ['admin'] },
+        { id: 'administracion', label: '⚙️ Administración', roles: ['admin'] },
         { id: 'crm', label: '📈 CRM', roles: ['admin'] },
         { id: 'clientes', label: '👤 Clientes', roles: ['admin'] },
         { id: 'polizas', label: '📄 Pólizas', roles: ['admin'] },
@@ -445,6 +447,12 @@ function App() {
         )}
 
         {/* USUARIOS - TABLA CON DATOS REALES */}
+
+        {/* ADMINISTRACIÓN - PANEL COMPLETO */}
+        {activeTab === 'administracion' && (userRole === 'admin' || userRole === 'administrador') && (
+          <AdminDashboard />
+        )}
+
         {activeTab === 'usuarios' && (userRole === 'admin' || userRole === 'administrador') && (
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">Gestión de Usuarios ({usuarios.length})</h2>
