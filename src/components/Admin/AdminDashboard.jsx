@@ -10,7 +10,8 @@ const AdminPanel = () => {
   const [mostrarDetalle, setMostrarDetalle] = useState(false);
   const [metricas, setMetricas] = useState(null);
   const [vencimientos, setVencimientos] = useState([]);
-  const [vista, setVista] = useState('clientes'); // clientes, metricas, vencimientos
+  const [vista, setVista] = useState('clientes'); // clientes, metricas, vencimientos, leads
+  const [leads, setLeads] = useState([]);
 
   const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -46,6 +47,15 @@ const AdminPanel = () => {
       if (resMetricas.ok) {
         const data = await resMetricas.json();
         setMetricas(data);
+      }
+
+      // Cargar leads
+      const resLeads = await fetch(\`\${API_URL}/api/v1/leads/\`, {
+        headers: { 'Authorization': \`Bearer \${token}\` }
+      });
+      if (resLeads.ok) {
+        const data = await resLeads.json();
+        setLeads(data);
       }
 
       // Cargar vencimientos
@@ -286,6 +296,69 @@ const AdminPanel = () => {
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+
+  // Vista de Leads
+  const VistaLeads = () => (
+    <div className="bg-white rounded-lg shadow-md p-6">
+      <h3 className="text-xl font-semibold mb-4">Leads del Landing ({leads.length})</h3>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">WhatsApp</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo Seguro</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {leads.map((lead) => (
+              <tr key={lead.id} className="hover:bg-gray-50">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {new Date(lead.created_at).toLocaleString('es-AR')}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  {lead.nombre}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {lead.telefono}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                    {lead.tipo_seguro}
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className={\`px-2 py-1 text-xs rounded-full \${
+                    lead.estado === 'nuevo' ? 'bg-yellow-100 text-yellow-800' :
+                    lead.estado === 'contactado' ? 'bg-blue-100 text-blue-800' :
+                    lead.estado === 'convertido' ? 'bg-green-100 text-green-800' :
+                    'bg-gray-100 text-gray-800'
+                  }\`}>
+                    {lead.estado}
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                  <button
+                    onClick={() => window.open(\`https://wa.me/\${lead.telefono}\`, '_blank')}
+                    className="text-green-600 hover:text-green-900 mr-3"
+                    title="WhatsApp"
+                  >
+                    <Phone className="h-5 w-5" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {leads.length === 0 && (
+          <p className="text-center text-gray-500 py-8">No hay leads registrados</p>
+        )}
       </div>
     </div>
   );
@@ -580,12 +653,19 @@ const AdminPanel = () => {
             >
               Vencimientos
             </button>
+            <button
+              onClick={() => setVista('leads')}
+              className={`px-4 py-2 rounded-lg ${vista === 'leads' ? 'bg-green-600 text-white' : 'bg-white text-gray-700'}`}
+            >
+              Leads
+            </button>
           </div>
         </div>
 
         {vista === 'metricas' && <VistaMetricas />}
         {vista === 'clientes' && <VistaClientes />}
         {vista === 'vencimientos' && <VistaVencimientos />}
+        {vista === 'leads' && <VistaLeads />}
 
         {mostrarDetalle && clienteSeleccionado && <DetalleCliente />}
       </div>
