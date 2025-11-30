@@ -12,6 +12,8 @@ const AdminPanel = () => {
   const [vencimientos, setVencimientos] = useState([]);
   const [vista, setVista] = useState('clientes'); // clientes, metricas, vencimientos, leads
   const [leads, setLeads] = useState([]);
+  const [filtroEstado, setFiltroEstado] = useState('');
+  const [filtroTipo, setFiltroTipo] = useState('');
 
   const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -337,7 +339,40 @@ const AdminPanel = () => {
   // Vista de Leads
   const VistaLeads = () => (
     <div className="bg-white rounded-lg shadow-md p-6">
-      <h3 className="text-xl font-semibold mb-4">Leads del Landing ({leads.length})</h3>
+      <div className="flex flex-wrap justify-between items-center mb-4 gap-4">
+        <h3 className="text-xl font-semibold">Leads del Landing ({leads.filter(l => 
+          (!filtroEstado || l.estado === filtroEstado) && 
+          (!filtroTipo || l.tipo_seguro === filtroTipo)
+        ).length})</h3>
+        <div className="flex gap-2">
+          <select 
+            value={filtroEstado} 
+            onChange={e => setFiltroEstado(e.target.value)}
+            className="px-3 py-1 border rounded-lg text-sm"
+          >
+            <option value="">Todos los estados</option>
+            {ESTADOS_LEAD.map(e => <option key={e.value} value={e.value}>{e.label}</option>)}
+          </select>
+          <select 
+            value={filtroTipo} 
+            onChange={e => setFiltroTipo(e.target.value)}
+            className="px-3 py-1 border rounded-lg text-sm"
+          >
+            <option value="">Todos los tipos</option>
+            <option value="vehiculos">Vehículos</option>
+            <option value="hogar">Hogar</option>
+            <option value="art">ART</option>
+            <option value="comercio">Comercio</option>
+            <option value="vida">Vida</option>
+          </select>
+          <button 
+            onClick={() => {setFiltroEstado(''); setFiltroTipo('');}}
+            className="px-3 py-1 bg-gray-200 rounded-lg text-sm hover:bg-gray-300"
+          >
+            Limpiar
+          </button>
+        </div>
+      </div>
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -351,7 +386,7 @@ const AdminPanel = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {leads.map((lead) => (
+            {leads.filter(l => (!filtroEstado || l.estado === filtroEstado) && (!filtroTipo || l.tipo_seguro === filtroTipo)).map((lead) => (
               <tr key={lead.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {new Date(lead.created_at).toLocaleString('es-AR')}
