@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import GraficosHistoricos from './GraficosHistoricos';
-import { TrendingUp, Users, FileText, DollarSign, AlertTriangle, Target, Phone, Calendar, ArrowUp, ArrowDown } from 'lucide-react';
+import { TrendingUp, Users, FileText, DollarSign, AlertTriangle, Target, Phone, Calendar, ArrowUp, ArrowDown, MessageCircle, CheckCircle, XCircle } from 'lucide-react';
 
 const DashboardEjecutivo = () => {
   const [data, setData] = useState(null);
@@ -328,31 +328,17 @@ const DashboardEjecutivo = () => {
           </div>
         </div>
 
-        {/* Leads Recientes */}
+        {/* Leads Recientes con Acciones */}
         <div className="bg-white rounded-xl shadow-sm border p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Leads Recientes</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Leads Recientes - Acciones Rápidas</h2>
           <div className="space-y-3">
             {leads_recientes.map((lead) => (
-              <div key={lead.id} className="flex items-center justify-between py-2 border-b last:border-0">
-                <div>
-                  <div className="font-medium text-gray-900">{lead.nombre}</div>
-                  <div className="text-sm text-gray-500 capitalize">{lead.tipo_seguro}</div>
-                </div>
-                <div className="text-right">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    lead.estado === 'dato' ? 'bg-gray-100 text-gray-700' :
-                    lead.estado === 'prospecto' ? 'bg-yellow-100 text-yellow-700' :
-                    lead.estado === 'potencial' ? 'bg-blue-100 text-blue-700' :
-                    lead.estado === 'cliente' ? 'bg-green-100 text-green-700' :
-                    'bg-red-100 text-red-700'
-                  }`}>
-                    {lead.estado}
-                  </span>
-                  <div className="text-xs text-gray-400 mt-1">
-                    {new Date(lead.created_at).toLocaleDateString('es-AR')}
-                  </div>
-                </div>
-              </div>
+              <LeadAccionesRapidas 
+                key={lead.id} 
+                lead={lead} 
+                onEstadoCambiado={cargarDatos}
+                API_URL={API_URL}
+              />
             ))}
             {leads_recientes.length === 0 && (
               <p className="text-gray-500 text-sm">Sin leads recientes</p>
@@ -393,5 +379,134 @@ const KpiCard = ({ titulo, valor, icono, color, destacado }) => (
     </div>
   </div>
 );
+
+// Componente Lead con Acciones Rápidas
+const LeadAccionesRapidas = ({ lead, onEstadoCambiado, API_URL }) => {
+  const [cambiandoEstado, setCambiandoEstado] = useState(false);
+  const [menuAbierto, setMenuAbierto] = useState(false);
+
+  const estados = [
+    { value: 'dato', label: 'Dato', color: 'bg-gray-100 text-gray-700' },
+    { value: 'prospecto', label: 'Prospecto', color: 'bg-yellow-100 text-yellow-700' },
+    { value: 'potencial', label: 'Potencial', color: 'bg-blue-100 text-blue-700' },
+    { value: 'cliente', label: 'Cliente', color: 'bg-green-100 text-green-700' },
+    { value: 'perdido', label: 'Perdido', color: 'bg-red-100 text-red-700' }
+  ];
+
+  const estadoActual = estados.find(e => e.value === lead.estado) || estados[0];
+
+  const cambiarEstado = async (nuevoEstado) => {
+    setCambiandoEstado(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_URL}/api/v1/leads/${lead.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ estado: nuevoEstado })
+      });
+      if (res.ok) {
+        onEstadoCambiado();
+      }
+    } catch (err) {
+      console.error('Error:', err);
+    } finally {
+      setCambiandoEstado(false);
+      setMenuAbierto(false);
+    }
+  };
+
+  const abrirWhatsApp = () => {
+    const telefono = lead.telefono?.replace(/\D/g, '');
+    const mensaje = encodeURIComponent(
+      `Hola ${lead.nombre}! Soy de AYMA Advisors. Vi tu consulta sobre seguro de ${lead.tipo_seguro}. ¿Tenés un momento para conversar?`
+    );
+    window.open(`https://wa.me/54${telefono}?text=${mensaje}`, '_blank');
+  };
+
+  const llamar = () => {
+    const telefono = lead.telefono?.replace(/\D/g, '');
+    window.open(`tel:+54${telefono}`, '_self');
+  };
+
+  return (
+    <div className="flex items-center justify-between py-3 px-4 border rounded-lg hover:bg-gray-50 transition">
+      <div className="flex-1">
+        <div className="font-medium text-gray-900">{lead.nombre}</div>
+        <div className="text-sm text-gray-500 capitalize">{lead.tipo_seguro} • {lead.telefono}</div>
+      </div>
+      
+      {/* Acciones Rápidas */}
+      <div className="flex items-center gap-2">
+        {/* WhatsApp */}
+        <button
+          onClick={abrirWhatsApp}
+          className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition"
+          title="Enviar WhatsApp"
+        >
+          <MessageCircle size={18} />
+        </button>
+        
+        {/* Llamar */}
+        <button
+          onClick={llamar}
+          className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition"
+          title="Llamar"
+        >
+          <Phone size={18} />
+        </button>
+        
+        {/* Cambiar Estado */}
+        <div className="relative">
+          <button
+            onClick={() => setMenuAbierto(!menuAbierto)}
+            disabled={cambiandoEstado}
+            className={`px-3 py-1 rounded text-xs font-medium ${estadoActual.color} hover:opacity-80 transition`}
+          >
+            {cambiandoEstado ? '...' : estadoActual.label}
+          </button>
+          
+          {menuAbierto && (
+            <div className="absolute right-0 top-8 z-10 bg-white border rounded-lg shadow-lg py-1 min-w-32">
+              {estados.map(estado => (
+                <button
+                  key={estado.value}
+                  onClick={() => cambiarEstado(estado.value)}
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${
+                    estado.value === lead.estado ? 'font-bold' : ''
+                  }`}
+                >
+                  {estado.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        {/* Acciones rápidas de estado */}
+        {lead.estado !== 'cliente' && lead.estado !== 'perdido' && (
+          <>
+            <button
+              onClick={() => cambiarEstado('cliente')}
+              className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition"
+              title="Marcar como Cliente"
+            >
+              <CheckCircle size={18} />
+            </button>
+            <button
+              onClick={() => cambiarEstado('perdido')}
+              className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition"
+              title="Marcar como Perdido"
+            >
+              <XCircle size={18} />
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
 
 export default DashboardEjecutivo;
