@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import GraficosHistoricos from './GraficosHistoricos';
+import AlertasVencimientos from './AlertasVencimientos';
 import { TrendingUp, Users, FileText, DollarSign, AlertTriangle, Target, Phone, Calendar, ArrowUp, ArrowDown, MessageCircle, CheckCircle, XCircle } from 'lucide-react';
 
 const DashboardEjecutivo = () => {
@@ -83,6 +84,9 @@ const DashboardEjecutivo = () => {
           Actualizar
         </button>
       </div>
+
+      {/* Alertas de Vencimientos */}
+      <AlertasVencimientos />
 
       {/* KPIs Principales */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
