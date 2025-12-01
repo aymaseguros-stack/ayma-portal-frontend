@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import GraficosHistoricos from './GraficosHistoricos';
 import AlertasVencimientos from './AlertasVencimientos';
+import ExportarPDF from './ExportarPDF';
 import { TrendingUp, Users, FileText, DollarSign, AlertTriangle, Target, Phone, Calendar, ArrowUp, ArrowDown, MessageCircle, CheckCircle, XCircle } from 'lucide-react';
 
 const DashboardEjecutivo = () => {
@@ -69,20 +70,23 @@ const DashboardEjecutivo = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div id="dashboard-content" className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard Ejecutivo</h1>
           <p className="text-gray-500 text-sm">Actualizado: {new Date().toLocaleString('es-AR')}</p>
         </div>
-        <button 
-          onClick={cargarDatos}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
-        >
-          <TrendingUp size={18} />
-          Actualizar
-        </button>
+        <div className="flex items-center gap-3">
+          <ExportarPDF targetId="dashboard-content" nombreArchivo="dashboard-ayma" />
+          <button 
+            onClick={cargarDatos}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
+          >
+            <TrendingUp size={18} />
+            Actualizar
+          </button>
+        </div>
       </div>
 
       {/* Alertas de Vencimientos */}
