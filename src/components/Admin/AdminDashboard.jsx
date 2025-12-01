@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import DashboardEjecutivo from './DashboardEjecutivo';
 import { Search, Filter, ChevronUp, ChevronDown, Eye, Edit, Phone, Mail, FileText, TrendingUp, Users, DollarSign, Calendar } from 'lucide-react';
 
 const AdminPanel = () => {
@@ -10,7 +11,7 @@ const AdminPanel = () => {
   const [mostrarDetalle, setMostrarDetalle] = useState(false);
   const [metricas, setMetricas] = useState(null);
   const [vencimientos, setVencimientos] = useState([]);
-  const [vista, setVista] = useState('clientes'); // clientes, metricas, vencimientos, leads
+  const [vista, setVista] = useState('dashboard'); // clientes, metricas, vencimientos, leads
   const [leads, setLeads] = useState([]);
   const [filtroEstado, setFiltroEstado] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('');
@@ -705,6 +706,12 @@ const AdminPanel = () => {
           <h1 className="text-3xl font-bold text-gray-900">Panel de AdministraciÃ³n</h1>
           <div className="flex gap-2">
             <button
+              onClick={() => setVista('dashboard')}
+              className={`px-4 py-2 rounded-lg ${vista === 'dashboard' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'}`}
+            >
+              📊 Dashboard
+            </button>
+            <button
               onClick={() => setVista('metricas')}
               className={`px-4 py-2 rounded-lg ${vista === 'metricas' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'}`}
             >
@@ -731,6 +738,7 @@ const AdminPanel = () => {
           </div>
         </div>
 
+        {vista === 'dashboard' && <DashboardEjecutivo />}
         {vista === 'metricas' && <VistaMetricas />}
         {vista === 'clientes' && <VistaClientes />}
         {vista === 'vencimientos' && <VistaVencimientos />}
