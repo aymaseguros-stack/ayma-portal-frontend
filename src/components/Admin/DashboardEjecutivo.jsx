@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import GraficosHistoricos from './GraficosHistoricos';
 import { TrendingUp, Users, FileText, DollarSign, AlertTriangle, Target, Phone, Calendar, ArrowUp, ArrowDown } from 'lucide-react';
 
 const DashboardEjecutivo = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [mostrarGraficos, setMostrarGraficos] = useState(false);
 
   const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -358,6 +360,23 @@ const DashboardEjecutivo = () => {
           </div>
         </div>
       </div>
+      {/* Toggle Gráficos */}
+      <div className="flex justify-center">
+        <button
+          onClick={() => setMostrarGraficos(!mostrarGraficos)}
+          className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition flex items-center gap-2 shadow-lg"
+        >
+          <TrendingUp size={20} />
+          {mostrarGraficos ? 'Ocultar Gráficos' : 'Ver Tendencias Históricas'}
+        </button>
+      </div>
+
+      {/* Gráficos Históricos */}
+      {mostrarGraficos && (
+        <div className="mt-6">
+          <GraficosHistoricos />
+        </div>
+      )}
     </div>
   );
 };
