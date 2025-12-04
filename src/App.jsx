@@ -17,6 +17,7 @@ const initialState = {
   activeTab: 'dashboard',
   polizas: [],
   vehiculos: [],
+  leads: [],
   dashboardData: null,
   loading: false,
   error: null
@@ -82,11 +83,22 @@ function App() {
       const polizasRes = await fetchAPI('/api/v1/polizas/', authToken);
       const vehiculosRes = await fetchAPI('/api/v1/vehiculos/', authToken);
       
+      // Si es admin, cargar leads
+      let leadsRes = [];
+      if (dashboardRes.role === 'ADMIN' || dashboardRes.role === 'ADMINISTRADOR') {
+        try {
+          leadsRes = await fetchAPI('/api/v1/leads/', authToken);
+        } catch (e) {
+          console.log('No se pudieron cargar leads:', e);
+        }
+      }
+      
       setState(prev => ({ 
         ...prev, 
         dashboardData: dashboardRes,
         polizas: polizasRes || [],
         vehiculos: vehiculosRes || [],
+        leads: leadsRes || [],
         loading: false 
       }));
     } catch (err) {
@@ -312,7 +324,11 @@ function App() {
               { id: 'polizas', icon: '📄', label: 'Mis Pólizas' },
               { id: 'vehiculos', icon: '🚗', label: 'Mis Vehículos' },
               { id: 'siniestro', icon: '🚨', label: 'Denunciar Siniestro' },
-              { id: 'soporte', icon: '💬', label: 'Soporte' }
+              { id: 'soporte', icon: '💬', label: 'Soporte' },
+              // Solo para Admin
+              ...(state.user?.tipo_usuario?.toUpperCase() === 'ADMIN' || state.user?.tipo_usuario?.toUpperCase() === 'ADMINISTRADOR' 
+                ? [{ id: 'leads', icon: '📋', label: 'Leads' }] 
+                : [])
             ].map(tab => (
               <button
                 key={tab.id}
@@ -1020,6 +1036,139 @@ function App() {
                   </p>
                 </details>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* LEADS - Solo Admin */}
+        {state.activeTab === 'leads' && (state.user?.tipo_usuario?.toUpperCase() === 'ADMIN' || state.user?.tipo_usuario?.toUpperCase() === 'ADMINISTRADOR') && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold">📋 Gestión de Leads</h2>
+              <span className="text-slate-400">{state.leads?.length || 0} lead(s)</span>
+            </div>
+            
+            {/* Estadísticas rápidas */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-blue-600/20 border border-blue-500/30 rounded-xl p-4">
+                <p className="text-blue-300 text-sm">Total Leads</p>
+                <p className="text-3xl font-bold">{state.leads?.length || 0}</p>
+              </div>
+              <div className="bg-yellow-600/20 border border-yellow-500/30 rounded-xl p-4">
+                <p className="text-yellow-300 text-sm">Pendientes</p>
+                <p className="text-3xl font-bold">
+                  {state.leads?.filter(l => l.estado === 'PENDIENTE' || l.estado === 'DATO').length || 0}
+                </p>
+              </div>
+              <div className="bg-purple-600/20 border border-purple-500/30 rounded-xl p-4">
+                <p className="text-purple-300 text-sm">En Proceso</p>
+                <p className="text-3xl font-bold">
+                  {state.leads?.filter(l => l.estado === 'PROSPECTO' || l.estado === 'POTENCIAL').length || 0}
+                </p>
+              </div>
+              <div className="bg-green-600/20 border border-green-500/30 rounded-xl p-4">
+                <p className="text-green-300 text-sm">Convertidos</p>
+                <p className="text-3xl font-bold">
+                  {state.leads?.filter(l => l.estado === 'CLIENTE').length || 0}
+                </p>
+              </div>
+            </div>
+
+            {/* Lista de Leads */}
+            {state.leads && state.leads.length > 0 ? (
+              <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-slate-700/50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Token</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Nombre</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Email</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Teléfono</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Origen</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Estado</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Fecha</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-700">
+                      {state.leads.map((lead, idx) => (
+                        <tr key={lead.id || idx} className="hover:bg-slate-700/30 transition">
+                          <td className="px-4 py-3 font-mono text-xs text-blue-400">{lead.token || '-'}</td>
+                          <td className="px-4 py-3 font-medium">{lead.nombre || '-'}</td>
+                          <td className="px-4 py-3 text-slate-400 text-sm">{lead.email || '-'}</td>
+                          <td className="px-4 py-3 text-slate-400 text-sm">{lead.telefono || '-'}</td>
+                          <td className="px-4 py-3">
+                            <span className="px-2 py-1 text-xs rounded-full bg-slate-600/50">
+                              {lead.origen || 'Web'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+                              lead.estado === 'CLIENTE' ? 'bg-green-600/30 text-green-300' :
+                              lead.estado === 'POTENCIAL' ? 'bg-purple-600/30 text-purple-300' :
+                              lead.estado === 'PROSPECTO' ? 'bg-blue-600/30 text-blue-300' :
+                              'bg-yellow-600/30 text-yellow-300'
+                            }`}>
+                              {lead.estado || 'DATO'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-400 text-sm">
+                            {lead.fecha_registro ? new Date(lead.fecha_registro).toLocaleDateString('es-AR') : '-'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-2">
+                              <a 
+                                href={`https://wa.me/${lead.telefono?.replace(/\D/g, '')}?text=Hola ${lead.nombre}, soy de AYMA Advisors...`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2 bg-green-600/20 hover:bg-green-600/40 rounded-lg transition text-sm"
+                                title="WhatsApp"
+                              >
+                                💬
+                              </a>
+                              <a 
+                                href={`mailto:${lead.email}`}
+                                className="p-2 bg-blue-600/20 hover:bg-blue-600/40 rounded-lg transition text-sm"
+                                title="Email"
+                              >
+                                ✉️
+                              </a>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-slate-800/50 rounded-xl p-12 border border-slate-700 text-center">
+                <span className="text-6xl">📋</span>
+                <p className="text-slate-400 mt-4">No hay leads registrados</p>
+                <p className="text-slate-500 text-sm mt-2">
+                  Los leads aparecerán aquí cuando lleguen desde la landing page o el chatbot
+                </p>
+              </div>
+            )}
+
+            {/* Info del flujo */}
+            <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-6">
+              <h3 className="font-semibold text-blue-300 mb-3">📈 Flujo de Estados (CRM)</h3>
+              <div className="flex flex-wrap gap-2 items-center text-sm">
+                <span className="px-3 py-1 bg-yellow-600/30 text-yellow-300 rounded-full">DATO</span>
+                <span className="text-slate-500">→</span>
+                <span className="px-3 py-1 bg-blue-600/30 text-blue-300 rounded-full">PROSPECTO</span>
+                <span className="text-slate-500">→</span>
+                <span className="px-3 py-1 bg-purple-600/30 text-purple-300 rounded-full">POTENCIAL</span>
+                <span className="text-slate-500">→</span>
+                <span className="px-3 py-1 bg-green-600/30 text-green-300 rounded-full">CLIENTE</span>
+                <span className="text-slate-500">→</span>
+                <span className="px-3 py-1 bg-cyan-600/30 text-cyan-300 rounded-full">LOOP</span>
+              </div>
+              <p className="text-slate-400 text-xs mt-3">
+                Metodología SAIDA: Sondeo → Atención → Interés → Deseo → Acción
+              </p>
             </div>
           </div>
         )}
