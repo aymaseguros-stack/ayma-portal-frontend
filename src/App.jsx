@@ -43,55 +43,63 @@ function App() {
 
   // Verificar token al cargar
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const user = localStorage.getItem('user');
-    if (token && user) {
-      setState(prev => ({ ...prev, token, user: JSON.parse(user) }));
+    const savedToken = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('user');
+    if (savedToken && savedUser) {
+      setState(prev => ({ ...prev, token: savedToken, user: JSON.parse(savedUser) }));
+      cargarDatosConToken(savedToken);
     }
   }, []);
 
   // Función para hacer peticiones autenticadas
-  const fetchAPI = async (endpoint, token, options = {}) => {
-    const authToken = token || state.token || localStorage.getItem('token');
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      ...options,
+  const fetchAPI = async (endpoint, authToken) => {
+    const response = await fetch(API_URL + endpoint, {
+      method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken}`,
-        ...options.headers
+        'Authorization': 'Bearer ' + authToken
       }
     });
-    if (!response.ok) throw new Error(`Error: ${response.status}`);
+    if (!response.ok) {
+      throw new Error('Error: ' + response.status);
+    }
     return response.json();
   };
 
-  // Cargar datos cuando hay token
-  useEffect(() => {
-    if (state.token) {
-      cargarDatosConToken(state.token);
-    }
-  }, [state.token]);
-
   // Cargar datos con token explícito
-  const cargarDatosConToken = async (token) => {
+  const cargarDatosConToken = async (authToken) => {
     setState(prev => ({ ...prev, loading: true }));
     try {
-      const [dashboard, polizas, vehiculos] = await Promise.all([
-        fetchAPI('/api/v1/dashboard/', token),
-        fetchAPI('/api/v1/polizas/', token),
-        fetchAPI('/api/v1/vehiculos/', token)
-      ]);
+      const dashboardRes = await fetchAPI('/api/v1/dashboard/', authToken);
+      const polizasRes = await fetchAPI('/api/v1/polizas/', authToken);
+      const vehiculosRes = await fetchAPI('/api/v1/vehiculos/', authToken);
       
       setState(prev => ({ 
         ...prev, 
-        dashboardData: dashboard,
-        polizas: polizas || [],
-        vehiculos: vehiculos || [],
+        dashboardData: dashboardRes,
+        polizas: polizasRes || [],
+        vehiculos: vehiculosRes || [],
         loading: false 
       }));
     } catch (err) {
       console.error('Error cargando datos:', err);
       setState(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  // Logout
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setState(initialState);
+    setLoginForm({ email: '', password: '' });
+  };
+
+  // Cambiar pestaña
+  const setActiveTab = (tab) => {
+    setState(prev => ({ ...prev, activeTab: tab }));
+    if (tab !== 'siniestro') {
+      setSiniestroEnviado(null);
     }
   };
 
@@ -101,7 +109,7 @@ function App() {
     setState(prev => ({ ...prev, loading: true, error: null }));
     
     try {
-      const response = await fetch(`${API_URL}/api/v1/auth/login`, {
+      const response = await fetch(API_URL + '/api/v1/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(loginForm)
@@ -122,27 +130,12 @@ function App() {
         user: { email: data.email, tipo_usuario: data.tipo_usuario },
         loading: false 
       }));
+      
+      // Cargar datos inmediatamente después del login
+      cargarDatosConToken(data.access_token);
+      
     } catch (err) {
       setState(prev => ({ ...prev, error: err.message, loading: false }));
-    }
-  };
-
-
-
-  // Logout
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setState(initialState);
-    setLoginForm({ email: '', password: '' });
-  };
-
-  // Cambiar pestaña
-  const setActiveTab = (tab) => {
-    setState(prev => ({ ...prev, activeTab: tab }));
-    // Reset siniestro enviado cuando cambia de tab
-    if (tab !== 'siniestro') {
-      setSiniestroEnviado(null);
     }
   };
 
@@ -162,9 +155,6 @@ function App() {
       cliente_nombre: state.dashboardData?.cliente?.nombre
     };
     
-    // TODO: Enviar al backend cuando esté el endpoint
-    // await fetchAPI('/api/v1/siniestros/', { method: 'POST', body: JSON.stringify(siniestroData) });
-    
     console.log('Siniestro registrado:', siniestroData);
     
     setSiniestroEnviado({
@@ -173,7 +163,6 @@ function App() {
       poliza: state.polizas.find(p => p.id === siniestroForm.poliza_id)
     });
     
-    // Reset form
     setSiniestroForm({
       poliza_id: '',
       tipo_siniestro: '',
@@ -189,7 +178,7 @@ function App() {
   };
 
   // =============================================
-  // COMPONENTES DE RENDERIZADO
+  // RENDERIZADO
   // =============================================
 
   // Login Form
@@ -356,24 +345,7 @@ function App() {
               </div>
             </div>
 
-            {/* Info de Sesión */}
-            <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
-              <h3 className="text-lg font-semibold mb-4">ℹ️ Información de Sesión</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-slate-300">
-                <div>
-                  <span className="text-slate-500">Email:</span>
-                  <span className="ml-2">{state.user?.email}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500">Rol:</span>
-                  <span className="ml-2 capitalize">{state.user?.tipo_usuario}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500">Cliente:</span>
-                  <span className="ml-2">{state.dashboardData?.cliente?.nombre || '-'}</span>
-                </div>
-              </div>
-            </div>
+
           </div>
         )}
 
@@ -556,7 +528,6 @@ function App() {
           <div className="space-y-6">
             <h2 className="text-2xl font-bold">🚨 Denunciar Siniestro</h2>
             
-            {/* Si ya se envió el siniestro, mostrar confirmación */}
             {siniestroEnviado ? (
               <div className="bg-green-900/30 border border-green-500/50 rounded-xl p-8 text-center">
                 <span className="text-6xl">✅</span>
@@ -776,7 +747,7 @@ function App() {
                         </div>
                       </a>
                       <a 
-                        href="mailto:siniestros@aymaseguros.com"
+                        href="mailto:aymaseguros@hotmail.com"
                         className="flex items-center gap-3 p-3 bg-slate-700/30 hover:bg-slate-700/50 rounded-lg transition"
                       >
                         <span className="text-xl">✉️</span>
@@ -917,11 +888,94 @@ function App() {
 
       </main>
 
-      {/* Footer */}
+      {/* Footer con Compliance */}
       <footer className="bg-slate-800/30 border-t border-slate-700 mt-auto">
-        <div className="max-w-7xl mx-auto px-4 py-6 text-center text-slate-500 text-sm">
-          <p>© 2025 AYMA Advisors - Productores Asesores de Seguros</p>
-          <p className="mt-1">Matrícula PAS N° 68323 • Rosario, Santa Fe</p>
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          
+          {/* Grid superior */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+            
+            {/* Logo + descripción */}
+            <div className="md:col-span-2">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <svg className="w-6 h-6 text-white" viewBox="0 0 80 96" fill="none">
+                    <path d="M40 0L80 16V48C80 72 60 88 40 96C20 88 0 72 0 48V16L40 0Z" stroke="currentColor" strokeWidth="4" fill="none"/>
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">AYMA Advisors</h3>
+                  <p className="text-xs text-slate-500">Gestores de Riesgos desde 2008</p>
+                </div>
+              </div>
+              <p className="text-sm text-slate-400 max-w-md">
+                Asesores integrales en seguros para personas y empresas. 
+                Comparamos las mejores opciones del mercado para proteger lo que más te importa.
+              </p>
+            </div>
+
+            {/* Contacto */}
+            <div>
+              <h4 className="font-semibold mb-4 text-slate-300">Contacto</h4>
+              <ul className="space-y-2 text-sm text-slate-400">
+                <li>
+                  <a href="tel:+5493416952259" className="hover:text-white transition">
+                    📞 341 695-2259
+                  </a>
+                </li>
+                <li>
+                  <a href="tel:+5491153022929" className="hover:text-white transition">
+                    📞 11 5302-2929
+                  </a>
+                </li>
+                <li>
+                  <a href="mailto:aymaseguros@hotmail.com" className="hover:text-white transition">
+                    📧 aymaseguros@hotmail.com
+                  </a>
+                </li>
+                <li>
+                  <a href="https://wa.me/5493416952259" target="_blank" rel="noopener noreferrer" className="hover:text-white transition">
+                    💬 WhatsApp
+                  </a>
+                </li>
+              </ul>
+            </div>
+
+            {/* Oficinas */}
+            <div>
+              <h4 className="font-semibold mb-4 text-slate-300">Oficinas</h4>
+              <ul className="space-y-2 text-sm text-slate-400">
+                <li>📍 Rosario: Mariano Moreno 37, Piso 9 A</li>
+                <li>📍 CABA: Manzoni 112</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Disclaimers legales */}
+          <div className="border-t border-slate-700 pt-6">
+            <div className="text-xs text-slate-500 space-y-2">
+              <p>
+                <strong>AYMA Advisors</strong> — Matrícula PAS N° 68323 inscripta ante la 
+                Superintendencia de Seguros de la Nación (SSN). Asesoramiento de seguros 
+                sujeto a Condiciones Particulares y Normativa SSN vigente.
+              </p>
+              <p>
+                *El ahorro promedio del 35% está basado en clientes con dos o más pólizas 
+                y perfil de riesgo bajo durante 2024. Los resultados individuales pueden 
+                variar según compañía aseguradora, tipo de cobertura y antecedentes.
+              </p>
+              <p>
+                Protección de datos personales conforme Ley 25.326 (AAIP). 
+                <a href="/privacidad" className="underline hover:text-slate-300 ml-1">Política de Privacidad</a>
+                {' | '}
+                <a href="/terminos" className="underline hover:text-slate-300">Términos y Condiciones</a>
+              </p>
+            </div>
+            
+            <p className="text-center text-slate-600 text-xs mt-6">
+              © {new Date().getFullYear()} AYMA Advisors. Todos los derechos reservados.
+            </p>
+          </div>
         </div>
       </footer>
     </div>
