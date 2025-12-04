@@ -3,6 +3,13 @@ import React, { useState, useEffect } from 'react';
 // API Configuration
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
+// Generador de Token único para tickets/siniestros
+const generarToken = () => {
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+  return `AYMA-${timestamp}-${random}`;
+};
+
 // Estado inicial
 const initialState = {
   user: null,
@@ -18,6 +25,21 @@ const initialState = {
 function App() {
   const [state, setState] = useState(initialState);
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  
+  // Estado para formulario de siniestro
+  const [siniestroForm, setSiniestroForm] = useState({
+    poliza_id: '',
+    tipo_siniestro: '',
+    fecha_siniestro: '',
+    hora_siniestro: '',
+    lugar: '',
+    descripcion: '',
+    hay_terceros: false,
+    hay_lesionados: false,
+    datos_tercero: '',
+    fotos_descripcion: ''
+  });
+  const [siniestroEnviado, setSiniestroEnviado] = useState(null);
 
   // Verificar token al cargar
   useEffect(() => {
@@ -115,6 +137,52 @@ function App() {
   // Cambiar pestaña
   const setActiveTab = (tab) => {
     setState(prev => ({ ...prev, activeTab: tab }));
+    // Reset siniestro enviado cuando cambia de tab
+    if (tab !== 'siniestro') {
+      setSiniestroEnviado(null);
+    }
+  };
+
+  // Enviar denuncia de siniestro
+  const handleEnviarSiniestro = async (e) => {
+    e.preventDefault();
+    
+    const token = generarToken();
+    const fechaRegistro = new Date().toISOString();
+    
+    const siniestroData = {
+      ...siniestroForm,
+      token: token,
+      fecha_registro: fechaRegistro,
+      estado: 'PENDIENTE',
+      cliente_email: state.user?.email,
+      cliente_nombre: state.dashboardData?.cliente?.nombre
+    };
+    
+    // TODO: Enviar al backend cuando esté el endpoint
+    // await fetchAPI('/api/v1/siniestros/', { method: 'POST', body: JSON.stringify(siniestroData) });
+    
+    console.log('Siniestro registrado:', siniestroData);
+    
+    setSiniestroEnviado({
+      token: token,
+      fecha: fechaRegistro,
+      poliza: state.polizas.find(p => p.id === siniestroForm.poliza_id)
+    });
+    
+    // Reset form
+    setSiniestroForm({
+      poliza_id: '',
+      tipo_siniestro: '',
+      fecha_siniestro: '',
+      hora_siniestro: '',
+      lugar: '',
+      descripcion: '',
+      hay_terceros: false,
+      hay_lesionados: false,
+      datos_tercero: '',
+      fotos_descripcion: ''
+    });
   };
 
   // =============================================
@@ -125,7 +193,7 @@ function App() {
   if (!state.token) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 w-full max-w-md border border-white/20">
+        <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 w-full max-w-md border border-white/20 shadow-2xl">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-white mb-2">Portal AYMA</h1>
             <p className="text-blue-200">Gestión de Seguros</p>
@@ -167,6 +235,10 @@ function App() {
               {state.loading ? 'Ingresando...' : 'Ingresar'}
             </button>
           </form>
+          
+          <p className="text-center text-slate-400 text-xs mt-6">
+            © 2025 AYMA Advisors • PAS N° 68323
+          </p>
         </div>
       </div>
     );
@@ -181,7 +253,7 @@ function App() {
           <div className="flex justify-between items-center">
             <h1 className="text-2xl font-bold text-white">Portal AYMA</h1>
             <div className="flex items-center gap-4">
-              <span className="text-slate-300">{state.user?.email}</span>
+              <span className="text-slate-300 hidden md:inline">{state.user?.email}</span>
               <span className="px-3 py-1 bg-blue-600/30 text-blue-300 rounded-full text-sm capitalize">
                 {state.user?.tipo_usuario}
               </span>
@@ -205,12 +277,13 @@ function App() {
               { id: 'datos', icon: '👤', label: 'Mis Datos' },
               { id: 'polizas', icon: '📄', label: 'Mis Pólizas' },
               { id: 'vehiculos', icon: '🚗', label: 'Mis Vehículos' },
+              { id: 'siniestro', icon: '🚨', label: 'Denunciar Siniestro' },
               { id: 'soporte', icon: '💬', label: 'Soporte' }
             ].map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-6 py-3 rounded-lg font-medium transition whitespace-nowrap ${
+                className={`px-4 py-3 rounded-lg font-medium transition whitespace-nowrap text-sm ${
                   state.activeTab === tab.id 
                     ? 'bg-blue-600 text-white' 
                     : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
@@ -475,6 +548,260 @@ function App() {
           </div>
         )}
 
+        {/* DENUNCIAR SINIESTRO */}
+        {state.activeTab === 'siniestro' && (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold">🚨 Denunciar Siniestro</h2>
+            
+            {/* Si ya se envió el siniestro, mostrar confirmación */}
+            {siniestroEnviado ? (
+              <div className="bg-green-900/30 border border-green-500/50 rounded-xl p-8 text-center">
+                <span className="text-6xl">✅</span>
+                <h3 className="text-2xl font-bold text-green-400 mt-4">Denuncia Registrada</h3>
+                <p className="text-slate-300 mt-2">Tu denuncia ha sido registrada exitosamente</p>
+                
+                <div className="bg-slate-800/80 rounded-xl p-6 mt-6 max-w-md mx-auto">
+                  <p className="text-slate-500 text-sm">Número de Ticket</p>
+                  <p className="text-3xl font-mono font-bold text-blue-400 mt-2">{siniestroEnviado.token}</p>
+                  <p className="text-slate-400 text-sm mt-4">
+                    Guardá este número para seguimiento. Te contactaremos a la brevedad.
+                  </p>
+                </div>
+                
+                <div className="flex flex-col sm:flex-row gap-4 justify-center mt-6">
+                  <a 
+                    href={`https://wa.me/5493416952259?text=Hola, acabo de registrar un siniestro con el ticket ${siniestroEnviado.token}`}
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition inline-flex items-center justify-center gap-2"
+                  >
+                    💬 Contactar por WhatsApp
+                  </a>
+                  <button 
+                    onClick={() => setSiniestroEnviado(null)}
+                    className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition"
+                  >
+                    Nueva Denuncia
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Formulario de Denuncia */}
+                <div className="lg:col-span-2 bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+                  <h3 className="text-lg font-semibold mb-4">📋 Formulario de Denuncia</h3>
+                  
+                  <form onSubmit={handleEnviarSiniestro} className="space-y-6">
+                    {/* Selección de Póliza */}
+                    <div>
+                      <label className="block text-slate-400 text-sm mb-2">Póliza Afectada *</label>
+                      <select
+                        value={siniestroForm.poliza_id}
+                        onChange={(e) => setSiniestroForm({...siniestroForm, poliza_id: e.target.value})}
+                        className="w-full px-4 py-3 rounded-lg bg-slate-700/50 border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      >
+                        <option value="">Seleccionar póliza...</option>
+                        {state.polizas.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.numero_poliza} - {p.vehiculo?.marca} {p.vehiculo?.modelo} ({p.vehiculo?.dominio})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Tipo de Siniestro */}
+                    <div>
+                      <label className="block text-slate-400 text-sm mb-2">Tipo de Siniestro *</label>
+                      <select
+                        value={siniestroForm.tipo_siniestro}
+                        onChange={(e) => setSiniestroForm({...siniestroForm, tipo_siniestro: e.target.value})}
+                        className="w-full px-4 py-3 rounded-lg bg-slate-700/50 border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      >
+                        <option value="">Seleccionar tipo...</option>
+                        <option value="colision">Colisión / Choque</option>
+                        <option value="robo_total">Robo Total</option>
+                        <option value="robo_parcial">Robo Parcial / Ruedas</option>
+                        <option value="incendio">Incendio</option>
+                        <option value="granizo">Granizo</option>
+                        <option value="inundacion">Inundación</option>
+                        <option value="cristales">Rotura de Cristales</option>
+                        <option value="vandalismo">Vandalismo</option>
+                        <option value="otro">Otro</option>
+                      </select>
+                    </div>
+
+                    {/* Fecha y Hora */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-slate-400 text-sm mb-2">Fecha del Hecho *</label>
+                        <input
+                          type="date"
+                          value={siniestroForm.fecha_siniestro}
+                          onChange={(e) => setSiniestroForm({...siniestroForm, fecha_siniestro: e.target.value})}
+                          className="w-full px-4 py-3 rounded-lg bg-slate-700/50 border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-400 text-sm mb-2">Hora Aproximada</label>
+                        <input
+                          type="time"
+                          value={siniestroForm.hora_siniestro}
+                          onChange={(e) => setSiniestroForm({...siniestroForm, hora_siniestro: e.target.value})}
+                          className="w-full px-4 py-3 rounded-lg bg-slate-700/50 border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Lugar */}
+                    <div>
+                      <label className="block text-slate-400 text-sm mb-2">Lugar del Hecho *</label>
+                      <input
+                        type="text"
+                        value={siniestroForm.lugar}
+                        onChange={(e) => setSiniestroForm({...siniestroForm, lugar: e.target.value})}
+                        placeholder="Ej: Av. Pellegrini y Corrientes, Rosario"
+                        className="w-full px-4 py-3 rounded-lg bg-slate-700/50 border border-slate-600 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+
+                    {/* Checkboxes */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <label className="flex items-center gap-3 p-4 bg-slate-700/30 rounded-lg cursor-pointer hover:bg-slate-700/50 transition">
+                        <input
+                          type="checkbox"
+                          checked={siniestroForm.hay_terceros}
+                          onChange={(e) => setSiniestroForm({...siniestroForm, hay_terceros: e.target.checked})}
+                          className="w-5 h-5 rounded"
+                        />
+                        <span>¿Hubo terceros involucrados?</span>
+                      </label>
+                      <label className="flex items-center gap-3 p-4 bg-slate-700/30 rounded-lg cursor-pointer hover:bg-slate-700/50 transition">
+                        <input
+                          type="checkbox"
+                          checked={siniestroForm.hay_lesionados}
+                          onChange={(e) => setSiniestroForm({...siniestroForm, hay_lesionados: e.target.checked})}
+                          className="w-5 h-5 rounded"
+                        />
+                        <span>¿Hubo lesionados?</span>
+                      </label>
+                    </div>
+
+                    {/* Datos del tercero si aplica */}
+                    {siniestroForm.hay_terceros && (
+                      <div>
+                        <label className="block text-slate-400 text-sm mb-2">Datos del Tercero</label>
+                        <textarea
+                          value={siniestroForm.datos_tercero}
+                          onChange={(e) => setSiniestroForm({...siniestroForm, datos_tercero: e.target.value})}
+                          placeholder="Nombre, patente, teléfono, aseguradora del tercero..."
+                          rows={3}
+                          className="w-full px-4 py-3 rounded-lg bg-slate-700/50 border border-slate-600 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    )}
+
+                    {/* Descripción */}
+                    <div>
+                      <label className="block text-slate-400 text-sm mb-2">Descripción de los Hechos *</label>
+                      <textarea
+                        value={siniestroForm.descripcion}
+                        onChange={(e) => setSiniestroForm({...siniestroForm, descripcion: e.target.value})}
+                        placeholder="Contanos qué pasó con el mayor detalle posible..."
+                        rows={4}
+                        className="w-full px-4 py-3 rounded-lg bg-slate-700/50 border border-slate-600 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+
+                    {/* Fotos */}
+                    <div>
+                      <label className="block text-slate-400 text-sm mb-2">📷 Fotos / Documentación</label>
+                      <div className="bg-slate-700/30 border-2 border-dashed border-slate-600 rounded-xl p-6 text-center">
+                        <p className="text-slate-400 mb-2">Las fotos podés enviarlas por WhatsApp</p>
+                        <p className="text-slate-500 text-sm">Tomá fotos de: daños, patentes, lugar, documentos del tercero</p>
+                      </div>
+                    </div>
+
+                    {/* Botón Enviar */}
+                    <button
+                      type="submit"
+                      className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition text-lg"
+                    >
+                      🚨 Enviar Denuncia de Siniestro
+                    </button>
+                  </form>
+                </div>
+
+                {/* Panel lateral - Contacto */}
+                <div className="space-y-6">
+                  {/* Contacto de Emergencia */}
+                  <div className="bg-red-900/30 border border-red-500/50 rounded-xl p-6">
+                    <h3 className="text-lg font-semibold text-red-400 mb-4">🆘 Emergencia 24hs</h3>
+                    <a 
+                      href="https://wa.me/5493416952259?text=URGENTE: Necesito reportar un siniestro"
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-4 p-4 bg-green-600/20 hover:bg-green-600/30 rounded-xl transition"
+                    >
+                      <span className="text-3xl">💬</span>
+                      <div>
+                        <p className="font-semibold text-green-400">WhatsApp Directo</p>
+                        <p className="text-slate-400 text-sm">+54 9 341 695-2259</p>
+                      </div>
+                    </a>
+                    <p className="text-slate-400 text-sm mt-4">
+                      Para siniestros graves o urgentes, contactanos directamente.
+                    </p>
+                  </div>
+
+                  {/* Otros canales */}
+                  <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+                    <h3 className="text-lg font-semibold mb-4">📞 Otros Canales</h3>
+                    <div className="space-y-3">
+                      <a 
+                        href="tel:+5493416952259"
+                        className="flex items-center gap-3 p-3 bg-slate-700/30 hover:bg-slate-700/50 rounded-lg transition"
+                      >
+                        <span className="text-xl">📱</span>
+                        <div>
+                          <p className="font-medium">Teléfono</p>
+                          <p className="text-slate-400 text-sm">+54 9 341 695-2259</p>
+                        </div>
+                      </a>
+                      <a 
+                        href="mailto:siniestros@aymaseguros.com"
+                        className="flex items-center gap-3 p-3 bg-slate-700/30 hover:bg-slate-700/50 rounded-lg transition"
+                      >
+                        <span className="text-xl">✉️</span>
+                        <div>
+                          <p className="font-medium">Email</p>
+                          <p className="text-slate-400 text-sm">aymaseguros@hotmail.com</p>
+                        </div>
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Tips */}
+                  <div className="bg-blue-900/30 border border-blue-500/50 rounded-xl p-6">
+                    <h3 className="text-lg font-semibold text-blue-400 mb-4">💡 Importante</h3>
+                    <ul className="space-y-2 text-sm text-slate-300">
+                      <li>• No muevas el vehículo si hubo lesionados</li>
+                      <li>• Tomá fotos antes de mover nada</li>
+                      <li>• Anotá datos del tercero y testigos</li>
+                      <li>• Hacé la denuncia policial si corresponde</li>
+                      <li>• Contactanos dentro de las 72hs</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* SOPORTE */}
         {state.activeTab === 'soporte' && (
           <div className="space-y-6">
@@ -554,16 +881,16 @@ function App() {
               <h3 className="text-lg font-semibold mb-4">❓ Preguntas Frecuentes</h3>
               <div className="space-y-4">
                 <details className="bg-slate-700/30 rounded-lg">
-                  <summary className="p-4 cursor-pointer hover:bg-slate-700/50 rounded-lg">
+                  <summary className="p-4 cursor-pointer hover:bg-slate-700/50 rounded-lg font-medium">
                     ¿Cómo denuncio un siniestro?
                   </summary>
                   <p className="px-4 pb-4 text-slate-400">
-                    Contactanos por WhatsApp o teléfono lo antes posible. Te guiaremos en el proceso 
-                    y gestionamos todo con la compañía aseguradora.
+                    Podés usar la sección "Denunciar Siniestro" de este portal o contactarnos por WhatsApp. 
+                    Te guiamos en todo el proceso y gestionamos con la compañía aseguradora.
                   </p>
                 </details>
                 <details className="bg-slate-700/30 rounded-lg">
-                  <summary className="p-4 cursor-pointer hover:bg-slate-700/50 rounded-lg">
+                  <summary className="p-4 cursor-pointer hover:bg-slate-700/50 rounded-lg font-medium">
                     ¿Cómo pago mi póliza?
                   </summary>
                   <p className="px-4 pb-4 text-slate-400">
@@ -572,7 +899,7 @@ function App() {
                   </p>
                 </details>
                 <details className="bg-slate-700/30 rounded-lg">
-                  <summary className="p-4 cursor-pointer hover:bg-slate-700/50 rounded-lg">
+                  <summary className="p-4 cursor-pointer hover:bg-slate-700/50 rounded-lg font-medium">
                     ¿Cómo solicito una cotización?
                   </summary>
                   <p className="px-4 pb-4 text-slate-400">
