@@ -1,814 +1,601 @@
-import { useState, useEffect } from 'react'
-import axios from 'axios'
-import { dashboardService, polizasService, vehiculosService, adminService, pdfService } from "./services/api"
-import AdminDashboard from "./components/Admin/AdminDashboard"
-import './App.css'
+import React, { useState, useEffect } from 'react';
 
-const API_URL = 'https://ayma-portal-backend.onrender.com'
+// API Configuration
+const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
+
+// Estado inicial
+const initialState = {
+  user: null,
+  token: null,
+  activeTab: 'dashboard',
+  polizas: [],
+  vehiculos: [],
+  dashboardData: null,
+  loading: false,
+  error: null
+};
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [userEmail, setUserEmail] = useState('')
-  const [userRole, setUserRole] = useState('')
-  const [activeTab, setActiveTab] = useState('dashboard')
-  
-  const [dashboardData, setDashboardData] = useState(null)
-  const [loadingDashboard, setLoadingDashboard] = useState(false)
-  const [polizas, setPolizas] = useState([])
-  const [vehiculos, setVehiculos] = useState([])
-  const [usuarios, setUsuarios] = useState([])
-  const [clientes, setClientes] = useState([])
+  const [state, setState] = useState(initialState);
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
 
+  // Verificar token al cargar
   useEffect(() => {
-    const token = localStorage.getItem('token')
-    const savedEmail = localStorage.getItem('email')
-    const savedRole = localStorage.getItem('role')
-    if (token && savedEmail) {
-      setIsLoggedIn(true)
-      setUserEmail(savedEmail)
-      setUserRole(savedRole || 'cliente')
-      loadDashboardData(savedRole)
+    const token = localStorage.getItem('token');
+    const user = localStorage.getItem('user');
+    if (token && user) {
+      setState(prev => ({ ...prev, token, user: JSON.parse(user) }));
     }
-  }, [])
+  }, []);
 
-  const loadDashboardData = async (role = userRole) => {
-    setLoadingDashboard(true)
-    try {
-      const isAdmin = role === 'admin' || role === 'administrador'
-      
-      if (isAdmin) {
-        // ADMIN: Cargar datos de todo el sistema
-        const [adminDash, adminUsuarios, adminClientes, adminPolizas, adminVehiculos] = await Promise.all([
-          adminService.getDashboard(),
-          adminService.listarUsuarios(),
-          adminService.listarClientes(),
-          adminService.listarPolizas(),
-          adminService.listarVehiculos()
-        ])
-        
-        setDashboardData(adminDash)
-        setUsuarios(adminUsuarios)
-        setClientes(adminClientes)
-        setPolizas(adminPolizas)
-        setVehiculos(adminVehiculos)
-      } else {
-        // CLIENTE/EMPLEADO: Cargar solo sus datos
-        const [resumen, scoring] = await Promise.all([
-          dashboardService.getResumen(),
-          dashboardService.getScoring()
-        ])
-        setDashboardData({ ...resumen, scoring })
-        
-        const [polizasData, vehiculosData] = await Promise.all([
-          polizasService.listar(),
-          vehiculosService.listar()
-        ])
-        setPolizas(polizasData)
-        setVehiculos(vehiculosData)
+  // Cargar datos cuando hay token
+  useEffect(() => {
+    if (state.token) {
+      cargarDatos();
+    }
+  }, [state.token]);
+
+  // Función para hacer peticiones autenticadas
+  const fetchAPI = async (endpoint, options = {}) => {
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${state.token}`,
+        ...options.headers
       }
-    } catch (err) {
-      console.error('Error cargando dashboard:', err)
-    } finally {
-      setLoadingDashboard(false)
-    }
-  }
+    });
+    if (!response.ok) throw new Error(`Error: ${response.status}`);
+    return response.json();
+  };
 
+  // Login
   const handleLogin = async (e) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
-
+    e.preventDefault();
+    setState(prev => ({ ...prev, loading: true, error: null }));
+    
     try {
-      const response = await axios.post(`${API_URL}/api/v1/auth/login`, {
-        email,
-        password
-      })
-
-      const { access_token, email: userEmail, tipo_usuario } = response.data
+      const response = await fetch(`${API_URL}/api/v1/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(loginForm)
+      });
       
-      localStorage.setItem('token', access_token)
-      localStorage.setItem('email', userEmail)
-      localStorage.setItem('role', tipo_usuario.toLowerCase())
+      if (!response.ok) throw new Error('Credenciales inválidas');
       
-      setIsLoggedIn(true)
-      setUserEmail(userEmail)
-      setUserRole(tipo_usuario.toLowerCase())
-      setError('')
+      const data = await response.json();
+      localStorage.setItem('token', data.access_token);
+      localStorage.setItem('user', JSON.stringify({ 
+        email: data.email, 
+        tipo_usuario: data.tipo_usuario 
+      }));
       
-      await loadDashboardData(tipo_usuario.toLowerCase())
+      setState(prev => ({ 
+        ...prev, 
+        token: data.access_token, 
+        user: { email: data.email, tipo_usuario: data.tipo_usuario },
+        loading: false 
+      }));
     } catch (err) {
-      console.error('Error de login:', err)
-      setError('⚠️ Email o contraseña incorrectos')
-    } finally {
-      setLoading(false)
+      setState(prev => ({ ...prev, error: err.message, loading: false }));
     }
-  }
+  };
 
+  // Cargar todos los datos
+  const cargarDatos = async () => {
+    setState(prev => ({ ...prev, loading: true }));
+    try {
+      const [dashboard, polizas, vehiculos] = await Promise.all([
+        fetchAPI('/api/v1/dashboard/'),
+        fetchAPI('/api/v1/polizas/'),
+        fetchAPI('/api/v1/vehiculos/')
+      ]);
+      
+      setState(prev => ({ 
+        ...prev, 
+        dashboardData: dashboard,
+        polizas: polizas || [],
+        vehiculos: vehiculos || [],
+        loading: false 
+      }));
+    } catch (err) {
+      console.error('Error cargando datos:', err);
+      setState(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  // Logout
   const handleLogout = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('email')
-    localStorage.removeItem('role')
-    setIsLoggedIn(false)
-    setUserEmail('')
-    setUserRole('')
-    setActiveTab('dashboard')
-    setDashboardData(null)
-    setPolizas([])
-    setVehiculos([])
-    setUsuarios([])
-    setClientes([])
-  }
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setState(initialState);
+    setLoginForm({ email: '', password: '' });
+  };
 
-  const getRoleName = () => {
-    const roles = {
-      'admin': 'Administrador',
-      'administrador': 'Administrador',
-      'empleado': 'Empleado',
-      'cliente': 'Cliente'
-    }
-    return roles[userRole] || 'Usuario'
-  }
+  // Cambiar pestaña
+  const setActiveTab = (tab) => {
+    setState(prev => ({ ...prev, activeTab: tab }));
+  };
 
-  const getRoleColor = () => {
-    const colors = {
-      'admin': 'text-red-600',
-      'administrador': 'text-red-600',
-      'empleado': 'text-blue-600',
-      'cliente': 'text-green-600'
-    }
-    return colors[userRole] || 'text-gray-600'
-  }
+  // =============================================
+  // COMPONENTES DE RENDERIZADO
+  // =============================================
 
-  const calculateDaysToExpiry = (fechaVencimiento) => {
-    if (!fechaVencimiento) return '-'
-    const today = new Date()
-    const expiry = new Date(fechaVencimiento)
-    const diffTime = expiry - today
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    return diffDays
-  }
-
-  const handleDownloadPDF = async (polizaId) => {
-    try {
-      const result = await pdfService.getPolizaPDF(polizaId)
-      if (result.pdf && result.pdf.download_url) {
-        window.open(result.pdf.download_url, "_blank")
-      } else {
-        alert("PDF no disponible para esta póliza")
-      }
-    } catch (error) {
-      console.error("Error descargando PDF:", error)
-      alert("Error al obtener el PDF")
-    }
-  }
-
-  const handleDownloadPDFByVehiculo = async (vehiculoId) => {
-    try {
-      // Encontrar el vehículo por ID
-      const vehiculo = vehiculos.find(v => v.id === vehiculoId)
-      
-      if (!vehiculo) {
-        alert("Vehículo no encontrado")
-        return
-      }
-      
-      // Buscar póliza por dominio del vehículo
-      const polizaAsociada = polizas.find(p => p.vehiculo?.dominio === vehiculo.dominio)
-      
-      if (!polizaAsociada) {
-        alert("Este vehículo no tiene una póliza asociada")
-        return
-      }
-      
-      await handleDownloadPDF(polizaAsociada.id)
-    } catch (error) {
-      console.error("Error descargando PDF:", error)
-      alert("Error al obtener el PDF")
-    }
-  }
-  const getTabs = () => {
-    const baseTabs = [
-      { id: 'dashboard', label: '📊 Dashboard', roles: ['admin', 'administrador', 'empleado', 'cliente'] }
-    ]
-
-    if (userRole === 'admin' || userRole === 'administrador') {
-      return [
-        ...baseTabs,
-        { id: 'usuarios', label: '👥 Usuarios', roles: ['admin'] },
-        { id: 'administracion', label: '⚙️ Administración', roles: ['admin'] },
-        { id: 'crm', label: '📈 CRM', roles: ['admin'] },
-        { id: 'clientes', label: '👤 Clientes', roles: ['admin'] },
-        { id: 'polizas', label: '📄 Pólizas', roles: ['admin'] },
-        { id: 'vehiculos', label: '🚗 Vehículos', roles: ['admin'] },
-        { id: 'reportes', label: '📊 Reportes', roles: ['admin'] }
-      ]
-    }
-
-    if (userRole === 'empleado') {
-      return [
-        ...baseTabs,
-        { id: 'crm', label: '📈 CRM', roles: ['empleado'] },
-        { id: 'clientes', label: '👤 Clientes', roles: ['empleado'] },
-        { id: 'polizas', label: '📄 Pólizas', roles: ['empleado'] },
-        { id: 'vehiculos', label: '🚗 Vehículos', roles: ['empleado'] }
-      ]
-    }
-
-    return [
-      ...baseTabs,
-      { id: 'datos', label: '👤 Mis Datos', roles: ['cliente'] },
-      { id: 'polizas', label: '📄 Mis Pólizas', roles: ['cliente'] },
-      { id: 'vehiculos', label: '🚗 Mis Vehículos', roles: ['cliente'] },
-      { id: 'tickets', label: '🎫 Soporte', roles: ['cliente'] }
-    ]
-  }
-
-  if (!isLoggedIn) {
+  // Login Form
+  if (!state.token) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+        <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 w-full max-w-md border border-white/20">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Portal AYMA</h1>
-            <p className="text-gray-600">Bienvenido al sistema de gestión</p>
+            <h1 className="text-4xl font-bold text-white mb-2">Portal AYMA</h1>
+            <p className="text-blue-200">Gestión de Seguros</p>
           </div>
-
-          <form onSubmit={handleLogin} className="space-y-6">
+          
+          <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email
-              </label>
               <input
                 type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                placeholder="tu@email.com"
+                placeholder="Email"
+                value={loginForm.email}
+                onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+                className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400"
                 required
               />
             </div>
-
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Contraseña
-              </label>
               <input
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                placeholder="••••••••"
+                placeholder="Contraseña"
+                value={loginForm.password}
+                onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400"
                 required
               />
             </div>
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-                {error}
+            
+            {state.error && (
+              <div className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-2 rounded-lg text-sm">
+                {state.error}
               </div>
             )}
-
+            
             <button
               type="submit"
-              disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={state.loading}
+              className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50"
             >
-              {loading ? '🔄 Ingresando...' : '🔐 Ingresar'}
+              {state.loading ? 'Ingresando...' : 'Ingresar'}
             </button>
           </form>
         </div>
       </div>
-    )
+    );
   }
 
-  const tabs = getTabs()
-
+  // Dashboard Principal
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+    <div className="min-h-screen bg-slate-900 text-white">
+      {/* Header */}
+      <header className="bg-slate-800/50 backdrop-blur border-b border-slate-700">
+        <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">Portal AYMA</h1>
-              <p className="text-sm text-gray-600">{userEmail}</p>
-              <p className={`text-xs font-semibold ${getRoleColor()}`}>
-                {getRoleName()}
-              </p>
+            <h1 className="text-2xl font-bold text-white">Portal AYMA</h1>
+            <div className="flex items-center gap-4">
+              <span className="text-slate-300">{state.user?.email}</span>
+              <span className="px-3 py-1 bg-blue-600/30 text-blue-300 rounded-full text-sm capitalize">
+                {state.user?.tipo_usuario}
+              </span>
+              <button 
+                onClick={handleLogout}
+                className="px-4 py-2 bg-red-600/20 hover:bg-red-600/40 text-red-300 rounded-lg transition"
+              >
+                🚪 Salir
+              </button>
             </div>
-            <button
-              onClick={handleLogout}
-              className="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-lg font-medium transition"
-            >
-              🚪 Salir
-            </button>
           </div>
         </div>
       </header>
 
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex space-x-8 overflow-x-auto">
-            {tabs.map(tab => (
+      {/* Navegación */}
+      <nav className="bg-slate-800/30 border-b border-slate-700">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex gap-1 overflow-x-auto py-2">
+            {[
+              { id: 'dashboard', icon: '📊', label: 'Dashboard' },
+              { id: 'datos', icon: '👤', label: 'Mis Datos' },
+              { id: 'polizas', icon: '📄', label: 'Mis Pólizas' },
+              { id: 'vehiculos', icon: '🚗', label: 'Mis Vehículos' },
+              { id: 'soporte', icon: '💬', label: 'Soporte' }
+            ].map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`py-4 px-2 border-b-2 font-medium text-sm transition whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                className={`px-6 py-3 rounded-lg font-medium transition whitespace-nowrap ${
+                  state.activeTab === tab.id 
+                    ? 'bg-blue-600 text-white' 
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
                 }`}
               >
-                {tab.label}
+                {tab.icon} {tab.label}
               </button>
             ))}
           </div>
         </div>
-      </div>
+      </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {loadingDashboard && activeTab === 'dashboard' && (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Cargando datos...</p>
-          </div>
-        )}
-
+      {/* Contenido Principal */}
+      <main className="max-w-7xl mx-auto px-4 py-8">
+        
         {/* DASHBOARD */}
-        {activeTab === 'dashboard' && !loadingDashboard && (
+        {state.activeTab === 'dashboard' && (
+          <div className="space-y-8">
+            <h2 className="text-2xl font-bold">Dashboard</h2>
+            
+            {/* Tarjetas de Resumen - GRID HORIZONTAL */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl p-6 shadow-xl">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-blue-200 text-sm">Mis Pólizas</p>
+                    <p className="text-4xl font-bold mt-2">{state.dashboardData?.misPolizas || state.polizas.length}</p>
+                  </div>
+                  <span className="text-4xl">📄</span>
+                </div>
+                <p className="text-blue-200 text-sm mt-4">Pólizas vigentes</p>
+              </div>
+
+              <div className="bg-gradient-to-br from-green-600 to-green-800 rounded-2xl p-6 shadow-xl">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-green-200 text-sm">Mis Vehículos</p>
+                    <p className="text-4xl font-bold mt-2">{state.dashboardData?.misVehiculos || state.vehiculos.length}</p>
+                  </div>
+                  <span className="text-4xl">🚗</span>
+                </div>
+                <p className="text-green-200 text-sm mt-4">Vehículos asegurados</p>
+              </div>
+
+              <div className="bg-gradient-to-br from-purple-600 to-purple-800 rounded-2xl p-6 shadow-xl">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-purple-200 text-sm">Tickets Abiertos</p>
+                    <p className="text-4xl font-bold mt-2">{state.dashboardData?.ticketsAbiertos || 0}</p>
+                  </div>
+                  <span className="text-4xl">📩</span>
+                </div>
+                <p className="text-purple-200 text-sm mt-4">En seguimiento</p>
+              </div>
+
+              <div className="bg-gradient-to-br from-orange-600 to-orange-800 rounded-2xl p-6 shadow-xl">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-orange-200 text-sm">Total Primas</p>
+                    <p className="text-3xl font-bold mt-2">
+                      ${state.polizas.reduce((sum, p) => sum + (p.premio_total || 0), 0).toLocaleString('es-AR')}
+                    </p>
+                  </div>
+                  <span className="text-4xl">💰</span>
+                </div>
+                <p className="text-orange-200 text-sm mt-4">Prima total anual</p>
+              </div>
+            </div>
+
+            {/* Info de Sesión */}
+            <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+              <h3 className="text-lg font-semibold mb-4">ℹ️ Información de Sesión</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-slate-300">
+                <div>
+                  <span className="text-slate-500">Email:</span>
+                  <span className="ml-2">{state.user?.email}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Rol:</span>
+                  <span className="ml-2 capitalize">{state.user?.tipo_usuario}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Cliente:</span>
+                  <span className="ml-2">{state.dashboardData?.cliente?.nombre || '-'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MIS DATOS */}
+        {state.activeTab === 'datos' && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-gray-800">
-              Dashboard {userRole === 'admin' || userRole === 'administrador' ? '(Vista Administrador)' : ''}
-              {userRole === 'empleado' && '(Vista Empleado)'}
-              {userRole === 'cliente' && '(Vista Cliente)'}
-            </h2>
+            <h2 className="text-2xl font-bold">Mis Datos</h2>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {(userRole === 'admin' || userRole === 'administrador') && dashboardData && (
-                <>
-                  <div className="bg-white p-6 rounded-lg shadow">
-                    <p className="text-gray-600 text-sm">Total Usuarios</p>
-                    <p className="text-3xl font-bold text-red-600">
-                      {dashboardData.total_usuarios || 0}
-                    </p>
-                  </div>
-                  <div className="bg-white p-6 rounded-lg shadow">
-                    <p className="text-gray-600 text-sm">Total Clientes</p>
-                    <p className="text-3xl font-bold text-blue-600">
-                      {dashboardData.total_clientes || 0}
-                    </p>
-                  </div>
-                  <div className="bg-white p-6 rounded-lg shadow">
-                    <p className="text-gray-600 text-sm">Total Pólizas</p>
-                    <p className="text-3xl font-bold text-purple-600">
-                      {dashboardData.total_polizas || 0}
-                    </p>
-                  </div>
-                  <div className="bg-white p-6 rounded-lg shadow">
-                    <p className="text-gray-600 text-sm">Total Vehículos</p>
-                    <p className="text-3xl font-bold text-green-600">
-                      {dashboardData.total_vehiculos || 0}
-                    </p>
-                  </div>
-                  <div className="bg-white p-6 rounded-lg shadow">
-                    <p className="text-gray-600 text-sm">Pólizas Vigentes</p>
-                    <p className="text-3xl font-bold text-green-600">
-                      {dashboardData.polizas_vigentes || 0}
-                    </p>
-                  </div>
-                  <div className="bg-white p-6 rounded-lg shadow">
-                    <p className="text-gray-600 text-sm">Pólizas Vencidas</p>
-                    <p className="text-3xl font-bold text-red-600">
-                      {dashboardData.polizas_vencidas || 0}
-                    </p>
-                  </div>
-                </>
-              )}
-              
-              {userRole === 'empleado' && dashboardData && (
-                <>
-                  <div className="bg-white p-6 rounded-lg shadow">
-                    <p className="text-gray-600 text-sm">Mis Actividades</p>
-                    <p className="text-3xl font-bold text-blue-600">
-                      {dashboardData.total_actividades || 0}
-                    </p>
-                  </div>
-                  <div className="bg-white p-6 rounded-lg shadow">
-                    <p className="text-gray-600 text-sm">Mi Scoring</p>
-                    <p className="text-3xl font-bold text-green-600">
-                      {dashboardData.scoring?.scoring_total || 0}
-                    </p>
-                  </div>
-                  <div className="bg-white p-6 rounded-lg shadow">
-                    <p className="text-gray-600 text-sm">Tareas Pendientes</p>
-                    <p className="text-3xl font-bold text-orange-600">0</p>
-                  </div>
-                </>
-              )}
-              
-              {userRole === 'cliente' && (
-                <>
-                  <div className="bg-white p-6 rounded-lg shadow">
-                    <p className="text-gray-600 text-sm">Mis Pólizas</p>
-                    <p className="text-3xl font-bold text-blue-600">
-                      {polizas.length}
-                    </p>
-                  </div>
-                  <div className="bg-white p-6 rounded-lg shadow">
-                    <p className="text-gray-600 text-sm">Mis Vehículos</p>
-                    <p className="text-3xl font-bold text-green-600">
-                      {vehiculos.length}
-                    </p>
-                  </div>
-                  <div className="bg-white p-6 rounded-lg shadow">
-                    <p className="text-gray-600 text-sm">Tickets Abiertos</p>
-                    <p className="text-3xl font-bold text-orange-600">0</p>
-                  </div>
-                </>
-              )}
+            <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <p className="text-slate-500 text-sm">Nombre Completo</p>
+                  <p className="text-xl font-semibold">{state.dashboardData?.cliente?.nombre || state.user?.email}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 text-sm">Email</p>
+                  <p className="text-xl">{state.dashboardData?.cliente?.email || state.user?.email}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 text-sm">Rol</p>
+                  <p className="text-xl capitalize">{state.user?.tipo_usuario}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 text-sm">Estado</p>
+                  <span className="inline-block px-3 py-1 bg-green-600/30 text-green-300 rounded-full">
+                    Activo
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MIS PÓLIZAS - GRID HORIZONTAL */}
+        {state.activeTab === 'polizas' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold">Gestión de Pólizas</h2>
+              <span className="text-slate-400">{state.polizas.length} póliza(s)</span>
             </div>
             
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-              <h3 className="font-semibold text-blue-900 mb-2">
-                ℹ️ Información de Sesión
-              </h3>
-              <p className="text-blue-800">
-                Rol: <span className={`font-bold ${getRoleColor()}`}>{getRoleName()}</span>
-              </p>
-              <p className="text-sm text-blue-600 mt-2">
-                {(userRole === 'admin' || userRole === 'administrador') && '✅ Acceso completo al sistema - Visualizando datos de TODOS los usuarios'}
-                {userRole === 'empleado' && '✅ Acceso a gestión y CRM - Puede gestionar clientes y pólizas'}
-                {userRole === 'cliente' && '✅ Acceso a tus datos y pólizas - Puedes ver tu información y crear tickets'}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* USUARIOS - TABLA CON DATOS REALES */}
-
-        {/* ADMINISTRACIÓN - PANEL COMPLETO */}
-        {activeTab === 'administracion' && (userRole === 'admin' || userRole === 'administrador') && (
-          <AdminDashboard />
-        )}
-
-        {activeTab === 'usuarios' && (userRole === 'admin' || userRole === 'administrador') && (
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Gestión de Usuarios ({usuarios.length})</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-blue-600 text-white">
-                    <th className="px-4 py-3 text-left text-sm font-semibold">👤</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Email</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Rol</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Estado</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Fecha Registro</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Última Actualización</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {usuarios.length === 0 ? (
-                    <tr className="border-b border-gray-200">
-                      <td colSpan="6" className="px-4 py-8 text-center text-gray-500">
-                        👥 No hay usuarios registrados
-                      </td>
-                    </tr>
-                  ) : (
-                    usuarios.map((usuario) => (
-                      <tr key={usuario.id} className="border-b border-gray-200 hover:bg-gray-50">
-                        <td className="px-4 py-3">👤</td>
-                        <td className="px-4 py-3 font-semibold text-blue-600">{usuario.email}</td>
-                        <td className="px-4 py-3">
-                          <span className={`font-semibold ${
-                            usuario.tipo_usuario === 'admin' || usuario.tipo_usuario === 'administrador' ? 'text-red-600' :
-                            usuario.tipo_usuario === 'empleado' ? 'text-blue-600' : 'text-green-600'
-                          }`}>
-                            {usuario.tipo_usuario}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                            usuario.activo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                          }`}>
-                            {usuario.activo ? '✅ Activo' : '❌ Inactivo'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          {usuario.created_at ? new Date(usuario.created_at).toLocaleDateString('es-AR') : '-'}
-                        </td>
-                        <td className="px-4 py-3">
-                          {usuario.updated_at ? new Date(usuario.updated_at).toLocaleDateString('es-AR') : '-'}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* CRM - TABLA HORIZONTAL */}
-        {activeTab === 'crm' && (userRole === 'admin' || userRole === 'administrador' || userRole === 'empleado') && (
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">CRM - Gestión Comercial</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-blue-600 text-white">
-                    <th className="px-4 py-3 text-left text-sm font-semibold">📊</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Cliente</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Estado</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Última Actividad</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Scoring</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Próxima Acción</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Responsable</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-gray-200">
-                    <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
-                      📈 Módulo en desarrollo - Sistema de seguimiento comercial próximamente
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* CLIENTES - TABLA CON DATOS REALES */}
-        {activeTab === 'clientes' && (userRole === 'admin' || userRole === 'administrador' || userRole === 'empleado') && (
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Gestión de Clientes ({clientes.length})</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-blue-600 text-white">
-                    <th className="px-4 py-3 text-left text-sm font-semibold">👤</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Nombre Completo</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Email</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Documento</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Teléfono</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Scoring</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Estado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {clientes.length === 0 ? (
-                    <tr className="border-b border-gray-200">
-                      <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
-                        👥 No hay clientes registrados
-                      </td>
-                    </tr>
-                  ) : (
-                    clientes.map((cliente) => (
-                      <tr key={cliente.id} className="border-b border-gray-200 hover:bg-gray-50">
-                        <td className="px-4 py-3">👤</td>
-                        <td className="px-4 py-3 font-semibold">{cliente.nombre} {cliente.apellido}</td>
-                        <td className="px-4 py-3 text-blue-600">{cliente.email}</td>
-                        <td className="px-4 py-3">
-                          {cliente.tipo_documento} {cliente.numero_documento}
-                        </td>
-                        <td className="px-4 py-3">{cliente.telefono || '-'}</td>
-                        <td className="px-4 py-3 font-bold text-purple-600">{cliente.scoring_comercial}</td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                            cliente.activo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                          }`}>
-                            {cliente.activo ? '✅ Activo' : '❌ Inactivo'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* MIS DATOS - TABLA HORIZONTAL */}
-        {activeTab === 'datos' && userRole === 'cliente' && (
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Mis Datos Personales</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-blue-600 text-white">
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Email</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Rol</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Estado</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Pólizas Activas</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-gray-200 hover:bg-gray-50">
-                    <td className="px-4 py-3 font-semibold text-gray-800">{userEmail}</td>
-                    <td className="px-4 py-3">
-                      <span className={`font-semibold ${getRoleColor()}`}>{getRoleName()}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-semibold">
-                        ✅ Activo
+            {state.polizas.length === 0 ? (
+              <div className="bg-slate-800/50 rounded-xl p-12 text-center border border-slate-700">
+                <span className="text-6xl">📄</span>
+                <p className="text-slate-400 mt-4">No tienes pólizas registradas</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {state.polizas.map(poliza => (
+                  <div key={poliza.id} className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden hover:border-blue-500/50 transition">
+                    {/* Header de la tarjeta */}
+                    <div className="bg-slate-700/50 px-6 py-4 flex justify-between items-center">
+                      <div>
+                        <p className="text-blue-400 font-bold">Póliza {poliza.numero_poliza}</p>
+                        <p className="text-slate-400 text-sm">{poliza.compania}</p>
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        poliza.estado === 'vigente' 
+                          ? 'bg-green-600/30 text-green-300' 
+                          : 'bg-red-600/30 text-red-300'
+                      }`}>
+                        {poliza.estado}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 font-bold text-blue-600 text-lg">{polizas.length}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* PÓLIZAS - TABLA HORIZONTAL */}
-        {activeTab === 'polizas' && (
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">
-              {userRole === 'cliente' ? 'Mis Pólizas' : `Gestión de Pólizas (${polizas.length})`}
-            </h2>
-            {polizas.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">
-                {userRole === 'cliente' ? '📄 No tienes pólizas registradas' : '📄 No hay pólizas en el sistema'}
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="bg-blue-600 text-white">
-                      <th className="px-4 py-3 text-left text-sm font-semibold">📄</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Póliza</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Estado</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Titular</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Compañía</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Cobertura</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Premio Total</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Vencimiento</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Días Restantes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {polizas.map((poliza, index) => {
-                      const diasRestantes = calculateDaysToExpiry(poliza.fecha_vencimiento)
-                      const nombreTitular = poliza.titular_nombre 
-                        ? `${poliza.titular_nombre} ${poliza.titular_apellido || ''}`.trim()
-                        : (poliza.cliente_nombre ? `${poliza.cliente_nombre} ${poliza.cliente_apellido || ''}`.trim() : 'Titular')
-                      
-                      return (
-                        <tr key={poliza.id || index} className="border-b border-gray-200 hover:bg-gray-50">
-                          <td className="px-4 py-3">📄</td>
-                          <td className="px-4 py-3 font-semibold text-blue-600">{poliza.numero_poliza}</td>
-                          <td className="px-4 py-3">
-                            <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-semibold uppercase">
-                              {poliza.estado || 'vigente'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 font-medium">{nombreTitular}</td>
-                          <td className="px-4 py-3">{poliza.compania || 'N/A'}</td>
-                          <td className="px-4 py-3">{poliza.tipo_cobertura || '-'}</td>
-                          <td className="px-4 py-3 font-bold text-green-600">
-                            ${poliza.premio_total ? Number(poliza.premio_total).toLocaleString('es-AR', {minimumFractionDigits: 2}) : '0,00'}
-                          </td>
-                          <td className="px-4 py-3">
-                            {poliza.fecha_vencimiento ? new Date(poliza.fecha_vencimiento).toLocaleDateString('es-AR') : '-'}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`font-bold ${diasRestantes < 30 ? 'text-red-600' : diasRestantes < 60 ? 'text-orange-600' : 'text-green-600'}`}>
-                              {diasRestantes !== '-' ? `${diasRestantes} días` : '-'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <button 
-                              onClick={() => handleDownloadPDF(poliza.id)}
-                              className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm font-semibold"
-                            >
-                              📥 PDF
-                            </button>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* VEHÍCULOS - TABLA HORIZONTAL */}
-        {activeTab === 'vehiculos' && (
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">
-              {userRole === 'cliente' ? 'Mis Vehículos' : `Gestión de Vehículos (${vehiculos.length})`}
-            </h2>
-            {vehiculos.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">
-                {userRole === 'cliente' ? '🚗 No tienes vehículos registrados' : '🚗 No hay vehículos en el sistema'}
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="bg-blue-600 text-white">
-                      <th className="px-4 py-3 text-left text-sm font-semibold">🚗</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Estado</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Dominio/Patente</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Año</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Marca</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Modelo</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Tipo</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Uso</th>
-                      {(userRole === 'admin' || userRole === 'administrador') && (
-                        <th className="px-4 py-3 text-left text-sm font-semibold">Propietario</th>
+                    </div>
+                    
+                    {/* Cuerpo */}
+                    <div className="p-6 space-y-4">
+                      {/* Vehículo */}
+                      {poliza.vehiculo && (
+                        <div className="flex items-center gap-3 bg-slate-700/30 rounded-lg p-3">
+                          <span className="text-2xl">🚗</span>
+                          <div>
+                            <p className="font-semibold">{poliza.vehiculo.marca} {poliza.vehiculo.modelo}</p>
+                            <p className="text-slate-400 text-sm">{poliza.vehiculo.dominio} • {poliza.vehiculo.anio}</p>
+                          </div>
+                        </div>
                       )}
-                      <th className="px-4 py-3 text-left text-sm font-semibold">PDF</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {vehiculos.map((vehiculo, index) => (
-                      <tr key={vehiculo.id || index} className="border-b border-gray-200 hover:bg-gray-50">
-                        <td className="px-4 py-3">🚗</td>
-                        <td className="px-4 py-3">
-                          <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-semibold">
-                            {vehiculo.estado || 'activo'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 font-bold text-blue-600 text-lg">{vehiculo.dominio || '-'}</td>
-                        <td className="px-4 py-3 font-semibold">{vehiculo.anio || '-'}</td>
-                        <td className="px-4 py-3">{vehiculo.marca || '-'}</td>
-                        <td className="px-4 py-3">{vehiculo.modelo || '-'}</td>
-                        <td className="px-4 py-3">{vehiculo.tipo_vehiculo || '-'}</td>
-                        <td className="px-4 py-3">{vehiculo.uso || '-'}</td>
-                        {(userRole === 'admin' || userRole === 'administrador') && (
-                          <td className="px-4 py-3 font-medium">
-                            {vehiculo.cliente_nombre && `${vehiculo.cliente_nombre} ${vehiculo.cliente_apellido || ''}`.trim()}
-                          </td>
-                        )}
-                        <td className="px-4 py-3">
-                          <button 
-                            onClick={() => handleDownloadPDFByVehiculo(vehiculo.id)}
-                            className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm font-semibold"
-                          >
-                            📥 PDF
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                      
+                      {/* Detalles en grid */}
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-slate-500">Cobertura</p>
+                          <p className="font-medium">{poliza.tipo_cobertura}</p>
+                        </div>
+                        <div>
+                          <p className="text-slate-500">Suma Asegurada</p>
+                          <p className="font-medium">${poliza.suma_asegurada?.toLocaleString('es-AR')}</p>
+                        </div>
+                        <div>
+                          <p className="text-slate-500">Premio Total</p>
+                          <p className="font-bold text-green-400">${poliza.premio_total?.toLocaleString('es-AR')}</p>
+                        </div>
+                        <div>
+                          <p className="text-slate-500">Vencimiento</p>
+                          <p className="font-medium">{new Date(poliza.fecha_vencimiento).toLocaleDateString('es-AR')}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="px-6 py-3 bg-slate-700/30 flex justify-between items-center">
+                      <span className="text-xs text-slate-500">
+                        Vigencia: {new Date(poliza.fecha_inicio).toLocaleDateString('es-AR')} - {new Date(poliza.fecha_vencimiento).toLocaleDateString('es-AR')}
+                      </span>
+                      <button className="text-blue-400 hover:text-blue-300 text-sm font-medium">
+                        Ver PDF →
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
         )}
 
-        {/* SOPORTE/TICKETS - TABLA HORIZONTAL */}
-        {activeTab === 'tickets' && userRole === 'cliente' && (
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Soporte - Mis Tickets</h2>
-            <div className="mb-4">
-              <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition">
-                ➕ Crear Nuevo Ticket
-              </button>
+        {/* MIS VEHÍCULOS - GRID HORIZONTAL */}
+        {state.activeTab === 'vehiculos' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold">Gestión de Vehículos</h2>
+              <span className="text-slate-400">{state.vehiculos.length} vehículo(s)</span>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-blue-600 text-white">
-                    <th className="px-4 py-3 text-left text-sm font-semibold">🎫</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Ticket #</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Asunto</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Estado</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Prioridad</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Fecha Creación</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Última Actualización</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-gray-200">
-                    <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
-                      🎫 No tienes tickets abiertos - Crea uno si necesitas asistencia
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+            
+            {state.vehiculos.length === 0 ? (
+              <div className="bg-slate-800/50 rounded-xl p-12 text-center border border-slate-700">
+                <span className="text-6xl">🚗</span>
+                <p className="text-slate-400 mt-4">No tienes vehículos registrados</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {state.vehiculos.map(vehiculo => (
+                  <div key={vehiculo.id} className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden hover:border-green-500/50 transition">
+                    {/* Header */}
+                    <div className="bg-slate-700/50 px-6 py-4 flex justify-between items-center">
+                      <div className="flex items-center gap-3">
+                        <span className="text-3xl">🚗</span>
+                        <div>
+                          <p className="font-bold">{vehiculo.marca} {vehiculo.modelo}</p>
+                          <p className="text-slate-400 text-sm">{vehiculo.tipo_vehiculo}</p>
+                        </div>
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        vehiculo.estado === 'activo' 
+                          ? 'bg-green-600/30 text-green-300' 
+                          : 'bg-slate-600/30 text-slate-300'
+                      }`}>
+                        {vehiculo.estado}
+                      </span>
+                    </div>
+                    
+                    {/* Cuerpo */}
+                    <div className="p-6">
+                      {/* Dominio destacado */}
+                      <div className="bg-slate-700/50 rounded-xl p-4 text-center mb-4">
+                        <p className="text-slate-500 text-xs mb-1">Dominio/Patente</p>
+                        <p className="text-3xl font-black text-blue-400 tracking-wider">{vehiculo.dominio}</p>
+                      </div>
+                      
+                      {/* Detalles en grid */}
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-slate-500">Año</p>
+                          <p className="font-bold text-2xl">{vehiculo.anio}</p>
+                        </div>
+                        <div>
+                          <p className="text-slate-500">Uso</p>
+                          <p className="font-medium capitalize">{vehiculo.uso || 'Particular'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* SOPORTE */}
+        {state.activeTab === 'soporte' && (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold">Soporte</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Contacto Directo */}
+              <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+                <h3 className="text-lg font-semibold mb-4">📞 Contacto Directo</h3>
+                <div className="space-y-4">
+                  <a 
+                    href="https://wa.me/5493416952259" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-4 p-4 bg-green-600/20 hover:bg-green-600/30 rounded-xl transition"
+                  >
+                    <span className="text-3xl">💬</span>
+                    <div>
+                      <p className="font-semibold">WhatsApp</p>
+                      <p className="text-slate-400 text-sm">+54 9 341 695-2259</p>
+                    </div>
+                  </a>
+                  
+                  <a 
+                    href="tel:+5493416952259"
+                    className="flex items-center gap-4 p-4 bg-blue-600/20 hover:bg-blue-600/30 rounded-xl transition"
+                  >
+                    <span className="text-3xl">📱</span>
+                    <div>
+                      <p className="font-semibold">Teléfono</p>
+                      <p className="text-slate-400 text-sm">+54 9 341 695-2259</p>
+                    </div>
+                  </a>
+                  
+                  <a 
+                    href="mailto:aymaseguros@hotmail.com"
+                    className="flex items-center gap-4 p-4 bg-purple-600/20 hover:bg-purple-600/30 rounded-xl transition"
+                  >
+                    <span className="text-3xl">✉️</span>
+                    <div>
+                      <p className="font-semibold">Email</p>
+                      <p className="text-slate-400 text-sm">aymaseguros@hotmail.com</p>
+                    </div>
+                  </a>
+                </div>
+              </div>
+              
+              {/* Horarios */}
+              <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+                <h3 className="text-lg font-semibold mb-4">🕐 Horarios de Atención</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between py-2 border-b border-slate-700">
+                    <span className="text-slate-400">Lunes a Viernes</span>
+                    <span className="font-medium">9:00 - 18:00</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-slate-700">
+                    <span className="text-slate-400">Sábados</span>
+                    <span className="font-medium">9:00 - 13:00</span>
+                  </div>
+                  <div className="flex justify-between py-2">
+                    <span className="text-slate-400">Emergencias 24hs</span>
+                    <span className="text-green-400 font-medium">WhatsApp</span>
+                  </div>
+                </div>
+                
+                <div className="mt-6 p-4 bg-blue-600/20 rounded-xl">
+                  <p className="text-sm text-blue-200">
+                    <strong>💡 Tip:</strong> Para siniestros o emergencias fuera de horario, 
+                    envianos un WhatsApp y te respondemos a la brevedad.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* FAQ */}
+            <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+              <h3 className="text-lg font-semibold mb-4">❓ Preguntas Frecuentes</h3>
+              <div className="space-y-4">
+                <details className="bg-slate-700/30 rounded-lg">
+                  <summary className="p-4 cursor-pointer hover:bg-slate-700/50 rounded-lg">
+                    ¿Cómo denuncio un siniestro?
+                  </summary>
+                  <p className="px-4 pb-4 text-slate-400">
+                    Contactanos por WhatsApp o teléfono lo antes posible. Te guiaremos en el proceso 
+                    y gestionamos todo con la compañía aseguradora.
+                  </p>
+                </details>
+                <details className="bg-slate-700/30 rounded-lg">
+                  <summary className="p-4 cursor-pointer hover:bg-slate-700/50 rounded-lg">
+                    ¿Cómo pago mi póliza?
+                  </summary>
+                  <p className="px-4 pb-4 text-slate-400">
+                    Podés pagar con tarjeta de crédito (débito automático), transferencia bancaria 
+                    o en efectivo en Rapipago/Pago Fácil.
+                  </p>
+                </details>
+                <details className="bg-slate-700/30 rounded-lg">
+                  <summary className="p-4 cursor-pointer hover:bg-slate-700/50 rounded-lg">
+                    ¿Cómo solicito una cotización?
+                  </summary>
+                  <p className="px-4 pb-4 text-slate-400">
+                    Escribinos por WhatsApp con los datos del vehículo (marca, modelo, año, patente) 
+                    y te enviamos opciones de cobertura en minutos.
+                  </p>
+                </details>
+              </div>
             </div>
           </div>
         )}
 
-        {/* REPORTES */}
-        {activeTab === 'reportes' && (userRole === 'admin' || userRole === 'administrador') && (
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Reportes y Analytics</h2>
-            <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
-              <p className="text-yellow-800">📊 Módulo en desarrollo - Dashboards y reportes avanzados próximamente</p>
-            </div>
-          </div>
-        )}
       </main>
+
+      {/* Footer */}
+      <footer className="bg-slate-800/30 border-t border-slate-700 mt-auto">
+        <div className="max-w-7xl mx-auto px-4 py-6 text-center text-slate-500 text-sm">
+          <p>© 2025 AYMA Advisors - Productores Asesores de Seguros</p>
+          <p className="mt-1">Matrícula PAS N° 68323 • Rosario, Santa Fe</p>
+        </div>
+      </footer>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
