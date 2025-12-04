@@ -50,25 +50,49 @@ function App() {
     }
   }, []);
 
-  // Cargar datos cuando hay token
-  useEffect(() => {
-    if (state.token) {
-      cargarDatos();
-    }
-  }, [state.token]);
-
   // Función para hacer peticiones autenticadas
-  const fetchAPI = async (endpoint, options = {}) => {
+  const fetchAPI = async (endpoint, token, options = {}) => {
+    const authToken = token || state.token || localStorage.getItem('token');
     const response = await fetch(`${API_URL}${endpoint}`, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${state.token}`,
+        'Authorization': `Bearer ${authToken}`,
         ...options.headers
       }
     });
     if (!response.ok) throw new Error(`Error: ${response.status}`);
     return response.json();
+  };
+
+  // Cargar datos cuando hay token
+  useEffect(() => {
+    if (state.token) {
+      cargarDatosConToken(state.token);
+    }
+  }, [state.token]);
+
+  // Cargar datos con token explícito
+  const cargarDatosConToken = async (token) => {
+    setState(prev => ({ ...prev, loading: true }));
+    try {
+      const [dashboard, polizas, vehiculos] = await Promise.all([
+        fetchAPI('/api/v1/dashboard/', token),
+        fetchAPI('/api/v1/polizas/', token),
+        fetchAPI('/api/v1/vehiculos/', token)
+      ]);
+      
+      setState(prev => ({ 
+        ...prev, 
+        dashboardData: dashboard,
+        polizas: polizas || [],
+        vehiculos: vehiculos || [],
+        loading: false 
+      }));
+    } catch (err) {
+      console.error('Error cargando datos:', err);
+      setState(prev => ({ ...prev, loading: false }));
+    }
   };
 
   // Login
@@ -103,28 +127,7 @@ function App() {
     }
   };
 
-  // Cargar todos los datos
-  const cargarDatos = async () => {
-    setState(prev => ({ ...prev, loading: true }));
-    try {
-      const [dashboard, polizas, vehiculos] = await Promise.all([
-        fetchAPI('/api/v1/dashboard/'),
-        fetchAPI('/api/v1/polizas/'),
-        fetchAPI('/api/v1/vehiculos/')
-      ]);
-      
-      setState(prev => ({ 
-        ...prev, 
-        dashboardData: dashboard,
-        polizas: polizas || [],
-        vehiculos: vehiculos || [],
-        loading: false 
-      }));
-    } catch (err) {
-      console.error('Error cargando datos:', err);
-      setState(prev => ({ ...prev, loading: false }));
-    }
-  };
+
 
   // Logout
   const handleLogout = () => {
