@@ -98,9 +98,9 @@ function App() {
           console.log('No se pudieron cargar leads:', e);
         }
         try {
-          clientesRes = await fetchAPI('/api/v1/clientes/', authToken);
-          // La API devuelve {clientes: [...], total: X}
-          if (clientesRes && clientesRes.clientes) {
+          clientesRes = await fetchAPI('/api/v1/admin/clientes', authToken);
+          // La API devuelve un array directo o {clientes: [...]}
+          if (clientesRes && !Array.isArray(clientesRes) && clientesRes.clientes) {
             clientesRes = clientesRes.clientes;
           }
         } catch (e) {
@@ -1215,13 +1215,13 @@ function App() {
               <div className="bg-purple-600/20 border border-purple-500/30 rounded-xl p-4">
                 <p className="text-purple-300 text-sm">Con Pólizas</p>
                 <p className="text-3xl font-bold">
-                  {state.clientes?.filter(c => c.cantidad_polizas > 0).length || 0}
+                  {state.clientes?.filter(c => (c.polizas_totales || c.cantidad_polizas || 0) > 0).length || 0}
                 </p>
               </div>
               <div className="bg-orange-600/20 border border-orange-500/30 rounded-xl p-4">
                 <p className="text-orange-300 text-sm">Total Pólizas</p>
                 <p className="text-3xl font-bold">
-                  {state.clientes?.reduce((sum, c) => sum + (c.cantidad_polizas || 0), 0) || 0}
+                  {state.clientes?.reduce((sum, c) => sum + (c.polizas_totales || c.cantidad_polizas || 0), 0) || 0}
                 </p>
               </div>
             </div>
@@ -1247,8 +1247,8 @@ function App() {
                         <tr key={cliente.id || idx} className="hover:bg-slate-700/30 transition">
                           <td className="px-4 py-3">
                             <div>
-                              <p className="font-medium">{cliente.nombre} {cliente.apellido}</p>
-                              <p className="text-slate-500 text-xs">{cliente.razon_social || 'Persona Física'}</p>
+                              <p className="font-medium">{cliente.nombre_completo || `${cliente.nombre} ${cliente.apellido || ''}`}</p>
+                              <p className="text-slate-500 text-xs">{cliente.domicilio || 'Sin domicilio'}</p>
                             </div>
                           </td>
                           <td className="px-4 py-3 text-slate-400 text-sm">
@@ -1258,11 +1258,11 @@ function App() {
                           <td className="px-4 py-3 text-slate-400 text-sm">{cliente.telefono || '-'}</td>
                           <td className="px-4 py-3">
                             <span className={`px-2 py-1 text-xs rounded-full font-medium ${
-                              cliente.cantidad_polizas > 0 
+                              (cliente.polizas_totales || cliente.cantidad_polizas || 0) > 0 
                                 ? 'bg-green-600/30 text-green-300' 
                                 : 'bg-slate-600/30 text-slate-400'
                             }`}>
-                              {cliente.cantidad_polizas || 0} póliza(s)
+                              {cliente.polizas_totales || cliente.cantidad_polizas || 0} póliza(s)
                             </span>
                           </td>
                           <td className="px-4 py-3">
@@ -1279,7 +1279,7 @@ function App() {
                           <td className="px-4 py-3">
                             <div className="flex gap-2">
                               <a 
-                                href={`https://wa.me/${cliente.telefono?.replace(/\D/g, '')}?text=Hola ${cliente.nombre}, soy de AYMA Advisors...`}
+                                href={`https://wa.me/${cliente.telefono?.replace(/\D/g, '')}?text=Hola ${cliente.nombre_completo || cliente.nombre}, soy de AYMA Advisors...`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="p-2 bg-green-600/20 hover:bg-green-600/40 rounded-lg transition text-sm"
