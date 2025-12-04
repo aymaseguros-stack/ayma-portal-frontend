@@ -53,11 +53,17 @@ function App() {
 
   // Verificar token al cargar
   useEffect(() => {
+    console.log('🚀 App iniciada - verificando localStorage...');
     const savedToken = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
+    console.log('🔑 Token guardado:', savedToken ? savedToken.substring(0, 30) + '...' : 'NO HAY');
+    console.log('👤 User guardado:', savedUser);
     if (savedToken && savedUser) {
+      console.log('✅ Restaurando sesión...');
       setState(prev => ({ ...prev, token: savedToken, user: JSON.parse(savedUser) }));
       cargarDatosConToken(savedToken);
+    } else {
+      console.log('⚠️ No hay sesión guardada');
     }
   }, []);
 
@@ -70,6 +76,14 @@ function App() {
         'Authorization': 'Bearer ' + authToken
       }
     });
+    if (response.status === 401) {
+      // Token expirado - limpiar y forzar re-login
+      console.log('⚠️ Token expirado, limpiando sesión...');
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setState(initialState);
+      return null;
+    }
     if (!response.ok) {
       throw new Error('Error: ' + response.status);
     }
@@ -78,11 +92,26 @@ function App() {
 
   // Cargar datos con token explícito
   const cargarDatosConToken = async (authToken) => {
+    console.log('🔄 Cargando datos con token:', authToken?.substring(0, 30) + '...');
     setState(prev => ({ ...prev, loading: true }));
     try {
+      console.log('📊 Llamando a dashboard...');
       const dashboardRes = await fetchAPI('/api/v1/dashboard/', authToken);
+      if (!dashboardRes) {
+        console.log('⚠️ Sesión expirada, requiere re-login');
+        return; // fetchAPI ya limpió la sesión
+      }
+      console.log('✅ Dashboard:', dashboardRes);
+      
+      console.log('📄 Llamando a pólizas...');
       const polizasRes = await fetchAPI('/api/v1/polizas/', authToken);
+      if (!polizasRes) return;
+      console.log('✅ Pólizas recibidas:', polizasRes?.length, polizasRes);
+      
+      console.log('🚗 Llamando a vehículos...');
       const vehiculosRes = await fetchAPI('/api/v1/vehiculos/', authToken);
+      if (!vehiculosRes) return;
+      console.log('✅ Vehículos recibidos:', vehiculosRes?.length, vehiculosRes);
       
       // Si es admin, cargar leads y clientes
       let leadsRes = [];
@@ -108,6 +137,7 @@ function App() {
         }
       }
       
+      console.log('💾 Guardando en estado - polizas:', polizasRes?.length, 'vehiculos:', vehiculosRes?.length);
       setState(prev => ({ 
         ...prev, 
         dashboardData: dashboardRes,
@@ -117,8 +147,9 @@ function App() {
         clientes: clientesRes || [],
         loading: false 
       }));
+      console.log('✅ Estado actualizado correctamente');
     } catch (err) {
-      console.error('Error cargando datos:', err);
+      console.error('❌ Error cargando datos:', err);
       setState(prev => ({ ...prev, loading: false }));
     }
   };
@@ -157,11 +188,14 @@ function App() {
       if (!response.ok) throw new Error('Credenciales inválidas');
       
       const data = await response.json();
+      console.log('🎉 Login exitoso:', data);
+      console.log('💾 Guardando en localStorage...');
       localStorage.setItem('token', data.access_token);
       localStorage.setItem('user', JSON.stringify({ 
         email: data.email, 
         tipo_usuario: data.tipo_usuario 
       }));
+      console.log('✅ Token guardado:', data.access_token.substring(0, 30) + '...');
       
       setState(prev => ({ 
         ...prev, 
@@ -171,6 +205,7 @@ function App() {
       }));
       
       // Cargar datos inmediatamente después del login
+      console.log('📥 Iniciando carga de datos post-login...');
       cargarDatosConToken(data.access_token);
       
     } catch (err) {
