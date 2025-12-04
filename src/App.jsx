@@ -90,11 +90,19 @@ function App() {
       if (dashboardRes.role === 'ADMIN' || dashboardRes.role === 'ADMINISTRADOR') {
         try {
           leadsRes = await fetchAPI('/api/v1/leads/', authToken);
+          // La API puede devolver {leads: [...]} o un array directo
+          if (leadsRes && leadsRes.leads) {
+            leadsRes = leadsRes.leads;
+          }
         } catch (e) {
           console.log('No se pudieron cargar leads:', e);
         }
         try {
           clientesRes = await fetchAPI('/api/v1/clientes/', authToken);
+          // La API devuelve {clientes: [...], total: X}
+          if (clientesRes && clientesRes.clientes) {
+            clientesRes = clientesRes.clientes;
+          }
         } catch (e) {
           console.log('No se pudieron cargar clientes:', e);
         }
