@@ -41,6 +41,14 @@ function App() {
     fotos_descripcion: ''
   });
   const [siniestroEnviado, setSiniestroEnviado] = useState(null);
+  
+  // Estado para ticket de soporte
+  const [soporteForm, setSoporteForm] = useState({
+    asunto: '',
+    mensaje: '',
+    prioridad: 'media'
+  });
+  const [ticketEnviado, setTicketEnviado] = useState(null);
 
   // Verificar token al cargar
   useEffect(() => {
@@ -194,6 +202,37 @@ function App() {
       hay_lesionados: false,
       datos_tercero: '',
       fotos_descripcion: ''
+    });
+  };
+
+  // Enviar ticket de soporte
+  const handleEnviarTicket = async (e) => {
+    e.preventDefault();
+    
+    const token = generarToken();
+    const fechaRegistro = new Date().toISOString();
+    
+    const ticketData = {
+      ...soporteForm,
+      token: token,
+      fecha_registro: fechaRegistro,
+      estado: 'ABIERTO',
+      cliente_email: state.user?.email,
+      cliente_nombre: state.dashboardData?.cliente?.nombre
+    };
+    
+    console.log('Ticket registrado:', ticketData);
+    
+    setTicketEnviado({
+      token: token,
+      fecha: fechaRegistro,
+      asunto: soporteForm.asunto
+    });
+    
+    setSoporteForm({
+      asunto: '',
+      mensaje: '',
+      prioridad: 'media'
     });
   };
 
@@ -886,6 +925,80 @@ function App() {
                   </p>
                 </div>
               </div>
+            </div>
+
+            {/* Formulario de Ticket */}
+            <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+              <h3 className="text-lg font-semibold mb-4">🎫 Crear Ticket de Soporte</h3>
+              
+              {ticketEnviado ? (
+                <div className="bg-green-900/30 border border-green-500 rounded-xl p-6 text-center">
+                  <div className="text-5xl mb-4">✅</div>
+                  <h3 className="text-xl font-bold text-green-400 mb-2">¡Ticket Enviado!</h3>
+                  <div className="bg-slate-800 rounded-lg p-4 my-4 inline-block">
+                    <p className="text-slate-400 text-sm">Tu número de ticket:</p>
+                    <p className="text-2xl font-mono font-bold text-white">{ticketEnviado.token}</p>
+                  </div>
+                  <p className="text-slate-300 mb-4">
+                    Guardá este código para dar seguimiento a tu consulta.
+                  </p>
+                  <p className="text-slate-400 text-sm">
+                    Te responderemos a la brevedad por email o WhatsApp.
+                  </p>
+                  <button
+                    onClick={() => setTicketEnviado(null)}
+                    className="mt-4 px-6 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition"
+                  >
+                    Crear otro ticket
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleEnviarTicket} className="space-y-4">
+                  <div>
+                    <label className="block text-sm text-slate-400 mb-2">Asunto *</label>
+                    <input
+                      type="text"
+                      required
+                      value={soporteForm.asunto}
+                      onChange={(e) => setSoporteForm({...soporteForm, asunto: e.target.value})}
+                      placeholder="Ej: Consulta sobre cobertura"
+                      className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg focus:border-blue-500 focus:outline-none"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm text-slate-400 mb-2">Prioridad</label>
+                    <select
+                      value={soporteForm.prioridad}
+                      onChange={(e) => setSoporteForm({...soporteForm, prioridad: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg focus:border-blue-500 focus:outline-none"
+                    >
+                      <option value="baja">Baja - Consulta general</option>
+                      <option value="media">Media - Requiere atención</option>
+                      <option value="alta">Alta - Urgente</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm text-slate-400 mb-2">Mensaje *</label>
+                    <textarea
+                      required
+                      rows={4}
+                      value={soporteForm.mensaje}
+                      onChange={(e) => setSoporteForm({...soporteForm, mensaje: e.target.value})}
+                      placeholder="Describí tu consulta o problema..."
+                      className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg focus:border-blue-500 focus:outline-none resize-none"
+                    />
+                  </div>
+                  
+                  <button
+                    type="submit"
+                    className="w-full py-4 bg-blue-600 hover:bg-blue-700 rounded-xl font-bold transition text-lg"
+                  >
+                    📤 Enviar Ticket
+                  </button>
+                </form>
+              )}
             </div>
 
             {/* FAQ */}
