@@ -18,6 +18,7 @@ const initialState = {
   polizas: [],
   vehiculos: [],
   leads: [],
+  clientes: [],
   dashboardData: null,
   loading: false,
   error: null
@@ -83,13 +84,19 @@ function App() {
       const polizasRes = await fetchAPI('/api/v1/polizas/', authToken);
       const vehiculosRes = await fetchAPI('/api/v1/vehiculos/', authToken);
       
-      // Si es admin, cargar leads
+      // Si es admin, cargar leads y clientes
       let leadsRes = [];
+      let clientesRes = [];
       if (dashboardRes.role === 'ADMIN' || dashboardRes.role === 'ADMINISTRADOR') {
         try {
           leadsRes = await fetchAPI('/api/v1/leads/', authToken);
         } catch (e) {
           console.log('No se pudieron cargar leads:', e);
+        }
+        try {
+          clientesRes = await fetchAPI('/api/v1/clientes/', authToken);
+        } catch (e) {
+          console.log('No se pudieron cargar clientes:', e);
         }
       }
       
@@ -99,6 +106,7 @@ function App() {
         polizas: polizasRes || [],
         vehiculos: vehiculosRes || [],
         leads: leadsRes || [],
+        clientes: clientesRes || [],
         loading: false 
       }));
     } catch (err) {
@@ -327,7 +335,10 @@ function App() {
               { id: 'soporte', icon: '💬', label: 'Soporte' },
               // Solo para Admin
               ...(state.user?.tipo_usuario?.toUpperCase() === 'ADMIN' || state.user?.tipo_usuario?.toUpperCase() === 'ADMINISTRADOR' 
-                ? [{ id: 'leads', icon: '📋', label: 'Leads' }] 
+                ? [
+                    { id: 'leads', icon: '📋', label: 'Leads' },
+                    { id: 'clientes', icon: '👥', label: 'Clientes' }
+                  ] 
                 : [])
             ].map(tab => (
               <button
@@ -1170,6 +1181,128 @@ function App() {
                 Metodología SAIDA: Sondeo → Atención → Interés → Deseo → Acción
               </p>
             </div>
+          </div>
+        )}
+
+        {/* CLIENTES - Solo Admin */}
+        {state.activeTab === 'clientes' && (state.user?.tipo_usuario?.toUpperCase() === 'ADMIN' || state.user?.tipo_usuario?.toUpperCase() === 'ADMINISTRADOR') && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold">👥 Gestión de Clientes</h2>
+              <span className="text-slate-400">{state.clientes?.length || 0} cliente(s)</span>
+            </div>
+            
+            {/* Estadísticas */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-blue-600/20 border border-blue-500/30 rounded-xl p-4">
+                <p className="text-blue-300 text-sm">Total Clientes</p>
+                <p className="text-3xl font-bold">{state.clientes?.length || 0}</p>
+              </div>
+              <div className="bg-green-600/20 border border-green-500/30 rounded-xl p-4">
+                <p className="text-green-300 text-sm">Activos</p>
+                <p className="text-3xl font-bold">
+                  {state.clientes?.filter(c => c.activo !== false).length || 0}
+                </p>
+              </div>
+              <div className="bg-purple-600/20 border border-purple-500/30 rounded-xl p-4">
+                <p className="text-purple-300 text-sm">Con Pólizas</p>
+                <p className="text-3xl font-bold">
+                  {state.clientes?.filter(c => c.cantidad_polizas > 0).length || 0}
+                </p>
+              </div>
+              <div className="bg-orange-600/20 border border-orange-500/30 rounded-xl p-4">
+                <p className="text-orange-300 text-sm">Total Pólizas</p>
+                <p className="text-3xl font-bold">
+                  {state.clientes?.reduce((sum, c) => sum + (c.cantidad_polizas || 0), 0) || 0}
+                </p>
+              </div>
+            </div>
+
+            {/* Tabla de Clientes */}
+            {state.clientes && state.clientes.length > 0 ? (
+              <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-slate-700/50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Nombre</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Documento</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Email</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Teléfono</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Pólizas</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Scoring</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-700">
+                      {state.clientes.map((cliente, idx) => (
+                        <tr key={cliente.id || idx} className="hover:bg-slate-700/30 transition">
+                          <td className="px-4 py-3">
+                            <div>
+                              <p className="font-medium">{cliente.nombre} {cliente.apellido}</p>
+                              <p className="text-slate-500 text-xs">{cliente.razon_social || 'Persona Física'}</p>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-slate-400 text-sm">
+                            <span className="text-slate-500">{cliente.tipo_documento}:</span> {cliente.numero_documento}
+                          </td>
+                          <td className="px-4 py-3 text-slate-400 text-sm">{cliente.email || '-'}</td>
+                          <td className="px-4 py-3 text-slate-400 text-sm">{cliente.telefono || '-'}</td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+                              cliente.cantidad_polizas > 0 
+                                ? 'bg-green-600/30 text-green-300' 
+                                : 'bg-slate-600/30 text-slate-400'
+                            }`}>
+                              {cliente.cantidad_polizas || 0} póliza(s)
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+                              (cliente.scoring_comercial || 0) >= 100 
+                                ? 'bg-green-600/30 text-green-300' 
+                                : (cliente.scoring_comercial || 0) >= 50 
+                                  ? 'bg-yellow-600/30 text-yellow-300'
+                                  : 'bg-red-600/30 text-red-300'
+                            }`}>
+                              {cliente.scoring_comercial || 0} pts
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-2">
+                              <a 
+                                href={`https://wa.me/${cliente.telefono?.replace(/\D/g, '')}?text=Hola ${cliente.nombre}, soy de AYMA Advisors...`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2 bg-green-600/20 hover:bg-green-600/40 rounded-lg transition text-sm"
+                                title="WhatsApp"
+                              >
+                                💬
+                              </a>
+                              <a 
+                                href={`mailto:${cliente.email}`}
+                                className="p-2 bg-blue-600/20 hover:bg-blue-600/40 rounded-lg transition text-sm"
+                                title="Email"
+                              >
+                                ✉️
+                              </a>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-slate-800/50 rounded-xl p-12 border border-slate-700 text-center">
+                <span className="text-6xl">👥</span>
+                <p className="text-slate-400 mt-4">No hay clientes registrados</p>
+                <p className="text-slate-500 text-sm mt-2">
+                  Los clientes se crean cuando un lead se convierte o se registra desde el portal
+                </p>
+              </div>
+            )}
           </div>
         )}
 
