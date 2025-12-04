@@ -41,6 +41,14 @@ function App() {
   });
   const [siniestroEnviado, setSiniestroEnviado] = useState(null);
 
+  // Estado para formulario de soporte/ticket
+  const [ticketForm, setTicketForm] = useState({
+    tipo_consulta: '',
+    asunto: '',
+    descripcion: ''
+  });
+  const [ticketEnviado, setTicketEnviado] = useState(null);
+
   // Verificar token al cargar
   useEffect(() => {
     const savedToken = localStorage.getItem('token');
@@ -100,6 +108,9 @@ function App() {
     setState(prev => ({ ...prev, activeTab: tab }));
     if (tab !== 'siniestro') {
       setSiniestroEnviado(null);
+    }
+    if (tab !== 'soporte') {
+      setTicketEnviado(null);
     }
   };
 
@@ -174,6 +185,37 @@ function App() {
       hay_lesionados: false,
       datos_tercero: '',
       fotos_descripcion: ''
+    });
+  };
+
+  // Enviar ticket de soporte
+  const handleEnviarTicket = async (e) => {
+    e.preventDefault();
+    
+    const token = generarToken();
+    const fechaRegistro = new Date().toISOString();
+    
+    const ticketData = {
+      ...ticketForm,
+      token: token,
+      fecha_registro: fechaRegistro,
+      estado: 'ABIERTO',
+      cliente_email: state.user?.email,
+      cliente_nombre: state.dashboardData?.cliente?.nombre
+    };
+    
+    console.log('Ticket registrado:', ticketData);
+    
+    setTicketEnviado({
+      token: token,
+      fecha: fechaRegistro,
+      asunto: ticketForm.asunto
+    });
+    
+    setTicketForm({
+      tipo_consulta: '',
+      asunto: '',
+      descripcion: ''
     });
   };
 
@@ -779,106 +821,202 @@ function App() {
         {/* SOPORTE */}
         {state.activeTab === 'soporte' && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold">Soporte</h2>
+            <h2 className="text-2xl font-bold">💬 Soporte</h2>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Contacto Directo */}
-              <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
-                <h3 className="text-lg font-semibold mb-4">📞 Contacto Directo</h3>
-                <div className="space-y-4">
-                  <a 
-                    href="https://wa.me/5493416952259" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-4 p-4 bg-green-600/20 hover:bg-green-600/30 rounded-xl transition"
-                  >
-                    <span className="text-3xl">💬</span>
-                    <div>
-                      <p className="font-semibold">WhatsApp</p>
-                      <p className="text-slate-400 text-sm">+54 9 341 695-2259</p>
-                    </div>
-                  </a>
-                  
-                  <a 
-                    href="tel:+5493416952259"
-                    className="flex items-center gap-4 p-4 bg-blue-600/20 hover:bg-blue-600/30 rounded-xl transition"
-                  >
-                    <span className="text-3xl">📱</span>
-                    <div>
-                      <p className="font-semibold">Teléfono</p>
-                      <p className="text-slate-400 text-sm">+54 9 341 695-2259</p>
-                    </div>
-                  </a>
-                  
-                  <a 
-                    href="mailto:aymaseguros@hotmail.com"
-                    className="flex items-center gap-4 p-4 bg-purple-600/20 hover:bg-purple-600/30 rounded-xl transition"
-                  >
-                    <span className="text-3xl">✉️</span>
-                    <div>
-                      <p className="font-semibold">Email</p>
-                      <p className="text-slate-400 text-sm">aymaseguros@hotmail.com</p>
-                    </div>
-                  </a>
-                </div>
-              </div>
-              
-              {/* Horarios */}
-              <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
-                <h3 className="text-lg font-semibold mb-4">🕐 Horarios de Atención</h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between py-2 border-b border-slate-700">
-                    <span className="text-slate-400">Lunes a Viernes</span>
-                    <span className="font-medium">9:00 - 18:00</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b border-slate-700">
-                    <span className="text-slate-400">Sábados</span>
-                    <span className="font-medium">9:00 - 13:00</span>
-                  </div>
-                  <div className="flex justify-between py-2">
-                    <span className="text-slate-400">Emergencias 24hs</span>
-                    <span className="text-green-400 font-medium">WhatsApp</span>
-                  </div>
-                </div>
+            {/* Si ya se envió el ticket, mostrar confirmación */}
+            {ticketEnviado ? (
+              <div className="bg-green-900/30 border border-green-500/50 rounded-xl p-8 text-center">
+                <span className="text-6xl">✅</span>
+                <h3 className="text-2xl font-bold text-green-400 mt-4">Ticket Enviado</h3>
+                <p className="text-slate-300 mt-2">Tu consulta ha sido registrada exitosamente</p>
                 
-                <div className="mt-6 p-4 bg-blue-600/20 rounded-xl">
-                  <p className="text-sm text-blue-200">
-                    <strong>💡 Tip:</strong> Para siniestros o emergencias fuera de horario, 
-                    envianos un WhatsApp y te respondemos a la brevedad.
+                <div className="bg-slate-800/80 rounded-xl p-6 mt-6 max-w-md mx-auto">
+                  <p className="text-slate-500 text-sm">Número de Ticket</p>
+                  <p className="text-3xl font-mono font-bold text-blue-400 mt-2">{ticketEnviado.token}</p>
+                  <p className="text-slate-400 text-sm mt-4">
+                    Guardá este número para seguimiento. Te responderemos a la brevedad.
                   </p>
                 </div>
+                
+                <div className="flex flex-col sm:flex-row gap-4 justify-center mt-6">
+                  <a 
+                    href={`https://wa.me/5493416952259?text=Hola, acabo de enviar un ticket de soporte: ${ticketEnviado.token}`}
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition inline-flex items-center justify-center gap-2"
+                  >
+                    💬 Contactar por WhatsApp
+                  </a>
+                  <button 
+                    onClick={() => setTicketEnviado(null)}
+                    className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition"
+                  >
+                    Nueva Consulta
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Formulario de Ticket */}
+                <div className="lg:col-span-2 bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+                  <h3 className="text-lg font-semibold mb-4">📝 Enviar Consulta</h3>
+                  
+                  <form onSubmit={handleEnviarTicket} className="space-y-6">
+                    {/* Tipo de Consulta */}
+                    <div>
+                      <label className="block text-slate-400 text-sm mb-2">Tipo de Consulta *</label>
+                      <select
+                        value={ticketForm.tipo_consulta}
+                        onChange={(e) => setTicketForm({...ticketForm, tipo_consulta: e.target.value})}
+                        className="w-full px-4 py-3 rounded-lg bg-slate-700/50 border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      >
+                        <option value="">Seleccionar tipo...</option>
+                        <option value="cobertura">Consulta sobre Cobertura</option>
+                        <option value="facturacion">Facturación / Pagos</option>
+                        <option value="modificacion">Modificar Póliza</option>
+                        <option value="cotizacion">Nueva Cotización</option>
+                        <option value="documentacion">Documentación</option>
+                        <option value="reclamo">Reclamo</option>
+                        <option value="otro">Otro</option>
+                      </select>
+                    </div>
 
-            {/* FAQ */}
+                    {/* Asunto */}
+                    <div>
+                      <label className="block text-slate-400 text-sm mb-2">Asunto *</label>
+                      <input
+                        type="text"
+                        value={ticketForm.asunto}
+                        onChange={(e) => setTicketForm({...ticketForm, asunto: e.target.value})}
+                        placeholder="Ej: Consulta sobre cobertura de granizo"
+                        className="w-full px-4 py-3 rounded-lg bg-slate-700/50 border border-slate-600 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+
+                    {/* Descripción */}
+                    <div>
+                      <label className="block text-slate-400 text-sm mb-2">Descripción *</label>
+                      <textarea
+                        value={ticketForm.descripcion}
+                        onChange={(e) => setTicketForm({...ticketForm, descripcion: e.target.value})}
+                        placeholder="Contanos en detalle tu consulta..."
+                        rows={5}
+                        className="w-full px-4 py-3 rounded-lg bg-slate-700/50 border border-slate-600 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+
+                    {/* Botón Enviar */}
+                    <button
+                      type="submit"
+                      className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition text-lg"
+                    >
+                      📤 Enviar Consulta
+                    </button>
+                  </form>
+                </div>
+
+                {/* Panel lateral */}
+                <div className="space-y-6">
+                  {/* Contacto Directo */}
+                  <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+                    <h3 className="text-lg font-semibold mb-4">📞 Contacto Directo</h3>
+                    <div className="space-y-3">
+                      <a 
+                        href="https://wa.me/5493416952259" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 p-3 bg-green-600/20 hover:bg-green-600/30 rounded-lg transition"
+                      >
+                        <span className="text-2xl">💬</span>
+                        <div>
+                          <p className="font-semibold text-sm">WhatsApp</p>
+                          <p className="text-slate-400 text-xs">+54 9 341 695-2259</p>
+                        </div>
+                      </a>
+                      
+                      <a 
+                        href="tel:+5493416952259"
+                        className="flex items-center gap-3 p-3 bg-blue-600/20 hover:bg-blue-600/30 rounded-lg transition"
+                      >
+                        <span className="text-2xl">📱</span>
+                        <div>
+                          <p className="font-semibold text-sm">Teléfono</p>
+                          <p className="text-slate-400 text-xs">+54 9 341 695-2259</p>
+                        </div>
+                      </a>
+                      
+                      <a 
+                        href="mailto:aymaseguros@hotmail.com"
+                        className="flex items-center gap-3 p-3 bg-purple-600/20 hover:bg-purple-600/30 rounded-lg transition"
+                      >
+                        <span className="text-2xl">✉️</span>
+                        <div>
+                          <p className="font-semibold text-sm">Email</p>
+                          <p className="text-slate-400 text-xs">aymaseguros@hotmail.com</p>
+                        </div>
+                      </a>
+                    </div>
+                  </div>
+                  
+                  {/* Horarios */}
+                  <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+                    <h3 className="text-lg font-semibold mb-4">🕐 Horarios</h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Lun - Vie</span>
+                        <span>9:00 - 18:00</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Sábados</span>
+                        <span>9:00 - 13:00</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Emergencias</span>
+                        <span className="text-green-400">WhatsApp 24hs</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* FAQ - siempre visible */}
             <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
               <h3 className="text-lg font-semibold mb-4">❓ Preguntas Frecuentes</h3>
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <details className="bg-slate-700/30 rounded-lg">
                   <summary className="p-4 cursor-pointer hover:bg-slate-700/50 rounded-lg font-medium">
                     ¿Cómo denuncio un siniestro?
                   </summary>
-                  <p className="px-4 pb-4 text-slate-400">
-                    Podés usar la sección "Denunciar Siniestro" de este portal o contactarnos por WhatsApp. 
-                    Te guiamos en todo el proceso y gestionamos con la compañía aseguradora.
+                  <p className="px-4 pb-4 text-slate-400 text-sm">
+                    Usá la sección "Denunciar Siniestro" de este portal o contactanos por WhatsApp.
                   </p>
                 </details>
                 <details className="bg-slate-700/30 rounded-lg">
                   <summary className="p-4 cursor-pointer hover:bg-slate-700/50 rounded-lg font-medium">
                     ¿Cómo pago mi póliza?
                   </summary>
-                  <p className="px-4 pb-4 text-slate-400">
-                    Podés pagar con tarjeta de crédito (débito automático), transferencia bancaria 
-                    o en efectivo en Rapipago/Pago Fácil.
+                  <p className="px-4 pb-4 text-slate-400 text-sm">
+                    Tarjeta de crédito, transferencia bancaria o Rapipago/Pago Fácil.
                   </p>
                 </details>
                 <details className="bg-slate-700/30 rounded-lg">
                   <summary className="p-4 cursor-pointer hover:bg-slate-700/50 rounded-lg font-medium">
                     ¿Cómo solicito una cotización?
                   </summary>
-                  <p className="px-4 pb-4 text-slate-400">
-                    Escribinos por WhatsApp con los datos del vehículo (marca, modelo, año, patente) 
-                    y te enviamos opciones de cobertura en minutos.
+                  <p className="px-4 pb-4 text-slate-400 text-sm">
+                    Por WhatsApp con datos del vehículo o completá el formulario arriba.
+                  </p>
+                </details>
+                <details className="bg-slate-700/30 rounded-lg">
+                  <summary className="p-4 cursor-pointer hover:bg-slate-700/50 rounded-lg font-medium">
+                    ¿Cómo modifico mi póliza?
+                  </summary>
+                  <p className="px-4 pb-4 text-slate-400 text-sm">
+                    Envianos un ticket o contactanos por WhatsApp con los cambios.
                   </p>
                 </details>
               </div>
