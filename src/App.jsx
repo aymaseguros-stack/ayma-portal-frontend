@@ -17,8 +17,6 @@ const initialState = {
   activeTab: 'dashboard',
   polizas: [],
   vehiculos: [],
-  leads: [],
-  clientes: [],
   dashboardData: null,
   loading: false,
   error: null
@@ -43,27 +41,13 @@ function App() {
   });
   const [siniestroEnviado, setSiniestroEnviado] = useState(null);
 
-  // Estado para formulario de soporte/ticket
-  const [ticketForm, setTicketForm] = useState({
-    tipo_consulta: '',
-    asunto: '',
-    descripcion: ''
-  });
-  const [ticketEnviado, setTicketEnviado] = useState(null);
-
   // Verificar token al cargar
   useEffect(() => {
-    console.log('🚀 App iniciada - verificando localStorage...');
     const savedToken = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
-    console.log('🔑 Token guardado:', savedToken ? savedToken.substring(0, 30) + '...' : 'NO HAY');
-    console.log('👤 User guardado:', savedUser);
     if (savedToken && savedUser) {
-      console.log('✅ Restaurando sesión...');
       setState(prev => ({ ...prev, token: savedToken, user: JSON.parse(savedUser) }));
       cargarDatosConToken(savedToken);
-    } else {
-      console.log('⚠️ No hay sesión guardada');
     }
   }, []);
 
@@ -76,14 +60,6 @@ function App() {
         'Authorization': 'Bearer ' + authToken
       }
     });
-    if (response.status === 401) {
-      // Token expirado - limpiar y forzar re-login
-      console.log('⚠️ Token expirado, limpiando sesión...');
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      setState(initialState);
-      return null;
-    }
     if (!response.ok) {
       throw new Error('Error: ' + response.status);
     }
@@ -92,64 +68,21 @@ function App() {
 
   // Cargar datos con token explícito
   const cargarDatosConToken = async (authToken) => {
-    console.log('🔄 Cargando datos con token:', authToken?.substring(0, 30) + '...');
     setState(prev => ({ ...prev, loading: true }));
     try {
-      console.log('📊 Llamando a dashboard...');
       const dashboardRes = await fetchAPI('/api/v1/dashboard/', authToken);
-      if (!dashboardRes) {
-        console.log('⚠️ Sesión expirada, requiere re-login');
-        return; // fetchAPI ya limpió la sesión
-      }
-      console.log('✅ Dashboard:', dashboardRes);
-      
-      console.log('📄 Llamando a pólizas...');
       const polizasRes = await fetchAPI('/api/v1/polizas/', authToken);
-      if (!polizasRes) return;
-      console.log('✅ Pólizas recibidas:', polizasRes?.length, polizasRes);
-      
-      console.log('🚗 Llamando a vehículos...');
       const vehiculosRes = await fetchAPI('/api/v1/vehiculos/', authToken);
-      if (!vehiculosRes) return;
-      console.log('✅ Vehículos recibidos:', vehiculosRes?.length, vehiculosRes);
       
-      // Si es admin, cargar leads y clientes
-      let leadsRes = [];
-      let clientesRes = [];
-      if (dashboardRes.role === 'ADMIN' || dashboardRes.role === 'ADMINISTRADOR') {
-        try {
-          leadsRes = await fetchAPI('/api/v1/leads/', authToken);
-          // La API puede devolver {leads: [...]} o un array directo
-          if (leadsRes && leadsRes.leads) {
-            leadsRes = leadsRes.leads;
-          }
-        } catch (e) {
-          console.log('No se pudieron cargar leads:', e);
-        }
-        try {
-          clientesRes = await fetchAPI('/api/v1/admin/clientes', authToken);
-          // La API devuelve un array directo o {clientes: [...]}
-          if (clientesRes && !Array.isArray(clientesRes) && clientesRes.clientes) {
-            clientesRes = clientesRes.clientes;
-          }
-        } catch (e) {
-          console.log('No se pudieron cargar clientes:', e);
-        }
-      }
-      
-      console.log('💾 Guardando en estado - polizas:', polizasRes?.length, 'vehiculos:', vehiculosRes?.length);
       setState(prev => ({ 
         ...prev, 
         dashboardData: dashboardRes,
         polizas: polizasRes || [],
         vehiculos: vehiculosRes || [],
-        leads: leadsRes || [],
-        clientes: clientesRes || [],
         loading: false 
       }));
-      console.log('✅ Estado actualizado correctamente');
     } catch (err) {
-      console.error('❌ Error cargando datos:', err);
+      console.error('Error cargando datos:', err);
       setState(prev => ({ ...prev, loading: false }));
     }
   };
@@ -168,9 +101,6 @@ function App() {
     if (tab !== 'siniestro') {
       setSiniestroEnviado(null);
     }
-    if (tab !== 'soporte') {
-      setTicketEnviado(null);
-    }
   };
 
   // Login
@@ -188,14 +118,11 @@ function App() {
       if (!response.ok) throw new Error('Credenciales inválidas');
       
       const data = await response.json();
-      console.log('🎉 Login exitoso:', data);
-      console.log('💾 Guardando en localStorage...');
       localStorage.setItem('token', data.access_token);
       localStorage.setItem('user', JSON.stringify({ 
         email: data.email, 
         tipo_usuario: data.tipo_usuario 
       }));
-      console.log('✅ Token guardado:', data.access_token.substring(0, 30) + '...');
       
       setState(prev => ({ 
         ...prev, 
@@ -205,7 +132,6 @@ function App() {
       }));
       
       // Cargar datos inmediatamente después del login
-      console.log('📥 Iniciando carga de datos post-login...');
       cargarDatosConToken(data.access_token);
       
     } catch (err) {
@@ -248,37 +174,6 @@ function App() {
       hay_lesionados: false,
       datos_tercero: '',
       fotos_descripcion: ''
-    });
-  };
-
-  // Enviar ticket de soporte
-  const handleEnviarTicket = async (e) => {
-    e.preventDefault();
-    
-    const token = generarToken();
-    const fechaRegistro = new Date().toISOString();
-    
-    const ticketData = {
-      ...ticketForm,
-      token: token,
-      fecha_registro: fechaRegistro,
-      estado: 'ABIERTO',
-      cliente_email: state.user?.email,
-      cliente_nombre: state.dashboardData?.cliente?.nombre
-    };
-    
-    console.log('Ticket registrado:', ticketData);
-    
-    setTicketEnviado({
-      token: token,
-      fecha: fechaRegistro,
-      asunto: ticketForm.asunto
-    });
-    
-    setTicketForm({
-      tipo_consulta: '',
-      asunto: '',
-      descripcion: ''
     });
   };
 
@@ -375,14 +270,7 @@ function App() {
               { id: 'polizas', icon: '📄', label: 'Mis Pólizas' },
               { id: 'vehiculos', icon: '🚗', label: 'Mis Vehículos' },
               { id: 'siniestro', icon: '🚨', label: 'Denunciar Siniestro' },
-              { id: 'soporte', icon: '💬', label: 'Soporte' },
-              // Solo para Admin
-              ...(state.user?.tipo_usuario?.toUpperCase() === 'ADMIN' || state.user?.tipo_usuario?.toUpperCase() === 'ADMINISTRADOR' 
-                ? [
-                    { id: 'leads', icon: '📋', label: 'Leads' },
-                    { id: 'clientes', icon: '👥', label: 'Clientes' }
-                  ] 
-                : [])
+              { id: 'soporte', icon: '💬', label: 'Soporte' }
             ].map(tab => (
               <button
                 key={tab.id}
@@ -891,461 +779,110 @@ function App() {
         {/* SOPORTE */}
         {state.activeTab === 'soporte' && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold">💬 Soporte</h2>
+            <h2 className="text-2xl font-bold">Soporte</h2>
             
-            {/* Si ya se envió el ticket, mostrar confirmación */}
-            {ticketEnviado ? (
-              <div className="bg-green-900/30 border border-green-500/50 rounded-xl p-8 text-center">
-                <span className="text-6xl">✅</span>
-                <h3 className="text-2xl font-bold text-green-400 mt-4">Ticket Enviado</h3>
-                <p className="text-slate-300 mt-2">Tu consulta ha sido registrada exitosamente</p>
-                
-                <div className="bg-slate-800/80 rounded-xl p-6 mt-6 max-w-md mx-auto">
-                  <p className="text-slate-500 text-sm">Número de Ticket</p>
-                  <p className="text-3xl font-mono font-bold text-blue-400 mt-2">{ticketEnviado.token}</p>
-                  <p className="text-slate-400 text-sm mt-4">
-                    Guardá este número para seguimiento. Te responderemos a la brevedad.
-                  </p>
-                </div>
-                
-                <div className="flex flex-col sm:flex-row gap-4 justify-center mt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Contacto Directo */}
+              <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+                <h3 className="text-lg font-semibold mb-4">📞 Contacto Directo</h3>
+                <div className="space-y-4">
                   <a 
-                    href={`https://wa.me/5493416952259?text=Hola, acabo de enviar un ticket de soporte: ${ticketEnviado.token}`}
+                    href="https://wa.me/5493416952259" 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition inline-flex items-center justify-center gap-2"
+                    className="flex items-center gap-4 p-4 bg-green-600/20 hover:bg-green-600/30 rounded-xl transition"
                   >
-                    💬 Contactar por WhatsApp
+                    <span className="text-3xl">💬</span>
+                    <div>
+                      <p className="font-semibold">WhatsApp</p>
+                      <p className="text-slate-400 text-sm">+54 9 341 695-2259</p>
+                    </div>
                   </a>
-                  <button 
-                    onClick={() => setTicketEnviado(null)}
-                    className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition"
+                  
+                  <a 
+                    href="tel:+5493416952259"
+                    className="flex items-center gap-4 p-4 bg-blue-600/20 hover:bg-blue-600/30 rounded-xl transition"
                   >
-                    Nueva Consulta
-                  </button>
+                    <span className="text-3xl">📱</span>
+                    <div>
+                      <p className="font-semibold">Teléfono</p>
+                      <p className="text-slate-400 text-sm">+54 9 341 695-2259</p>
+                    </div>
+                  </a>
+                  
+                  <a 
+                    href="mailto:aymaseguros@hotmail.com"
+                    className="flex items-center gap-4 p-4 bg-purple-600/20 hover:bg-purple-600/30 rounded-xl transition"
+                  >
+                    <span className="text-3xl">✉️</span>
+                    <div>
+                      <p className="font-semibold">Email</p>
+                      <p className="text-slate-400 text-sm">aymaseguros@hotmail.com</p>
+                    </div>
+                  </a>
                 </div>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Formulario de Ticket */}
-                <div className="lg:col-span-2 bg-slate-800/50 rounded-xl p-6 border border-slate-700">
-                  <h3 className="text-lg font-semibold mb-4">📝 Enviar Consulta</h3>
-                  
-                  <form onSubmit={handleEnviarTicket} className="space-y-6">
-                    {/* Tipo de Consulta */}
-                    <div>
-                      <label className="block text-slate-400 text-sm mb-2">Tipo de Consulta *</label>
-                      <select
-                        value={ticketForm.tipo_consulta}
-                        onChange={(e) => setTicketForm({...ticketForm, tipo_consulta: e.target.value})}
-                        className="w-full px-4 py-3 rounded-lg bg-slate-700/50 border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        required
-                      >
-                        <option value="">Seleccionar tipo...</option>
-                        <option value="cobertura">Consulta sobre Cobertura</option>
-                        <option value="facturacion">Facturación / Pagos</option>
-                        <option value="modificacion">Modificar Póliza</option>
-                        <option value="cotizacion">Nueva Cotización</option>
-                        <option value="documentacion">Documentación</option>
-                        <option value="reclamo">Reclamo</option>
-                        <option value="otro">Otro</option>
-                      </select>
-                    </div>
-
-                    {/* Asunto */}
-                    <div>
-                      <label className="block text-slate-400 text-sm mb-2">Asunto *</label>
-                      <input
-                        type="text"
-                        value={ticketForm.asunto}
-                        onChange={(e) => setTicketForm({...ticketForm, asunto: e.target.value})}
-                        placeholder="Ej: Consulta sobre cobertura de granizo"
-                        className="w-full px-4 py-3 rounded-lg bg-slate-700/50 border border-slate-600 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        required
-                      />
-                    </div>
-
-                    {/* Descripción */}
-                    <div>
-                      <label className="block text-slate-400 text-sm mb-2">Descripción *</label>
-                      <textarea
-                        value={ticketForm.descripcion}
-                        onChange={(e) => setTicketForm({...ticketForm, descripcion: e.target.value})}
-                        placeholder="Contanos en detalle tu consulta..."
-                        rows={5}
-                        className="w-full px-4 py-3 rounded-lg bg-slate-700/50 border border-slate-600 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        required
-                      />
-                    </div>
-
-                    {/* Botón Enviar */}
-                    <button
-                      type="submit"
-                      className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition text-lg"
-                    >
-                      📤 Enviar Consulta
-                    </button>
-                  </form>
+              
+              {/* Horarios */}
+              <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+                <h3 className="text-lg font-semibold mb-4">🕐 Horarios de Atención</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between py-2 border-b border-slate-700">
+                    <span className="text-slate-400">Lunes a Viernes</span>
+                    <span className="font-medium">9:00 - 18:00</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-slate-700">
+                    <span className="text-slate-400">Sábados</span>
+                    <span className="font-medium">9:00 - 13:00</span>
+                  </div>
+                  <div className="flex justify-between py-2">
+                    <span className="text-slate-400">Emergencias 24hs</span>
+                    <span className="text-green-400 font-medium">WhatsApp</span>
+                  </div>
                 </div>
-
-                {/* Panel lateral */}
-                <div className="space-y-6">
-                  {/* Contacto Directo */}
-                  <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
-                    <h3 className="text-lg font-semibold mb-4">📞 Contacto Directo</h3>
-                    <div className="space-y-3">
-                      <a 
-                        href="https://wa.me/5493416952259" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-3 p-3 bg-green-600/20 hover:bg-green-600/30 rounded-lg transition"
-                      >
-                        <span className="text-2xl">💬</span>
-                        <div>
-                          <p className="font-semibold text-sm">WhatsApp</p>
-                          <p className="text-slate-400 text-xs">+54 9 341 695-2259</p>
-                        </div>
-                      </a>
-                      
-                      <a 
-                        href="tel:+5493416952259"
-                        className="flex items-center gap-3 p-3 bg-blue-600/20 hover:bg-blue-600/30 rounded-lg transition"
-                      >
-                        <span className="text-2xl">📱</span>
-                        <div>
-                          <p className="font-semibold text-sm">Teléfono</p>
-                          <p className="text-slate-400 text-xs">+54 9 341 695-2259</p>
-                        </div>
-                      </a>
-                      
-                      <a 
-                        href="mailto:aymaseguros@hotmail.com"
-                        className="flex items-center gap-3 p-3 bg-purple-600/20 hover:bg-purple-600/30 rounded-lg transition"
-                      >
-                        <span className="text-2xl">✉️</span>
-                        <div>
-                          <p className="font-semibold text-sm">Email</p>
-                          <p className="text-slate-400 text-xs">aymaseguros@hotmail.com</p>
-                        </div>
-                      </a>
-                    </div>
-                  </div>
-                  
-                  {/* Horarios */}
-                  <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
-                    <h3 className="text-lg font-semibold mb-4">🕐 Horarios</h3>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">Lun - Vie</span>
-                        <span>9:00 - 18:00</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">Sábados</span>
-                        <span>9:00 - 13:00</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">Emergencias</span>
-                        <span className="text-green-400">WhatsApp 24hs</span>
-                      </div>
-                    </div>
-                  </div>
+                
+                <div className="mt-6 p-4 bg-blue-600/20 rounded-xl">
+                  <p className="text-sm text-blue-200">
+                    <strong>💡 Tip:</strong> Para siniestros o emergencias fuera de horario, 
+                    envianos un WhatsApp y te respondemos a la brevedad.
+                  </p>
                 </div>
               </div>
-            )}
+            </div>
 
-            {/* FAQ - siempre visible */}
+            {/* FAQ */}
             <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
               <h3 className="text-lg font-semibold mb-4">❓ Preguntas Frecuentes</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-4">
                 <details className="bg-slate-700/30 rounded-lg">
                   <summary className="p-4 cursor-pointer hover:bg-slate-700/50 rounded-lg font-medium">
                     ¿Cómo denuncio un siniestro?
                   </summary>
-                  <p className="px-4 pb-4 text-slate-400 text-sm">
-                    Usá la sección "Denunciar Siniestro" de este portal o contactanos por WhatsApp.
+                  <p className="px-4 pb-4 text-slate-400">
+                    Podés usar la sección "Denunciar Siniestro" de este portal o contactarnos por WhatsApp. 
+                    Te guiamos en todo el proceso y gestionamos con la compañía aseguradora.
                   </p>
                 </details>
                 <details className="bg-slate-700/30 rounded-lg">
                   <summary className="p-4 cursor-pointer hover:bg-slate-700/50 rounded-lg font-medium">
                     ¿Cómo pago mi póliza?
                   </summary>
-                  <p className="px-4 pb-4 text-slate-400 text-sm">
-                    Tarjeta de crédito, transferencia bancaria o Rapipago/Pago Fácil.
+                  <p className="px-4 pb-4 text-slate-400">
+                    Podés pagar con tarjeta de crédito (débito automático), transferencia bancaria 
+                    o en efectivo en Rapipago/Pago Fácil.
                   </p>
                 </details>
                 <details className="bg-slate-700/30 rounded-lg">
                   <summary className="p-4 cursor-pointer hover:bg-slate-700/50 rounded-lg font-medium">
                     ¿Cómo solicito una cotización?
                   </summary>
-                  <p className="px-4 pb-4 text-slate-400 text-sm">
-                    Por WhatsApp con datos del vehículo o completá el formulario arriba.
-                  </p>
-                </details>
-                <details className="bg-slate-700/30 rounded-lg">
-                  <summary className="p-4 cursor-pointer hover:bg-slate-700/50 rounded-lg font-medium">
-                    ¿Cómo modifico mi póliza?
-                  </summary>
-                  <p className="px-4 pb-4 text-slate-400 text-sm">
-                    Envianos un ticket o contactanos por WhatsApp con los cambios.
+                  <p className="px-4 pb-4 text-slate-400">
+                    Escribinos por WhatsApp con los datos del vehículo (marca, modelo, año, patente) 
+                    y te enviamos opciones de cobertura en minutos.
                   </p>
                 </details>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* LEADS - Solo Admin */}
-        {state.activeTab === 'leads' && (state.user?.tipo_usuario?.toUpperCase() === 'ADMIN' || state.user?.tipo_usuario?.toUpperCase() === 'ADMINISTRADOR') && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">📋 Gestión de Leads</h2>
-              <span className="text-slate-400">{state.leads?.length || 0} lead(s)</span>
-            </div>
-            
-            {/* Estadísticas rápidas */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-blue-600/20 border border-blue-500/30 rounded-xl p-4">
-                <p className="text-blue-300 text-sm">Total Leads</p>
-                <p className="text-3xl font-bold">{state.leads?.length || 0}</p>
-              </div>
-              <div className="bg-yellow-600/20 border border-yellow-500/30 rounded-xl p-4">
-                <p className="text-yellow-300 text-sm">Pendientes</p>
-                <p className="text-3xl font-bold">
-                  {state.leads?.filter(l => l.estado === 'PENDIENTE' || l.estado === 'DATO').length || 0}
-                </p>
-              </div>
-              <div className="bg-purple-600/20 border border-purple-500/30 rounded-xl p-4">
-                <p className="text-purple-300 text-sm">En Proceso</p>
-                <p className="text-3xl font-bold">
-                  {state.leads?.filter(l => l.estado === 'PROSPECTO' || l.estado === 'POTENCIAL').length || 0}
-                </p>
-              </div>
-              <div className="bg-green-600/20 border border-green-500/30 rounded-xl p-4">
-                <p className="text-green-300 text-sm">Convertidos</p>
-                <p className="text-3xl font-bold">
-                  {state.leads?.filter(l => l.estado === 'CLIENTE').length || 0}
-                </p>
-              </div>
-            </div>
-
-            {/* Lista de Leads */}
-            {state.leads && state.leads.length > 0 ? (
-              <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-slate-700/50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Token</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Nombre</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Email</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Teléfono</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Origen</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Estado</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Fecha</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-700">
-                      {state.leads.map((lead, idx) => (
-                        <tr key={lead.id || idx} className="hover:bg-slate-700/30 transition">
-                          <td className="px-4 py-3 font-mono text-xs text-blue-400">{lead.token || '-'}</td>
-                          <td className="px-4 py-3 font-medium">{lead.nombre || '-'}</td>
-                          <td className="px-4 py-3 text-slate-400 text-sm">{lead.email || '-'}</td>
-                          <td className="px-4 py-3 text-slate-400 text-sm">{lead.telefono || '-'}</td>
-                          <td className="px-4 py-3">
-                            <span className="px-2 py-1 text-xs rounded-full bg-slate-600/50">
-                              {lead.origen || 'Web'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-1 text-xs rounded-full font-medium ${
-                              lead.estado === 'CLIENTE' ? 'bg-green-600/30 text-green-300' :
-                              lead.estado === 'POTENCIAL' ? 'bg-purple-600/30 text-purple-300' :
-                              lead.estado === 'PROSPECTO' ? 'bg-blue-600/30 text-blue-300' :
-                              'bg-yellow-600/30 text-yellow-300'
-                            }`}>
-                              {lead.estado || 'DATO'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-slate-400 text-sm">
-                            {lead.fecha_registro ? new Date(lead.fecha_registro).toLocaleDateString('es-AR') : '-'}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex gap-2">
-                              <a 
-                                href={`https://wa.me/${lead.telefono?.replace(/\D/g, '')}?text=Hola ${lead.nombre}, soy de AYMA Advisors...`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-2 bg-green-600/20 hover:bg-green-600/40 rounded-lg transition text-sm"
-                                title="WhatsApp"
-                              >
-                                💬
-                              </a>
-                              <a 
-                                href={`mailto:${lead.email}`}
-                                className="p-2 bg-blue-600/20 hover:bg-blue-600/40 rounded-lg transition text-sm"
-                                title="Email"
-                              >
-                                ✉️
-                              </a>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-slate-800/50 rounded-xl p-12 border border-slate-700 text-center">
-                <span className="text-6xl">📋</span>
-                <p className="text-slate-400 mt-4">No hay leads registrados</p>
-                <p className="text-slate-500 text-sm mt-2">
-                  Los leads aparecerán aquí cuando lleguen desde la landing page o el chatbot
-                </p>
-              </div>
-            )}
-
-            {/* Info del flujo */}
-            <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-6">
-              <h3 className="font-semibold text-blue-300 mb-3">📈 Flujo de Estados (CRM)</h3>
-              <div className="flex flex-wrap gap-2 items-center text-sm">
-                <span className="px-3 py-1 bg-yellow-600/30 text-yellow-300 rounded-full">DATO</span>
-                <span className="text-slate-500">→</span>
-                <span className="px-3 py-1 bg-blue-600/30 text-blue-300 rounded-full">PROSPECTO</span>
-                <span className="text-slate-500">→</span>
-                <span className="px-3 py-1 bg-purple-600/30 text-purple-300 rounded-full">POTENCIAL</span>
-                <span className="text-slate-500">→</span>
-                <span className="px-3 py-1 bg-green-600/30 text-green-300 rounded-full">CLIENTE</span>
-                <span className="text-slate-500">→</span>
-                <span className="px-3 py-1 bg-cyan-600/30 text-cyan-300 rounded-full">LOOP</span>
-              </div>
-              <p className="text-slate-400 text-xs mt-3">
-                Metodología SAIDA: Sondeo → Atención → Interés → Deseo → Acción
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* CLIENTES - Solo Admin */}
-        {state.activeTab === 'clientes' && (state.user?.tipo_usuario?.toUpperCase() === 'ADMIN' || state.user?.tipo_usuario?.toUpperCase() === 'ADMINISTRADOR') && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">👥 Gestión de Clientes</h2>
-              <span className="text-slate-400">{state.clientes?.length || 0} cliente(s)</span>
-            </div>
-            
-            {/* Estadísticas */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-blue-600/20 border border-blue-500/30 rounded-xl p-4">
-                <p className="text-blue-300 text-sm">Total Clientes</p>
-                <p className="text-3xl font-bold">{state.clientes?.length || 0}</p>
-              </div>
-              <div className="bg-green-600/20 border border-green-500/30 rounded-xl p-4">
-                <p className="text-green-300 text-sm">Activos</p>
-                <p className="text-3xl font-bold">
-                  {state.clientes?.filter(c => c.activo !== false).length || 0}
-                </p>
-              </div>
-              <div className="bg-purple-600/20 border border-purple-500/30 rounded-xl p-4">
-                <p className="text-purple-300 text-sm">Con Pólizas</p>
-                <p className="text-3xl font-bold">
-                  {state.clientes?.filter(c => (c.polizas_totales || c.cantidad_polizas || 0) > 0).length || 0}
-                </p>
-              </div>
-              <div className="bg-orange-600/20 border border-orange-500/30 rounded-xl p-4">
-                <p className="text-orange-300 text-sm">Total Pólizas</p>
-                <p className="text-3xl font-bold">
-                  {state.clientes?.reduce((sum, c) => sum + (c.polizas_totales || c.cantidad_polizas || 0), 0) || 0}
-                </p>
-              </div>
-            </div>
-
-            {/* Tabla de Clientes */}
-            {state.clientes && state.clientes.length > 0 ? (
-              <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-slate-700/50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Nombre</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Documento</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Email</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Teléfono</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Pólizas</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Scoring</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-700">
-                      {state.clientes.map((cliente, idx) => (
-                        <tr key={cliente.id || idx} className="hover:bg-slate-700/30 transition">
-                          <td className="px-4 py-3">
-                            <div>
-                              <p className="font-medium">{cliente.nombre_completo || `${cliente.nombre} ${cliente.apellido || ''}`}</p>
-                              <p className="text-slate-500 text-xs">{cliente.domicilio || 'Sin domicilio'}</p>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-slate-400 text-sm">
-                            <span className="text-slate-500">{cliente.tipo_documento}:</span> {cliente.numero_documento}
-                          </td>
-                          <td className="px-4 py-3 text-slate-400 text-sm">{cliente.email || '-'}</td>
-                          <td className="px-4 py-3 text-slate-400 text-sm">{cliente.telefono || '-'}</td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-1 text-xs rounded-full font-medium ${
-                              (cliente.polizas_totales || cliente.cantidad_polizas || 0) > 0 
-                                ? 'bg-green-600/30 text-green-300' 
-                                : 'bg-slate-600/30 text-slate-400'
-                            }`}>
-                              {cliente.polizas_totales || cliente.cantidad_polizas || 0} póliza(s)
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-1 text-xs rounded-full font-medium ${
-                              (cliente.scoring_comercial || 0) >= 100 
-                                ? 'bg-green-600/30 text-green-300' 
-                                : (cliente.scoring_comercial || 0) >= 50 
-                                  ? 'bg-yellow-600/30 text-yellow-300'
-                                  : 'bg-red-600/30 text-red-300'
-                            }`}>
-                              {cliente.scoring_comercial || 0} pts
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex gap-2">
-                              <a 
-                                href={`https://wa.me/${cliente.telefono?.replace(/\D/g, '')}?text=Hola ${cliente.nombre_completo || cliente.nombre}, soy de AYMA Advisors...`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-2 bg-green-600/20 hover:bg-green-600/40 rounded-lg transition text-sm"
-                                title="WhatsApp"
-                              >
-                                💬
-                              </a>
-                              <a 
-                                href={`mailto:${cliente.email}`}
-                                className="p-2 bg-blue-600/20 hover:bg-blue-600/40 rounded-lg transition text-sm"
-                                title="Email"
-                              >
-                                ✉️
-                              </a>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-slate-800/50 rounded-xl p-12 border border-slate-700 text-center">
-                <span className="text-6xl">👥</span>
-                <p className="text-slate-400 mt-4">No hay clientes registrados</p>
-                <p className="text-slate-500 text-sm mt-2">
-                  Los clientes se crean cuando un lead se convierte o se registra desde el portal
-                </p>
-              </div>
-            )}
           </div>
         )}
 
