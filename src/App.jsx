@@ -3,13 +3,6 @@ import React, { useState, useEffect } from 'react';
 // API Configuration
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
-// Generador de Token único para tickets/siniestros
-const generarToken = () => {
-  const timestamp = Date.now().toString(36).toUpperCase();
-  const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-  return `AYMA-${timestamp}-${random}`;
-};
-
 // Estado inicial
 const initialState = {
   user: null,
@@ -19,6 +12,7 @@ const initialState = {
   vehiculos: [],
   clientes: [],
   leads: [],
+  siniestros: [],
   dashboardData: null,
   loading: false,
   error: null
@@ -50,6 +44,13 @@ function App() {
     prioridad: 'media'
   });
   const [ticketEnviado, setTicketEnviado] = useState(null);
+
+  // Estados para admin de siniestros
+  const [siniestrosAdmin, setSiniestrosAdmin] = useState([]);
+  const [siniestroSeleccionado, setSiniestroSeleccionado] = useState(null);
+  const [nuevoEstado, setNuevoEstado] = useState('');
+  const [notasInternas, setNotasInternas] = useState('');
+  const [numeroSiniestroCia, setNumeroSiniestroCia] = useState('');
 
   // Verificar token al cargar
   useEffect(() => {
@@ -84,7 +85,15 @@ function App() {
       const polizasRes = await fetchAPI('/api/v1/polizas/', authToken);
       const vehiculosRes = await fetchAPI('/api/v1/vehiculos/', authToken);
       
-      // Cargar clientes si es admin
+      // Cargar siniestros del usuario
+      let siniestrosRes = [];
+      try {
+        siniestrosRes = await fetchAPI('/api/v1/siniestros/', authToken);
+      } catch (e) {
+        console.log('No se pudieron cargar siniestros:', e.message);
+      }
+      
+      // Cargar clientes/leads si es admin
       let clientesRes = [];
       let leadsRes = [];
       const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
@@ -93,6 +102,7 @@ function App() {
         try {
           clientesRes = await fetchAPI('/api/v1/admin/clientes', authToken);
           leadsRes = await fetchAPI('/api/v1/leads/', authToken);
+          setSiniestrosAdmin(siniestrosRes || []);
         } catch (e) {
           console.log('No se pudieron cargar clientes/leads:', e.message);
         }
@@ -105,11 +115,61 @@ function App() {
         vehiculos: vehiculosRes || [],
         clientes: clientesRes || [],
         leads: leadsRes || [],
+        siniestros: siniestrosRes || [],
         loading: false 
       }));
     } catch (err) {
       console.error('Error cargando datos:', err);
       setState(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  // Cargar siniestros admin
+  const cargarSiniestrosAdmin = async () => {
+    if (!state.token || !isAdmin()) return;
+    try {
+      const response = await fetchAPI('/api/v1/siniestros/', state.token);
+      setSiniestrosAdmin(response || []);
+    } catch (err) {
+      console.log('Error cargando siniestros:', err);
+    }
+  };
+
+  // Actualizar estado de siniestro
+  const actualizarEstadoSiniestro = async (siniestroId) => {
+    if (!nuevoEstado) {
+      alert('Selecciona un estado');
+      return;
+    }
+    
+    try {
+      const response = await fetch(API_URL + '/api/v1/siniestros/' + siniestroId + '/estado', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + state.token
+        },
+        body: JSON.stringify({
+          estado: nuevoEstado,
+          notas_internas: notasInternas || null,
+          numero_siniestro_cia: numeroSiniestroCia || null
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        alert('✅ Estado actualizado: ' + data.estado_nuevo);
+        setSiniestroSeleccionado(null);
+        setNuevoEstado('');
+        setNotasInternas('');
+        setNumeroSiniestroCia('');
+        cargarSiniestrosAdmin();
+      } else {
+        const error = await response.json();
+        alert('Error: ' + (error.detail || 'No se pudo actualizar'));
+      }
+    } catch (err) {
+      alert('Error: ' + err.message);
     }
   };
 
@@ -126,6 +186,9 @@ function App() {
     setState(prev => ({ ...prev, activeTab: tab }));
     if (tab !== 'siniestro') {
       setSiniestroEnviado(null);
+    }
+    if (tab === 'admin-siniestros') {
+      cargarSiniestrosAdmin();
     }
   };
 
@@ -163,7 +226,6 @@ function App() {
         loading: false 
       }));
       
-      // Cargar datos inmediatamente después del login
       cargarDatosConToken(data.access_token);
       
     } catch (err) {
@@ -171,42 +233,69 @@ function App() {
     }
   };
 
-  // Enviar denuncia de siniestro
+  // Enviar denuncia de siniestro - CONECTADO AL BACKEND
   const handleEnviarSiniestro = async (e) => {
     e.preventDefault();
+    setState(prev => ({ ...prev, loading: true }));
     
-    const token = generarToken();
-    const fechaRegistro = new Date().toISOString();
-    
-    const siniestroData = {
-      ...siniestroForm,
-      token: token,
-      fecha_registro: fechaRegistro,
-      estado: 'PENDIENTE',
-      cliente_email: state.user?.email,
-      cliente_nombre: state.dashboardData?.cliente?.nombre
-    };
-    
-    console.log('Siniestro registrado:', siniestroData);
-    
-    setSiniestroEnviado({
-      token: token,
-      fecha: fechaRegistro,
-      poliza: state.polizas.find(p => p.id === siniestroForm.poliza_id)
-    });
-    
-    setSiniestroForm({
-      poliza_id: '',
-      tipo_siniestro: '',
-      fecha_siniestro: '',
-      hora_siniestro: '',
-      lugar: '',
-      descripcion: '',
-      hay_terceros: false,
-      hay_lesionados: false,
-      datos_tercero: '',
-      fotos_descripcion: ''
-    });
+    try {
+      const response = await fetch(API_URL + '/api/v1/siniestros/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + state.token
+        },
+        body: JSON.stringify({
+          poliza_id: siniestroForm.poliza_id,
+          tipo_siniestro: siniestroForm.tipo_siniestro,
+          fecha_siniestro: siniestroForm.fecha_siniestro,
+          hora_siniestro: siniestroForm.hora_siniestro || null,
+          lugar: siniestroForm.lugar,
+          descripcion: siniestroForm.descripcion,
+          hay_terceros: siniestroForm.hay_terceros,
+          hay_lesionados: siniestroForm.hay_lesionados,
+          datos_tercero: siniestroForm.datos_tercero || null,
+          fotos_descripcion: siniestroForm.fotos_descripcion || null,
+          cliente_email: state.user?.email,
+          cliente_nombre: state.dashboardData?.cliente?.nombre || state.user?.email
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Error al registrar siniestro');
+      }
+      
+      const data = await response.json();
+      
+      setSiniestroEnviado({
+        token: data.token,
+        fecha: data.created_at,
+        poliza: state.polizas.find(p => p.id === siniestroForm.poliza_id),
+        id: data.id
+      });
+      
+      setSiniestroForm({
+        poliza_id: '',
+        tipo_siniestro: '',
+        fecha_siniestro: '',
+        hora_siniestro: '',
+        lugar: '',
+        descripcion: '',
+        hay_terceros: false,
+        hay_lesionados: false,
+        datos_tercero: '',
+        fotos_descripcion: ''
+      });
+      
+      console.log('✅ Siniestro registrado:', data.token);
+      
+    } catch (err) {
+      console.error('Error registrando siniestro:', err);
+      alert('Error al registrar el siniestro: ' + err.message);
+    } finally {
+      setState(prev => ({ ...prev, loading: false }));
+    }
   };
 
   // Enviar ticket de soporte
@@ -345,7 +434,8 @@ function App() {
               { id: 'soporte', icon: '💬', label: 'Soporte' },
               ...(isAdmin() ? [
                 { id: 'leads', icon: '🎯', label: 'Leads', admin: true },
-                { id: 'clientes', icon: '👥', label: 'Clientes', admin: true }
+                { id: 'clientes', icon: '👥', label: 'Clientes', admin: true },
+                { id: 'admin-siniestros', icon: '🚨', label: 'Siniestros', admin: true }
               ] : [])
             ].map(tab => (
               <button
@@ -372,7 +462,7 @@ function App() {
           <div className="space-y-8">
             <h2 className="text-2xl font-bold">Dashboard</h2>
             
-            {/* Tarjetas de Resumen - GRID HORIZONTAL */}
+            {/* Tarjetas de Resumen */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl p-6 shadow-xl">
                 <div className="flex justify-between items-start">
@@ -396,7 +486,6 @@ function App() {
                 <p className="text-green-200 text-sm mt-4">Vehículos asegurados</p>
               </div>
 
-              {/* Tarjeta Clientes - Solo Admin */}
               {isAdmin() && (
                 <div className="bg-gradient-to-br from-cyan-600 to-cyan-800 rounded-2xl p-6 shadow-xl">
                   <div className="flex justify-between items-start">
@@ -434,8 +523,6 @@ function App() {
                 <p className="text-orange-200 text-sm mt-4">Prima total anual</p>
               </div>
             </div>
-
-
           </div>
         )}
 
@@ -469,7 +556,7 @@ function App() {
           </div>
         )}
 
-        {/* MIS PÓLIZAS - GRID HORIZONTAL */}
+        {/* MIS PÓLIZAS */}
         {state.activeTab === 'polizas' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -486,7 +573,6 @@ function App() {
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {state.polizas.map(poliza => (
                   <div key={poliza.id} className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden hover:border-blue-500/50 transition">
-                    {/* Header de la tarjeta */}
                     <div className="bg-slate-700/50 px-6 py-4 flex justify-between items-center">
                       <div>
                         <p className="text-blue-400 font-bold">Póliza {poliza.numero_poliza}</p>
@@ -501,9 +587,7 @@ function App() {
                       </span>
                     </div>
                     
-                    {/* Cuerpo */}
                     <div className="p-6 space-y-4">
-                      {/* Vehículo */}
                       {poliza.vehiculo && (
                         <div className="flex items-center gap-3 bg-slate-700/30 rounded-lg p-3">
                           <span className="text-2xl">🚗</span>
@@ -514,7 +598,6 @@ function App() {
                         </div>
                       )}
                       
-                      {/* Detalles en grid */}
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
                           <p className="text-slate-500">Cobertura</p>
@@ -535,7 +618,6 @@ function App() {
                       </div>
                     </div>
 
-                    {/* Footer */}
                     <div className="px-6 py-3 bg-slate-700/30 flex justify-between items-center">
                       <span className="text-xs text-slate-500">
                         Vigencia: {new Date(poliza.fecha_inicio).toLocaleDateString('es-AR')} - {new Date(poliza.fecha_vencimiento).toLocaleDateString('es-AR')}
@@ -551,7 +633,7 @@ function App() {
           </div>
         )}
 
-        {/* MIS VEHÍCULOS - GRID HORIZONTAL */}
+        {/* MIS VEHÍCULOS */}
         {state.activeTab === 'vehiculos' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -568,7 +650,6 @@ function App() {
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {state.vehiculos.map(vehiculo => (
                   <div key={vehiculo.id} className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden hover:border-green-500/50 transition">
-                    {/* Header */}
                     <div className="bg-slate-700/50 px-6 py-4 flex justify-between items-center">
                       <div className="flex items-center gap-3">
                         <span className="text-3xl">🚗</span>
@@ -586,15 +667,12 @@ function App() {
                       </span>
                     </div>
                     
-                    {/* Cuerpo */}
                     <div className="p-6">
-                      {/* Dominio destacado */}
                       <div className="bg-slate-700/50 rounded-xl p-4 text-center mb-4">
                         <p className="text-slate-500 text-xs mb-1">Dominio/Patente</p>
                         <p className="text-3xl font-black text-blue-400 tracking-wider">{vehiculo.dominio}</p>
                       </div>
                       
-                      {/* Detalles en grid */}
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
                           <p className="text-slate-500">Año</p>
@@ -651,12 +729,10 @@ function App() {
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Formulario de Denuncia */}
                 <div className="lg:col-span-2 bg-slate-800/50 rounded-xl p-6 border border-slate-700">
                   <h3 className="text-lg font-semibold mb-4">📋 Formulario de Denuncia</h3>
                   
                   <form onSubmit={handleEnviarSiniestro} className="space-y-6">
-                    {/* Selección de Póliza */}
                     <div>
                       <label className="block text-slate-400 text-sm mb-2">Póliza Afectada *</label>
                       <select
@@ -674,7 +750,6 @@ function App() {
                       </select>
                     </div>
 
-                    {/* Tipo de Siniestro */}
                     <div>
                       <label className="block text-slate-400 text-sm mb-2">Tipo de Siniestro *</label>
                       <select
@@ -696,7 +771,6 @@ function App() {
                       </select>
                     </div>
 
-                    {/* Fecha y Hora */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-slate-400 text-sm mb-2">Fecha del Hecho *</label>
@@ -719,7 +793,6 @@ function App() {
                       </div>
                     </div>
 
-                    {/* Lugar */}
                     <div>
                       <label className="block text-slate-400 text-sm mb-2">Lugar del Hecho *</label>
                       <input
@@ -732,7 +805,6 @@ function App() {
                       />
                     </div>
 
-                    {/* Checkboxes */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <label className="flex items-center gap-3 p-4 bg-slate-700/30 rounded-lg cursor-pointer hover:bg-slate-700/50 transition">
                         <input
@@ -754,7 +826,6 @@ function App() {
                       </label>
                     </div>
 
-                    {/* Datos del tercero si aplica */}
                     {siniestroForm.hay_terceros && (
                       <div>
                         <label className="block text-slate-400 text-sm mb-2">Datos del Tercero</label>
@@ -768,7 +839,6 @@ function App() {
                       </div>
                     )}
 
-                    {/* Descripción */}
                     <div>
                       <label className="block text-slate-400 text-sm mb-2">Descripción de los Hechos *</label>
                       <textarea
@@ -781,7 +851,6 @@ function App() {
                       />
                     </div>
 
-                    {/* Fotos */}
                     <div>
                       <label className="block text-slate-400 text-sm mb-2">📷 Fotos / Documentación</label>
                       <div className="bg-slate-700/30 border-2 border-dashed border-slate-600 rounded-xl p-6 text-center">
@@ -790,19 +859,17 @@ function App() {
                       </div>
                     </div>
 
-                    {/* Botón Enviar */}
                     <button
                       type="submit"
-                      className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition text-lg"
+                      disabled={state.loading}
+                      className="w-full py-4 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold rounded-xl transition text-lg"
                     >
-                      🚨 Enviar Denuncia de Siniestro
+                      {state.loading ? '⏳ Enviando...' : '🚨 Enviar Denuncia de Siniestro'}
                     </button>
                   </form>
                 </div>
 
-                {/* Panel lateral - Contacto */}
                 <div className="space-y-6">
-                  {/* Contacto de Emergencia */}
                   <div className="bg-red-900/30 border border-red-500/50 rounded-xl p-6">
                     <h3 className="text-lg font-semibold text-red-400 mb-4">🆘 Emergencia 24hs</h3>
                     <a 
@@ -822,7 +889,6 @@ function App() {
                     </p>
                   </div>
 
-                  {/* Otros canales */}
                   <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
                     <h3 className="text-lg font-semibold mb-4">📞 Otros Canales</h3>
                     <div className="space-y-3">
@@ -849,7 +915,6 @@ function App() {
                     </div>
                   </div>
 
-                  {/* Tips */}
                   <div className="bg-blue-900/30 border border-blue-500/50 rounded-xl p-6">
                     <h3 className="text-lg font-semibold text-blue-400 mb-4">💡 Importante</h3>
                     <ul className="space-y-2 text-sm text-slate-300">
@@ -872,7 +937,6 @@ function App() {
             <h2 className="text-2xl font-bold">Soporte</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Contacto Directo */}
               <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
                 <h3 className="text-lg font-semibold mb-4">📞 Contacto Directo</h3>
                 <div className="space-y-4">
@@ -913,7 +977,6 @@ function App() {
                 </div>
               </div>
               
-              {/* Horarios */}
               <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
                 <h3 className="text-lg font-semibold mb-4">🕐 Horarios de Atención</h3>
                 <div className="space-y-3">
@@ -940,7 +1003,6 @@ function App() {
               </div>
             </div>
 
-            {/* Formulario de Ticket */}
             <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
               <h3 className="text-lg font-semibold mb-4">🎫 Crear Ticket de Soporte</h3>
               
@@ -1014,7 +1076,6 @@ function App() {
               )}
             </div>
 
-            {/* FAQ */}
             <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
               <h3 className="text-lg font-semibold mb-4">❓ Preguntas Frecuentes</h3>
               <div className="space-y-4">
@@ -1055,7 +1116,6 @@ function App() {
           <div className="space-y-6">
             <h2 className="text-2xl font-bold">🎯 Leads</h2>
             
-            {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 text-center">
                 <p className="text-3xl font-bold text-blue-400">{state.leads.length}</p>
@@ -1075,7 +1135,6 @@ function App() {
               </div>
             </div>
 
-            {/* Tabla de Leads */}
             <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
               <div className="p-4 border-b border-slate-700 flex justify-between items-center">
                 <h3 className="font-semibold">Lista de Leads</h3>
@@ -1148,7 +1207,6 @@ function App() {
           <div className="space-y-6">
             <h2 className="text-2xl font-bold">👥 Clientes</h2>
             
-            {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 text-center">
                 <p className="text-3xl font-bold text-cyan-400">{state.clientes.length}</p>
@@ -1168,7 +1226,6 @@ function App() {
               </div>
             </div>
 
-            {/* Lista de Clientes */}
             <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
               <div className="p-4 border-b border-slate-700">
                 <h3 className="font-semibold">Lista de Clientes</h3>
@@ -1207,16 +1264,259 @@ function App() {
           </div>
         )}
 
+        {/* SINIESTROS ADMIN */}
+        {state.activeTab === 'admin-siniestros' && isAdmin() && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold">🚨 Gestión de Siniestros</h2>
+              <button
+                onClick={cargarSiniestrosAdmin}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition"
+              >
+                🔄 Actualizar
+              </button>
+            </div>
+            
+            {/* Estadísticas rápidas */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-yellow-900/30 border border-yellow-500/50 rounded-xl p-4 text-center">
+                <p className="text-3xl font-bold text-yellow-400">
+                  {siniestrosAdmin.filter(s => s.estado === 'PENDIENTE').length}
+                </p>
+                <p className="text-slate-400 text-sm">Pendientes</p>
+              </div>
+              <div className="bg-blue-900/30 border border-blue-500/50 rounded-xl p-4 text-center">
+                <p className="text-3xl font-bold text-blue-400">
+                  {siniestrosAdmin.filter(s => ['EN_REVISION', 'ENVIADO_CIA', 'EN_TRAMITE'].includes(s.estado)).length}
+                </p>
+                <p className="text-slate-400 text-sm">En Trámite</p>
+              </div>
+              <div className="bg-green-900/30 border border-green-500/50 rounded-xl p-4 text-center">
+                <p className="text-3xl font-bold text-green-400">
+                  {siniestrosAdmin.filter(s => s.estado === 'APROBADO').length}
+                </p>
+                <p className="text-slate-400 text-sm">Aprobados</p>
+              </div>
+              <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center">
+                <p className="text-3xl font-bold text-slate-300">{siniestrosAdmin.length}</p>
+                <p className="text-slate-400 text-sm">Total</p>
+              </div>
+            </div>
+            
+            {/* Modal de edición */}
+            {siniestroSeleccionado && (
+              <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                <div className="bg-slate-800 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                  <div className="p-6 border-b border-slate-700">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xl font-bold">Gestionar Siniestro</h3>
+                      <button
+                        onClick={() => setSiniestroSeleccionado(null)}
+                        className="text-slate-400 hover:text-white text-2xl"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="p-6 space-y-6">
+                    <div className="bg-slate-700/50 rounded-xl p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Token:</span>
+                        <span className="font-mono font-bold text-blue-400">{siniestroSeleccionado.token}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Tipo:</span>
+                        <span className="capitalize">{siniestroSeleccionado.tipo_siniestro?.replace('_', ' ')}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Fecha:</span>
+                        <span>{new Date(siniestroSeleccionado.fecha_siniestro).toLocaleDateString('es-AR')}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Cliente:</span>
+                        <span>{siniestroSeleccionado.cliente_nombre || 'N/A'}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Estado actual:</span>
+                        <span className="px-2 py-1 rounded bg-slate-600 text-sm">{siniestroSeleccionado.estado}</span>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <p className="text-slate-400 text-sm mb-2">Descripción:</p>
+                      <p className="bg-slate-700/30 rounded-lg p-3 text-sm">{siniestroSeleccionado.descripcion}</p>
+                    </div>
+                    
+                    <div>
+                      <p className="text-slate-400 text-sm mb-2">Lugar:</p>
+                      <p className="bg-slate-700/30 rounded-lg p-3 text-sm">{siniestroSeleccionado.lugar}</p>
+                    </div>
+                    
+                    {siniestroSeleccionado.hay_terceros && (
+                      <div className="bg-orange-900/20 border border-orange-500/30 rounded-lg p-3">
+                        <p className="text-orange-400 font-semibold text-sm mb-1">⚠️ Hay terceros involucrados</p>
+                        <p className="text-sm text-slate-300">{siniestroSeleccionado.datos_tercero || 'Sin datos'}</p>
+                      </div>
+                    )}
+                    
+                    {siniestroSeleccionado.hay_lesionados && (
+                      <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3">
+                        <p className="text-red-400 font-semibold text-sm">🚑 HAY LESIONADOS</p>
+                      </div>
+                    )}
+                    
+                    <hr className="border-slate-700" />
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-slate-400 text-sm mb-2">Nuevo Estado *</label>
+                        <select
+                          value={nuevoEstado}
+                          onChange={(e) => setNuevoEstado(e.target.value)}
+                          className="w-full px-4 py-3 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                        >
+                          <option value="">Seleccionar estado...</option>
+                          <option value="PENDIENTE">📋 Pendiente</option>
+                          <option value="EN_REVISION">🔍 En Revisión (AYMA)</option>
+                          <option value="ENVIADO_CIA">📤 Enviado a Compañía</option>
+                          <option value="EN_TRAMITE">⏳ En Trámite (Compañía)</option>
+                          <option value="APROBADO">✅ Aprobado</option>
+                          <option value="RECHAZADO">❌ Rechazado</option>
+                          <option value="CERRADO">🔒 Cerrado</option>
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-slate-400 text-sm mb-2">Nº Siniestro Compañía</label>
+                        <input
+                          type="text"
+                          value={numeroSiniestroCia}
+                          onChange={(e) => setNumeroSiniestroCia(e.target.value)}
+                          placeholder="Ej: SIN-2025-12345"
+                          className="w-full px-4 py-3 rounded-lg bg-slate-700 border border-slate-600 text-white placeholder-slate-500"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-slate-400 text-sm mb-2">Notas Internas</label>
+                        <textarea
+                          value={notasInternas}
+                          onChange={(e) => setNotasInternas(e.target.value)}
+                          placeholder="Notas privadas para el equipo AYMA..."
+                          rows={3}
+                          className="w-full px-4 py-3 rounded-lg bg-slate-700 border border-slate-600 text-white placeholder-slate-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="p-6 border-t border-slate-700 flex gap-4">
+                    <button
+                      onClick={() => setSiniestroSeleccionado(null)}
+                      className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 rounded-lg transition"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={() => actualizarEstadoSiniestro(siniestroSeleccionado.id)}
+                      className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition"
+                    >
+                      💾 Guardar Cambios
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Lista de siniestros */}
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-slate-700/50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Token</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Tipo</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Cliente</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Fecha</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Estado</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Flags</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-slate-300">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-700">
+                    {siniestrosAdmin.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                          No hay siniestros registrados
+                        </td>
+                      </tr>
+                    ) : (
+                      siniestrosAdmin.map(sin => (
+                        <tr key={sin.id} className="hover:bg-slate-700/30 transition">
+                          <td className="px-4 py-3">
+                            <span className="font-mono text-sm text-blue-400">{sin.token}</span>
+                          </td>
+                          <td className="px-4 py-3 capitalize text-sm">
+                            {sin.tipo_siniestro?.replace('_', ' ')}
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            {sin.cliente_nombre || <span className="text-slate-500">N/A</span>}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-slate-400">
+                            {new Date(sin.fecha_siniestro).toLocaleDateString('es-AR')}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              sin.estado === 'PENDIENTE' ? 'bg-yellow-500/20 text-yellow-400' :
+                              sin.estado === 'EN_REVISION' ? 'bg-blue-500/20 text-blue-400' :
+                              sin.estado === 'ENVIADO_CIA' ? 'bg-purple-500/20 text-purple-400' :
+                              sin.estado === 'EN_TRAMITE' ? 'bg-orange-500/20 text-orange-400' :
+                              sin.estado === 'APROBADO' ? 'bg-green-500/20 text-green-400' :
+                              sin.estado === 'RECHAZADO' ? 'bg-red-500/20 text-red-400' :
+                              'bg-slate-500/20 text-slate-400'
+                            }`}>
+                              {sin.estado}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-1">
+                              {sin.hay_terceros && (
+                                <span title="Terceros involucrados" className="text-orange-400">👥</span>
+                              )}
+                              {sin.hay_lesionados && (
+                                <span title="Hay lesionados" className="text-red-400">🚑</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <button
+                              onClick={() => {
+                                setSiniestroSeleccionado(sin);
+                                setNuevoEstado(sin.estado);
+                                setNumeroSiniestroCia(sin.numero_siniestro_cia || '');
+                              }}
+                              className="px-3 py-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 rounded transition text-sm"
+                            >
+                              Gestionar
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
       </main>
 
-      {/* Footer con Compliance */}
+      {/* Footer */}
       <footer className="bg-slate-800/30 border-t border-slate-700 mt-auto">
         <div className="max-w-7xl mx-auto px-4 py-8">
-          
-          {/* Grid superior */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-            
-            {/* Logo + descripción */}
             <div className="md:col-span-2">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -1235,34 +1535,16 @@ function App() {
               </p>
             </div>
 
-            {/* Contacto */}
             <div>
               <h4 className="font-semibold mb-4 text-slate-300">Contacto</h4>
               <ul className="space-y-2 text-sm text-slate-400">
-                <li>
-                  <a href="tel:+5493416952259" className="hover:text-white transition">
-                    📞 341 695-2259
-                  </a>
-                </li>
-                <li>
-                  <a href="tel:+5491153022929" className="hover:text-white transition">
-                    📞 11 5302-2929
-                  </a>
-                </li>
-                <li>
-                  <a href="mailto:aymaseguros@hotmail.com" className="hover:text-white transition">
-                    📧 aymaseguros@hotmail.com
-                  </a>
-                </li>
-                <li>
-                  <a href="https://wa.me/5493416952259" target="_blank" rel="noopener noreferrer" className="hover:text-white transition">
-                    💬 WhatsApp
-                  </a>
-                </li>
+                <li><a href="tel:+5493416952259" className="hover:text-white transition">📞 341 695-2259</a></li>
+                <li><a href="tel:+5491153022929" className="hover:text-white transition">📞 11 5302-2929</a></li>
+                <li><a href="mailto:aymaseguros@hotmail.com" className="hover:text-white transition">📧 aymaseguros@hotmail.com</a></li>
+                <li><a href="https://wa.me/5493416952259" target="_blank" rel="noopener noreferrer" className="hover:text-white transition">💬 WhatsApp</a></li>
               </ul>
             </div>
 
-            {/* Oficinas */}
             <div>
               <h4 className="font-semibold mb-4 text-slate-300">Oficinas</h4>
               <ul className="space-y-2 text-sm text-slate-400">
@@ -1272,18 +1554,12 @@ function App() {
             </div>
           </div>
 
-          {/* Disclaimers legales */}
           <div className="border-t border-slate-700 pt-6">
             <div className="text-xs text-slate-500 space-y-2">
               <p>
                 <strong>AYMA Advisors</strong> — Matrícula PAS N° 68323 inscripta ante la 
                 Superintendencia de Seguros de la Nación (SSN). Asesoramiento de seguros 
                 sujeto a Condiciones Particulares y Normativa SSN vigente.
-              </p>
-              <p>
-                *El ahorro promedio del 35% está basado en clientes con dos o más pólizas 
-                y perfil de riesgo bajo durante 2024. Los resultados individuales pueden 
-                variar según compañía aseguradora, tipo de cobertura y antecedentes.
               </p>
               <p>
                 Protección de datos personales conforme Ley 25.326 (AAIP). 
