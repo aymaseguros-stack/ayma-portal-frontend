@@ -18,6 +18,7 @@ const initialState = {
   polizas: [],
   vehiculos: [],
   clientes: [],
+  leads: [],
   dashboardData: null,
   loading: false,
   error: null
@@ -85,13 +86,15 @@ function App() {
       
       // Cargar clientes si es admin
       let clientesRes = [];
+      let leadsRes = [];
       const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
       const tipoUsuario = savedUser.tipo_usuario?.toUpperCase();
       if (tipoUsuario === 'ADMIN' || tipoUsuario === 'ADMINISTRADOR') {
         try {
           clientesRes = await fetchAPI('/api/v1/admin/clientes', authToken);
+          leadsRes = await fetchAPI('/api/v1/leads/', authToken);
         } catch (e) {
-          console.log('No se pudieron cargar clientes:', e.message);
+          console.log('No se pudieron cargar clientes/leads:', e.message);
         }
       }
       
@@ -101,6 +104,7 @@ function App() {
         polizas: polizasRes || [],
         vehiculos: vehiculosRes || [],
         clientes: clientesRes || [],
+        leads: leadsRes || [],
         loading: false 
       }));
     } catch (err) {
@@ -1041,9 +1045,91 @@ function App() {
         {state.activeTab === 'leads' && isAdmin() && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold">🎯 Leads</h2>
-            <div className="bg-slate-800/50 rounded-xl p-8 border border-slate-700 text-center">
-              <p className="text-slate-400">No hay leads registrados</p>
-              <p className="text-slate-500 text-sm mt-2">Los leads del chatbot aparecerán aquí</p>
+            
+            {/* Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 text-center">
+                <p className="text-3xl font-bold text-blue-400">{state.leads.length}</p>
+                <p className="text-slate-400 text-sm">Total Leads</p>
+              </div>
+              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 text-center">
+                <p className="text-3xl font-bold text-green-400">{state.leads.filter(l => l.estado === 'nuevo' || l.estado === 'dato').length}</p>
+                <p className="text-slate-400 text-sm">Nuevos</p>
+              </div>
+              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 text-center">
+                <p className="text-3xl font-bold text-yellow-400">{state.leads.filter(l => l.estado === 'contactado').length}</p>
+                <p className="text-slate-400 text-sm">Contactados</p>
+              </div>
+              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 text-center">
+                <p className="text-3xl font-bold text-purple-400">{state.leads.filter(l => l.estado === 'cotizado').length}</p>
+                <p className="text-slate-400 text-sm">Cotizados</p>
+              </div>
+            </div>
+
+            {/* Tabla de Leads */}
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
+              <div className="p-4 border-b border-slate-700 flex justify-between items-center">
+                <h3 className="font-semibold">Lista de Leads</h3>
+                <span className="text-sm text-slate-400">{state.leads.length} registros</span>
+              </div>
+              {state.leads.length === 0 ? (
+                <div className="p-8 text-center">
+                  <p className="text-slate-400">No hay leads registrados</p>
+                  <p className="text-slate-500 text-sm mt-2">Los leads del chatbot aparecerán aquí</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-slate-700/50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Fecha</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Nombre</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Teléfono</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Tipo</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Origen</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-700">
+                      {state.leads.map((lead, idx) => (
+                        <tr key={lead.id || idx} className="hover:bg-slate-700/30">
+                          <td className="px-4 py-3 text-sm text-slate-400">
+                            {new Date(lead.created_at).toLocaleDateString('es-AR')}
+                          </td>
+                          <td className="px-4 py-3 text-sm font-medium">{lead.nombre}</td>
+                          <td className="px-4 py-3 text-sm">
+                            <a href={`https://wa.me/54${lead.telefono}`} target="_blank" rel="noopener noreferrer" 
+                               className="text-green-400 hover:text-green-300">
+                              📱 {lead.telefono}
+                            </a>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-slate-400">{lead.tipo_seguro || '-'}</td>
+                          <td className="px-4 py-3 text-sm">
+                            <span className={`px-2 py-1 rounded text-xs ${
+                              lead.origen === 'chatbot' ? 'bg-blue-500/20 text-blue-400' :
+                              lead.origen === 'landing' ? 'bg-purple-500/20 text-purple-400' :
+                              'bg-slate-500/20 text-slate-400'
+                            }`}>
+                              {lead.origen}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            <span className={`px-2 py-1 rounded text-xs ${
+                              lead.estado === 'nuevo' || lead.estado === 'dato' ? 'bg-green-500/20 text-green-400' :
+                              lead.estado === 'contactado' ? 'bg-yellow-500/20 text-yellow-400' :
+                              lead.estado === 'cotizado' ? 'bg-blue-500/20 text-blue-400' :
+                              lead.estado === 'cliente' ? 'bg-emerald-500/20 text-emerald-400' :
+                              'bg-slate-500/20 text-slate-400'
+                            }`}>
+                              {lead.estado}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         )}
