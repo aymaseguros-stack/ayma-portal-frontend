@@ -1519,7 +1519,7 @@ function App() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
             <div className="md:col-span-2">
               <div className="flex items-center gap-3 mb-4">
-                <img src="/logo-ayma.png" alt="AYMA Advisors" className="w-12 h-12 rounded-lg object-contain" /><!-- LOGO_REPLACED
+                <img src="/logo-ayma.png" alt="AYMA Advisors" className="w-12 h-12 rounded-lg object-contain" />
                   <svg className="w-6 h-6 text-white" viewBox="0 0 80 96" fill="none">
                     <path d="M40 0L80 16V48C80 72 60 88 40 96C20 88 0 72 0 48V16L40 0Z" stroke="currentColor" strokeWidth="4" fill="none"/>
                   </svg>
