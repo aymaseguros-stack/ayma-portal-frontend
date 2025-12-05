@@ -1037,6 +1037,81 @@ function App() {
           </div>
         )}
 
+        {/* LEADS - Solo Admin */}
+        {state.activeTab === 'leads' && isAdmin() && (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold">🎯 Leads</h2>
+            <div className="bg-slate-800/50 rounded-xl p-8 border border-slate-700 text-center">
+              <p className="text-slate-400">No hay leads registrados</p>
+              <p className="text-slate-500 text-sm mt-2">Los leads del chatbot aparecerán aquí</p>
+            </div>
+          </div>
+        )}
+
+        {/* CLIENTES - Solo Admin */}
+        {state.activeTab === 'clientes' && isAdmin() && (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold">👥 Clientes</h2>
+            
+            {/* Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 text-center">
+                <p className="text-3xl font-bold text-cyan-400">{state.clientes.length}</p>
+                <p className="text-slate-400 text-sm">Total Clientes</p>
+              </div>
+              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 text-center">
+                <p className="text-3xl font-bold text-blue-400">{state.polizas.length}</p>
+                <p className="text-slate-400 text-sm">Pólizas Vigentes</p>
+              </div>
+              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 text-center">
+                <p className="text-3xl font-bold text-green-400">{state.vehiculos.length}</p>
+                <p className="text-slate-400 text-sm">Vehículos</p>
+              </div>
+              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 text-center">
+                <p className="text-3xl font-bold text-yellow-400">{state.dashboardData?.porVencer30d || 0}</p>
+                <p className="text-slate-400 text-sm">Por Vencer (30d)</p>
+              </div>
+            </div>
+
+            {/* Lista de Clientes */}
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
+              <div className="p-4 border-b border-slate-700">
+                <h3 className="font-semibold">Lista de Clientes</h3>
+              </div>
+              {state.clientes.length === 0 ? (
+                <div className="p-8 text-center">
+                  <p className="text-slate-400">Cargando clientes...</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-slate-700/50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Nombre</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Email</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Documento</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Teléfono</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Scoring</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-700">
+                      {state.clientes.map((cliente, idx) => (
+                        <tr key={cliente.id || idx} className="hover:bg-slate-700/30">
+                          <td className="px-4 py-3 text-sm">{cliente.nombre} {cliente.apellido}</td>
+                          <td className="px-4 py-3 text-sm text-slate-400">{cliente.email || '-'}</td>
+                          <td className="px-4 py-3 text-sm text-slate-400">{cliente.documento}</td>
+                          <td className="px-4 py-3 text-sm text-slate-400">{cliente.telefono || '-'}</td>
+                          <td className="px-4 py-3 text-sm text-green-400">{cliente.scoring || 0} pts</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
       </main>
 
       {/* Footer con Compliance */}
