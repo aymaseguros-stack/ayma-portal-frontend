@@ -213,31 +213,40 @@ function App() {
   const handleEnviarTicket = async (e) => {
     e.preventDefault();
     
-    const token = generarToken();
-    const fechaRegistro = new Date().toISOString();
-    
-    const ticketData = {
-      ...soporteForm,
-      token: token,
-      fecha_registro: fechaRegistro,
-      estado: 'ABIERTO',
-      cliente_email: state.user?.email,
-      cliente_nombre: state.dashboardData?.cliente?.nombre
-    };
-    
-    console.log('Ticket registrado:', ticketData);
-    
-    setTicketEnviado({
-      token: token,
-      fecha: fechaRegistro,
-      asunto: soporteForm.asunto
-    });
-    
-    setSoporteForm({
-      asunto: '',
-      mensaje: '',
-      prioridad: 'media'
-    });
+    try {
+      const response = await fetch(API_URL + '/api/v1/tickets/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + state.token
+        },
+        body: JSON.stringify({
+          asunto: soporteForm.asunto,
+          mensaje: soporteForm.mensaje,
+          prioridad: soporteForm.prioridad
+        })
+      });
+      
+      if (!response.ok) throw new Error('Error al crear ticket');
+      
+      const data = await response.json();
+      
+      setTicketEnviado({
+        token: data.token,
+        fecha: data.created_at,
+        asunto: soporteForm.asunto
+      });
+      
+      setSoporteForm({
+        asunto: '',
+        mensaje: '',
+        prioridad: 'media'
+      });
+      
+    } catch (error) {
+      console.error('Error enviando ticket:', error);
+      alert('Error al enviar ticket. Intente nuevamente.');
+    }
   };
 
   // =============================================
