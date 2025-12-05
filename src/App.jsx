@@ -1519,7 +1519,7 @@ function App() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
             <div className="md:col-span-2">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                <img src="/logo-ayma.png" alt="AYMA Advisors" className="w-12 h-12 rounded-lg object-contain" /><!-- LOGO_REPLACED
                   <svg className="w-6 h-6 text-white" viewBox="0 0 80 96" fill="none">
                     <path d="M40 0L80 16V48C80 72 60 88 40 96C20 88 0 72 0 48V16L40 0Z" stroke="currentColor" strokeWidth="4" fill="none"/>
                   </svg>
@@ -1551,6 +1551,13 @@ function App() {
                 <li>📍 Rosario: Mariano Moreno 37, Piso 9 A</li>
                 <li>📍 CABA: Manzoni 112</li>
               </ul>
+              <h4 className="font-semibold mb-3 mt-6 text-slate-300">Seguinos</h4>
+              <div className="flex gap-3">
+                <a href="https://instagram.com/aymaseguros" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-pink-400 transition text-xl" title="Instagram">📸</a>
+                <a href="https://facebook.com/aymaseguros" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-blue-400 transition text-xl" title="Facebook">📘</a>
+                <a href="https://twitter.com/AymaSeguros" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-sky-400 transition text-xl" title="X">🐦</a>
+                <a href="https://linkedin.com/company/ayma-advisors" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-blue-500 transition text-xl" title="LinkedIn">💼</a>
+              </div>
             </div>
           </div>
 
