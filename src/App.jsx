@@ -52,6 +52,12 @@ function App() {
   const [notasInternas, setNotasInternas] = useState('');
   const [numeroSiniestroCia, setNumeroSiniestroCia] = useState('');
 
+  // Estados CRM
+  const [crmStats, setCrmStats] = useState({ dato: 0, prospecto: 0, potencial: 0, cliente: 0, loop: 0, total: 0 });
+  const [crmClientes, setCrmClientes] = useState([]);
+  const [clienteCRM, setClienteCRM] = useState(null);
+  const [crmHistorial, setCrmHistorial] = useState([]);
+
   // Verificar token al cargar
   useEffect(() => {
     const savedToken = localStorage.getItem('token');
@@ -173,6 +179,60 @@ function App() {
     }
   };
 
+  // ============ FUNCIONES CRM ============
+  const cargarCRMStats = async () => {
+    try {
+      const response = await fetchAPI('/api/v1/crm/estadisticas', state.token);
+      setCrmStats(response || { dato: 0, prospecto: 0, potencial: 0, cliente: 0, loop: 0, total: 0 });
+    } catch (err) {
+      console.error('Error cargando stats CRM:', err);
+    }
+  };
+
+  const cargarCRMClientes = async (estado = null) => {
+    try {
+      const url = estado ? `/api/v1/crm/clientes?estado=${estado}` : '/api/v1/crm/clientes';
+      const response = await fetchAPI(url, state.token);
+      setCrmClientes(response?.clientes || []);
+    } catch (err) {
+      console.error('Error cargando clientes CRM:', err);
+    }
+  };
+
+  const cargarHistorialCRM = async (clienteId) => {
+    try {
+      const response = await fetchAPI(`/api/v1/crm/historial/${clienteId}`, state.token);
+      setCrmHistorial(response?.historial || []);
+    } catch (err) {
+      console.error('Error cargando historial:', err);
+    }
+  };
+
+  const cambiarEstadoCRM = async (clienteId, nuevoEstado, notas = '') => {
+    try {
+      const response = await fetch(API_URL + `/api/v1/crm/clientes/${clienteId}/estado`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${state.token}`
+        },
+        body: JSON.stringify({ estado: nuevoEstado, notas })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        alert(`Estado actualizado. Token: ${data.token}`);
+        cargarCRMStats();
+        cargarCRMClientes();
+        if (clienteCRM) cargarHistorialCRM(clienteCRM.id);
+      } else {
+        const err = await response.json();
+        alert('Error: ' + (err.detail || 'No se pudo actualizar'));
+      }
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  };
+
   // Logout
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -189,6 +249,10 @@ function App() {
     }
     if (tab === 'admin-siniestros') {
       cargarSiniestrosAdmin();
+    }
+    if (tab === 'crm') {
+      cargarCRMStats();
+      cargarCRMClientes();
     }
   };
 
@@ -435,7 +499,8 @@ function App() {
               ...(isAdmin() ? [
                 { id: 'leads', icon: '🎯', label: 'Leads', admin: true },
                 { id: 'clientes', icon: '👥', label: 'Clientes', admin: true },
-                { id: 'admin-siniestros', icon: '🚨', label: 'Siniestros', admin: true }
+                { id: 'admin-siniestros', icon: '🚨', label: 'Siniestros', admin: true },
+                { id: 'crm', icon: '📈', label: 'CRM', admin: true }
               ] : [])
             ].map(tab => (
               <button
@@ -1508,6 +1573,158 @@ function App() {
                 </table>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* CRM */}
+        {state.activeTab === 'crm' && isAdmin() && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold">📈 CRM - Pipeline Comercial</h2>
+              <button
+                onClick={() => { cargarCRMStats(); cargarCRMClientes(); }}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition"
+              >
+                🔄 Actualizar
+              </button>
+            </div>
+
+            {/* Funnel Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              {[
+                { estado: 'DATO', color: 'slate', icon: '📝' },
+                { estado: 'PROSPECTO', color: 'blue', icon: '🔍' },
+                { estado: 'POTENCIAL', color: 'yellow', icon: '⭐' },
+                { estado: 'CLIENTE', color: 'green', icon: '✅' },
+                { estado: 'LOOP', color: 'purple', icon: '🔄' }
+              ].map(item => (
+                <div
+                  key={item.estado}
+                  onClick={() => cargarCRMClientes(item.estado)}
+                  className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 text-center cursor-pointer hover:border-cyan-500 transition"
+                >
+                  <p className="text-3xl mb-1">{item.icon}</p>
+                  <p className="text-2xl font-bold text-cyan-400">
+                    {crmStats[item.estado.toLowerCase()] || 0}
+                  </p>
+                  <p className="text-slate-400 text-sm">{item.estado}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Lista Clientes CRM */}
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
+              <div className="p-4 border-b border-slate-700 flex justify-between items-center">
+                <h3 className="font-semibold">Clientes ({crmClientes.length})</h3>
+                <button
+                  onClick={() => cargarCRMClientes()}
+                  className="text-sm text-cyan-400 hover:text-cyan-300"
+                >
+                  Ver todos
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-slate-700/50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Cliente</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Email</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Estado CRM</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Último Cambio</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-700">
+                    {crmClientes.map((cliente) => (
+                      <tr key={cliente.id} className="hover:bg-slate-700/30">
+                        <td className="px-4 py-3 text-sm font-medium">{cliente.nombre} {cliente.apellido}</td>
+                        <td className="px-4 py-3 text-sm text-slate-400">{cliente.email || '-'}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            cliente.estado_crm === 'CLIENTE' ? 'bg-green-500/20 text-green-400' :
+                            cliente.estado_crm === 'POTENCIAL' ? 'bg-yellow-500/20 text-yellow-400' :
+                            cliente.estado_crm === 'PROSPECTO' ? 'bg-blue-500/20 text-blue-400' :
+                            cliente.estado_crm === 'LOOP' ? 'bg-purple-500/20 text-purple-400' :
+                            'bg-slate-500/20 text-slate-400'
+                          }`}>
+                            {cliente.estado_crm || 'DATO'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-400">
+                          {cliente.fecha_cambio_estado ? new Date(cliente.fecha_cambio_estado).toLocaleDateString() : '-'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => { setClienteCRM(cliente); cargarHistorialCRM(cliente.id); }}
+                            className="text-cyan-400 hover:text-cyan-300 text-sm"
+                          >
+                            Ver detalle
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Modal Cliente CRM */}
+            {clienteCRM && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+                  <div className="p-4 border-b border-slate-700 flex justify-between items-center">
+                    <h3 className="font-bold text-lg">{clienteCRM.nombre} {clienteCRM.apellido}</h3>
+                    <button onClick={() => setClienteCRM(null)} className="text-slate-400 hover:text-white">✕</button>
+                  </div>
+                  <div className="p-4 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-slate-400 text-sm">Estado actual</p>
+                        <p className="font-bold text-lg">{clienteCRM.estado_crm || 'DATO'}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-400 text-sm">Cambiar a:</p>
+                        <div className="flex gap-2 flex-wrap mt-1">
+                          {['DATO', 'PROSPECTO', 'POTENCIAL', 'CLIENTE', 'LOOP'].map(est => (
+                            <button
+                              key={est}
+                              onClick={() => cambiarEstadoCRM(clienteCRM.id, est, 'Cambio manual desde portal')}
+                              disabled={est === clienteCRM.estado_crm}
+                              className={`px-2 py-1 rounded text-xs ${
+                                est === clienteCRM.estado_crm
+                                  ? 'bg-slate-600 text-slate-400 cursor-not-allowed'
+                                  : 'bg-cyan-600 hover:bg-cyan-700 text-white'
+                              }`}
+                            >
+                              {est}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-slate-400 text-sm mb-2">Historial de cambios</p>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {crmHistorial.length === 0 ? (
+                          <p className="text-slate-500 text-sm">Sin historial</p>
+                        ) : (
+                          crmHistorial.map((h, i) => (
+                            <div key={i} className="bg-slate-700/50 rounded p-2 text-sm">
+                              <div className="flex justify-between">
+                                <span>{h.estado_anterior || '—'} → <span className="text-cyan-400">{h.estado_nuevo}</span></span>
+                                <span className="text-slate-400 text-xs">{new Date(h.fecha).toLocaleString()}</span>
+                              </div>
+                              {h.notas && <p className="text-slate-400 text-xs mt-1">{h.notas}</p>}
+                              <p className="text-slate-500 text-xs">Token: {h.token}</p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
