@@ -118,20 +118,20 @@ function MarketingPanel({ token }) {
 
       {stats && (
         <div className="grid grid-cols-4 gap-4 mb-8">
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <div className="text-sm text-gray-600">Total Contenidos</div>
+          <div className="bg-blue-500 p-4 rounded-lg text-white">
+            <div className="text-sm font-medium opacity-90">Total Contenidos</div>
             <div className="text-2xl font-bold">{stats.total_contenidos || 0}</div>
           </div>
-          <div className="bg-yellow-50 p-4 rounded-lg">
-            <div className="text-sm text-gray-600">Pendientes</div>
+          <div className="bg-amber-500 p-4 rounded-lg text-white">
+            <div className="text-sm font-medium opacity-90">Pendientes</div>
             <div className="text-2xl font-bold">{stats.pendientes || 0}</div>
           </div>
-          <div className="bg-green-50 p-4 rounded-lg">
-            <div className="text-sm text-gray-600">Aprobados</div>
+          <div className="bg-emerald-500 p-4 rounded-lg text-white">
+            <div className="text-sm font-medium opacity-90">Aprobados</div>
             <div className="text-2xl font-bold">{stats.aprobados || 0}</div>
           </div>
-          <div className="bg-purple-50 p-4 rounded-lg">
-            <div className="text-sm text-gray-600">Tasa Aprobación</div>
+          <div className="bg-violet-500 p-4 rounded-lg text-white">
+            <div className="text-sm font-medium opacity-90">Tasa Aprobación</div>
             <div className="text-2xl font-bold">{stats.tasa_aprobacion || 0}%</div>
           </div>
         </div>
@@ -151,22 +151,22 @@ function MarketingPanel({ token }) {
           ) : (
             <div className="space-y-4">
               {contenidos.map((contenido) => (
-                <div key={contenido.token} className="border rounded-lg p-4 hover:bg-gray-50">
+                <div key={contenido.token} className="bg-slate-800 rounded-lg p-4 hover:bg-slate-750">
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex-1">
-                      <span className="font-mono text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                      <span className="font-mono text-xs text-slate-300 bg-slate-700 px-2 py-1 rounded">
                         {contenido.token}
                       </span>
-                      <div className="mt-2 text-sm">
-                        <strong>Canal:</strong> <span className="capitalize">{contenido.channel}</span>
+                      <div className="mt-2 text-sm text-slate-300">
+                        <strong className="text-white">Canal:</strong> <span className="capitalize">{contenido.channel}</span>
                       </div>
-                      <div className="mt-1 text-sm text-gray-600">
-                        <strong>Fecha:</strong> {new Date(contenido.created_at).toLocaleString('es-AR')}
+                      <div className="mt-1 text-sm text-slate-300">
+                        <strong className="text-white">Fecha:</strong> {new Date(contenido.created_at).toLocaleString('es-AR')}
                       </div>
                     </div>
                   </div>
-                  <div className="bg-gray-50 p-3 rounded mt-3 border-l-4 border-blue-500">
-                    <p className="text-sm whitespace-pre-wrap">{contenido.copy_text}</p>
+                  <div className="bg-slate-700 p-3 rounded mt-3 border-l-4 border-blue-500">
+                    <p className="text-sm whitespace-pre-wrap text-white">{contenido.copy_text}</p>
                   </div>
                   <div className="flex gap-2 mt-4">
                     <button
