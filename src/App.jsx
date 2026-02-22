@@ -1622,22 +1622,6 @@ function App() {
             <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
               <div className="p-4 border-b border-slate-700 flex justify-between items-center">
                 <h3 className="font-semibold">Clientes ({crmClientes.length})</h3>
-
-        {/* MARKETING PANEL */}
-        {state.activeTab === 'marketing' && isAdmin() && (
-          <MarketingPanel token={state.token} />
-        )}
-
-        {/* COMPLIANCE PANEL */}
-        {state.activeTab === 'compliance' && isAdmin() && (
-          <CompliancePanel token={state.token} />
-        )}
-
-        {/* INTELLIGENCE PANEL */}
-        {state.activeTab === 'intelligence' && isAdmin() && (
-          <IntelligencePanel token={state.token} />
-        )}
-
                 <button
                   onClick={() => cargarCRMClientes()}
                   className="text-sm text-cyan-400 hover:text-cyan-300"
@@ -1748,6 +1732,21 @@ function App() {
               </div>
             )}
           </div>
+        )}
+
+        {/* MARKETING PANEL */}
+        {state.activeTab === 'marketing' && isAdmin() && (
+          <MarketingPanel token={state.token} />
+        )}
+
+        {/* COMPLIANCE PANEL */}
+        {state.activeTab === 'compliance' && isAdmin() && (
+          <CompliancePanel token={state.token} />
+        )}
+
+        {/* INTELLIGENCE PANEL */}
+        {state.activeTab === 'intelligence' && isAdmin() && (
+          <IntelligencePanel token={state.token} />
         )}
 
       </main>
