@@ -22,7 +22,7 @@ const CompliancePanel = ({ token }) => {
         fetch(`${API_URL}/api/v1/compliance/stats`, { headers })
       ]);
 
-      if (pendientesRes.ok) setPendientes(await pendientesRes.json());
+      if (pendientesRes.ok) { const data = await pendientesRes.json(); setPendientes(data.validaciones || []); }
       if (statsRes.ok) setStats(await statsRes.json());
     } catch (error) {
       console.error('Error cargando compliance:', error);

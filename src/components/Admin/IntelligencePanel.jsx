@@ -26,8 +26,8 @@ const IntelligencePanel = ({ token }) => {
         fetch(`${API_URL}/api/v1/intelligence/prospects`, { headers })
       ]);
 
-      if (scrapesRes.ok) setScrapes(await scrapesRes.json());
-      if (prospectsRes.ok) setProspects(await prospectsRes.json());
+      if (scrapesRes.ok) { const data = await scrapesRes.json(); setScrapes(data.scrapes || []); }
+      if (prospectsRes.ok) { const data = await prospectsRes.json(); setProspects(data.prospects || []); }
     } catch (error) {
       console.error('Error cargando intelligence:', error);
     } finally {
