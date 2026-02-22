@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import CompliancePanel from './components/Admin/CompliancePanel';
+import IntelligencePanel from './components/Admin/IntelligencePanel';
+import MarketingPanel from './components/Admin/MarketingPanel';
 
 // API Configuration
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
@@ -500,7 +503,10 @@ function App() {
                 { id: 'leads', icon: '🎯', label: 'Leads', admin: true },
                 { id: 'clientes', icon: '👥', label: 'Clientes', admin: true },
                 { id: 'admin-siniestros', icon: '🚨', label: 'Siniestros', admin: true },
-                { id: 'crm', icon: '📈', label: 'CRM', admin: true }
+                { id: 'crm', icon: '📈', label: 'CRM', admin: true },
+                { id: 'marketing', icon: '📢', label: 'Marketing', admin: true },
+                { id: 'compliance', icon: '✓', label: 'Compliance', admin: true },
+                { id: 'intelligence', icon: '🔍', label: 'Intelligence', admin: true },
               ] : [])
             ].map(tab => (
               <button
@@ -1616,6 +1622,22 @@ function App() {
             <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
               <div className="p-4 border-b border-slate-700 flex justify-between items-center">
                 <h3 className="font-semibold">Clientes ({crmClientes.length})</h3>
+
+        {/* MARKETING PANEL */}
+        {state.activeTab === 'marketing' && isAdmin() && (
+          <MarketingPanel token={state.token} />
+        )}
+
+        {/* COMPLIANCE PANEL */}
+        {state.activeTab === 'compliance' && isAdmin() && (
+          <CompliancePanel token={state.token} />
+        )}
+
+        {/* INTELLIGENCE PANEL */}
+        {state.activeTab === 'intelligence' && isAdmin() && (
+          <IntelligencePanel token={state.token} />
+        )}
+
                 <button
                   onClick={() => cargarCRMClientes()}
                   className="text-sm text-cyan-400 hover:text-cyan-300"
