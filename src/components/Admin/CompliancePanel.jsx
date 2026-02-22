@@ -82,13 +82,13 @@ const CompliancePanel = ({ token }) => {
       )}
 
       {/* Pendientes de revisión */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-xl font-semibold mb-4">Pendientes de Revisión Humana</h3>
-        
+      <div className="bg-slate-800 rounded-lg shadow p-6">
+        <h3 className="text-xl font-semibold mb-4 text-white">Pendientes de Revisión Humana</h3>
+
         {loading ? (
-          <p>Cargando...</p>
+          <p className="text-slate-200">Cargando...</p>
         ) : pendientes.length === 0 ? (
-          <p className="text-gray-500">No hay validaciones pendientes</p>
+          <p className="text-slate-300">No hay validaciones pendientes</p>
         ) : (
           <div className="space-y-4">
             {pendientes.map((val) => (

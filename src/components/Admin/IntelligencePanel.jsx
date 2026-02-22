@@ -110,40 +110,40 @@ const IntelligencePanel = ({ token }) => {
       </div>
 
       {/* Scrapes Recientes */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <h3 className="text-xl font-semibold mb-4">Scrapes Recientes</h3>
+      <div className="bg-slate-800 rounded-lg shadow p-6 mb-6">
+        <h3 className="text-xl font-semibold mb-4 text-white">Scrapes Recientes</h3>
         {loading ? (
-          <p>Cargando...</p>
+          <p className="text-slate-200">Cargando...</p>
         ) : scrapes.length === 0 ? (
-          <p className="text-gray-500">No hay scrapes registrados</p>
+          <p className="text-slate-300">No hay scrapes registrados</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50">
+              <thead className="bg-slate-700">
                 <tr>
-                  <th className="p-2 text-left">Token</th>
-                  <th className="p-2 text-left">Target</th>
-                  <th className="p-2 text-left">Plataforma</th>
-                  <th className="p-2 text-left">Estado</th>
-                  <th className="p-2 text-left">Fecha</th>
+                  <th className="p-2 text-left text-white">Token</th>
+                  <th className="p-2 text-left text-white">Target</th>
+                  <th className="p-2 text-left text-white">Plataforma</th>
+                  <th className="p-2 text-left text-white">Estado</th>
+                  <th className="p-2 text-left text-white">Fecha</th>
                 </tr>
               </thead>
               <tbody>
                 {scrapes.map((scrape) => (
-                  <tr key={scrape.token} className="border-b">
-                    <td className="p-2 font-mono text-sm">{scrape.token}</td>
-                    <td className="p-2">{scrape.target_name}</td>
-                    <td className="p-2">{scrape.platform}</td>
+                  <tr key={scrape.token} className="border-b border-slate-700">
+                    <td className="p-2 font-mono text-sm text-slate-200">{scrape.token}</td>
+                    <td className="p-2 text-slate-200">{scrape.target_name}</td>
+                    <td className="p-2 text-slate-200">{scrape.platform}</td>
                     <td className="p-2">
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        scrape.status === 'completed' ? 'bg-green-100 text-green-800' :
-                        scrape.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-red-100 text-red-800'
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        scrape.status === 'completed' ? 'bg-emerald-500 text-white' :
+                        scrape.status === 'pending' ? 'bg-amber-500 text-white' :
+                        'bg-red-500 text-white'
                       }`}>
                         {scrape.status}
                       </span>
                     </td>
-                    <td className="p-2 text-sm">{new Date(scrape.created_at).toLocaleDateString()}</td>
+                    <td className="p-2 text-sm text-slate-200">{new Date(scrape.created_at).toLocaleDateString()}</td>
                   </tr>
                 ))}
               </tbody>
@@ -153,24 +153,24 @@ const IntelligencePanel = ({ token }) => {
       </div>
 
       {/* Prospectos de Alto Valor */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-xl font-semibold mb-4">Prospectos de Alto Valor</h3>
+      <div className="bg-slate-800 rounded-lg shadow p-6">
+        <h3 className="text-xl font-semibold mb-4 text-white">Prospectos de Alto Valor</h3>
         {prospects.length === 0 ? (
-          <p className="text-gray-500">No hay prospectos identificados</p>
+          <p className="text-slate-300">No hay prospectos identificados</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {prospects.slice(0, 10).map((prospect) => (
-              <div key={prospect.id} className="border rounded-lg p-4">
+              <div key={prospect.id} className="bg-slate-700 border border-slate-600 rounded-lg p-4">
                 <div className="flex justify-between items-start mb-2">
-                  <h4 className="font-semibold">{prospect.name}</h4>
-                  <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs">
+                  <h4 className="font-semibold text-white">{prospect.name}</h4>
+                  <span className="bg-violet-500 text-white px-2 py-1 rounded text-xs font-medium">
                     Score: {prospect.priority_score}
                   </span>
                 </div>
-                <p className="text-sm text-gray-600 mb-2">{prospect.location || 'Sin ubicación'}</p>
+                <p className="text-sm text-slate-300 mb-2">{prospect.location || 'Sin ubicación'}</p>
                 {prospect.potential_products && (
-                  <div className="text-xs">
-                    <span className="font-medium">Productos potenciales:</span>
+                  <div className="text-xs text-slate-200">
+                    <span className="font-medium text-white">Productos potenciales:</span>
                     <span className="ml-2">{prospect.potential_products.join(', ')}</span>
                   </div>
                 )}

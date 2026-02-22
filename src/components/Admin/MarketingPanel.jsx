@@ -137,21 +137,21 @@ function MarketingPanel({ token }) {
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-4 border-b">
-          <h3 className="text-xl font-semibold">
+      <div className="bg-slate-800 rounded-lg shadow">
+        <div className="p-4 border-b border-slate-700">
+          <h3 className="text-xl font-semibold text-white">
             ⏳ Contenidos Pendientes de Aprobación ({contenidos.length})
           </h3>
         </div>
         <div className="p-4">
           {contenidos.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
+            <p className="text-slate-300 text-center py-8">
               📭 No hay contenidos pendientes de aprobación
             </p>
           ) : (
             <div className="space-y-4">
               {contenidos.map((contenido) => (
-                <div key={contenido.token} className="bg-slate-800 rounded-lg p-4 hover:bg-slate-750">
+                <div key={contenido.token} className="bg-slate-700 rounded-lg p-4 hover:bg-slate-600">
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex-1">
                       <span className="font-mono text-xs text-slate-300 bg-slate-700 px-2 py-1 rounded">
