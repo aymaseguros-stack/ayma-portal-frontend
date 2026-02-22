@@ -7,7 +7,7 @@ function MarketingPanel({ token }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  }, [token]); // AGREGADO TOKEN COMO DEPENDENCIA
+
   useEffect(() => {
     if (!token) {
       console.error('MarketingPanel: No token provided');
