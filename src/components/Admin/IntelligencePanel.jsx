@@ -61,15 +61,15 @@ const IntelligencePanel = ({ token }) => {
       <h2 className="text-2xl font-bold mb-6">Intelligence - ZEBALLOS v2</h2>
 
       {/* Nuevo Scrape */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <h3 className="text-xl font-semibold mb-4">Nuevo Scraping</h3>
+      <div className="bg-slate-800 rounded-lg shadow p-6 mb-6">
+        <h3 className="text-xl font-semibold mb-4 text-white">Nuevo Scraping</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-2">Tipo</label>
+            <label className="block text-sm font-medium mb-2 text-white">Tipo</label>
             <select
               value={scrapeForm.target_type}
               onChange={(e) => setScrapeForm({...scrapeForm, target_type: e.target.value})}
-              className="w-full p-2 border rounded"
+              className="w-full p-2 border border-slate-500 rounded bg-slate-700 text-white"
             >
               <option value="competitor">Competidor</option>
               <option value="influencer">Influencer</option>
@@ -77,21 +77,21 @@ const IntelligencePanel = ({ token }) => {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-2">Nombre/Empresa</label>
+            <label className="block text-sm font-medium mb-2 text-white">Nombre/Empresa</label>
             <input
               type="text"
               value={scrapeForm.target_name}
               onChange={(e) => setScrapeForm({...scrapeForm, target_name: e.target.value})}
-              className="w-full p-2 border rounded"
+              className="w-full p-2 border border-slate-500 rounded bg-slate-700 text-white placeholder-slate-400"
               placeholder="Ej: La Caja Seguros"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-2">Plataforma</label>
+            <label className="block text-sm font-medium mb-2 text-white">Plataforma</label>
             <select
               value={scrapeForm.platform}
               onChange={(e) => setScrapeForm({...scrapeForm, platform: e.target.value})}
-              className="w-full p-2 border rounded"
+              className="w-full p-2 border border-slate-500 rounded bg-slate-700 text-white"
             >
               <option value="linkedin">LinkedIn</option>
               <option value="instagram">Instagram</option>
@@ -103,7 +103,7 @@ const IntelligencePanel = ({ token }) => {
         <button
           onClick={iniciarScrape}
           disabled={!scrapeForm.target_name}
-          className="mt-4 px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300"
+          className="mt-4 px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed transition"
         >
           🔍 Iniciar Scraping
         </button>

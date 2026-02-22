@@ -62,21 +62,21 @@ const CompliancePanel = ({ token }) => {
       {/* Stats */}
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">Total Validaciones</p>
+          <div className="bg-blue-500 p-4 rounded-lg text-white">
+            <p className="text-sm font-medium opacity-90">Total Validaciones</p>
             <p className="text-2xl font-bold">{stats.total_validations || 0}</p>
           </div>
-          <div className="bg-green-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">Aprobadas</p>
-            <p className="text-2xl font-bold text-green-600">{stats.approved || 0}</p>
+          <div className="bg-emerald-500 p-4 rounded-lg text-white">
+            <p className="text-sm font-medium opacity-90">Aprobadas</p>
+            <p className="text-2xl font-bold">{stats.approved || 0}</p>
           </div>
-          <div className="bg-yellow-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">Pendientes</p>
-            <p className="text-2xl font-bold text-yellow-600">{stats.pending_human || 0}</p>
+          <div className="bg-amber-500 p-4 rounded-lg text-white">
+            <p className="text-sm font-medium opacity-90">Pendientes</p>
+            <p className="text-2xl font-bold">{stats.pending_human || 0}</p>
           </div>
-          <div className="bg-red-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">Rechazadas</p>
-            <p className="text-2xl font-bold text-red-600">{stats.rejected || 0}</p>
+          <div className="bg-red-500 p-4 rounded-lg text-white">
+            <p className="text-sm font-medium opacity-90">Rechazadas</p>
+            <p className="text-2xl font-bold">{stats.rejected || 0}</p>
           </div>
         </div>
       )}
@@ -92,13 +92,13 @@ const CompliancePanel = ({ token }) => {
         ) : (
           <div className="space-y-4">
             {pendientes.map((val) => (
-              <div key={val.validation_token} className="border rounded-lg p-4">
+              <div key={val.validation_token} className="bg-slate-800 rounded-lg p-4">
                 <div className="flex justify-between items-start mb-2">
                   <div>
-                    <span className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">
+                    <span className="text-sm font-mono bg-slate-700 text-slate-300 px-2 py-1 rounded">
                       {val.validation_token}
                     </span>
-                    <p className="mt-2 text-sm text-gray-600">
+                    <p className="mt-2 text-sm text-slate-300">
                       Content Token: {val.content_token}
                     </p>
                   </div>
@@ -112,8 +112,8 @@ const CompliancePanel = ({ token }) => {
                 </div>
 
                 <div className="mt-3 space-y-2">
-                  <p className="font-semibold">Cambios requeridos:</p>
-                  <ul className="list-disc list-inside text-sm">
+                  <p className="font-semibold text-white">Cambios requeridos:</p>
+                  <ul className="list-disc list-inside text-sm text-slate-300">
                     {val.required_changes?.map((change, idx) => (
                       <li key={idx}>{change}</li>
                     ))}
