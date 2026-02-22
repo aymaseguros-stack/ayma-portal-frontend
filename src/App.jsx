@@ -90,9 +90,21 @@ function App() {
   const cargarDatosConToken = async (authToken) => {
     setState(prev => ({ ...prev, loading: true }));
     try {
-      const dashboardRes = await fetchAPI('/api/v1/dashboard/', authToken);
-      const polizasRes = await fetchAPI('/api/v1/polizas/', authToken);
-      const vehiculosRes = await fetchAPI('/api/v1/vehiculos/', authToken);
+      let dashboardRes = null;
+      try { dashboardRes = await fetchAPI('/api/v1/dashboard/', authToken); } catch (e) { console.log('Dashboard error:', e.message); }
+
+      let polizasRes = [];
+      let vehiculosRes = [];
+      try {
+        const [pData, vData] = await Promise.all([
+          fetchAPI('/api/v1/polizas/', authToken),
+          fetchAPI('/api/v1/vehiculos/', authToken)
+        ]);
+        polizasRes = Array.isArray(pData) ? pData : (pData?.polizas || []);
+        vehiculosRes = Array.isArray(vData) ? vData : (vData?.vehiculos || []);
+      } catch (e) {
+        console.error('Error cargando pólizas/vehículos:', e.message);
+      }
       
       // Cargar siniestros del usuario
       let siniestrosRes = [];
@@ -539,7 +551,7 @@ function App() {
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="text-blue-200 text-sm">Mis Pólizas</p>
-                    <p className="text-4xl font-bold mt-2">{state.dashboardData?.misPolizas || state.polizas.length}</p>
+                    <p className="text-4xl font-bold mt-2">{state.dashboardData?.totalPolizas ?? state.polizas.length}</p>
                   </div>
                   <span className="text-4xl">📄</span>
                 </div>
@@ -550,7 +562,7 @@ function App() {
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="text-green-200 text-sm">Mis Vehículos</p>
-                    <p className="text-4xl font-bold mt-2">{state.dashboardData?.misVehiculos || state.vehiculos.length}</p>
+                    <p className="text-4xl font-bold mt-2">{state.dashboardData?.totalVehiculos ?? state.vehiculos.length}</p>
                   </div>
                   <span className="text-4xl">🚗</span>
                 </div>

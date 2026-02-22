@@ -59,13 +59,9 @@ function MarketingPanel({ token }) {
 
   const handleAprobar = async (tokenContenido) => {
     try {
-      const response = await fetch(`${API_URL}/marketing/contenido/${tokenContenido}/aprobar`, {
+      const response = await fetch(`${API_URL}/marketing/contenido/${tokenContenido}/aprobar?aprobado=true`, {
         method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ aprobado_por: 'admin' })
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('Error al aprobar');
       alert('✅ Contenido aprobado exitosamente');
