@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import CompliancePanel from './components/Admin/CompliancePanel';
 import IntelligencePanel from './components/Admin/IntelligencePanel';
-import MarketingPanel from './components/Admin/MarketingPanel';
+import MarketingStudio from './components/Admin/MarketingStudio';
 
 // API Configuration
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
@@ -1748,7 +1748,7 @@ function App() {
 
         {/* MARKETING PANEL */}
         {state.activeTab === 'marketing' && isAdmin() && (
-          <MarketingPanel token={state.token} />
+          <MarketingStudio />
         )}
 
         {/* COMPLIANCE PANEL */}
