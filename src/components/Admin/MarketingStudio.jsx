@@ -78,12 +78,78 @@ const BRAND = {
 };
 
 // ============================================
+// ICONOGRAFÍA SVG PROFESIONAL (Heroicons-style)
+// Consistente con landing page aymaseguros.com.ar
+// ============================================
+const SvgIcon = ({ d, size = 20, color = 'currentColor', filled = false }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? color : 'none'} stroke={filled ? 'none' : color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <path d={d} />
+  </svg>
+);
+
+// UI Icons (Heroicons outline)
+const ICONS = {
+  dashboard: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6',
+  editor: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z',
+  ai: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z',
+  calendar: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+  check: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
+  clock: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+  chart: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
+  send: 'M12 19l9 2-9-18-9 18 9-2zm0 0v-8',
+  copy: 'M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z',
+  sparkles: 'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z',
+  book: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
+  star: 'M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z',
+  tag: 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z',
+  building: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
+  money: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  newspaper: 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z',
+};
+
+// Redes Sociales - SVG Brand Icons
+const SocialIcon = ({ red, size = 20 }) => {
+  const paths = {
+    instagram: <><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></>,
+    facebook: <path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/>,
+    linkedin: <><path d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></>,
+    x_twitter: <path d="M4 4l11.733 16h4.267l-11.733-16zM4 20l6.768-6.768M20 4l-6.768 6.768"/>,
+  };
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      {paths[red]}
+    </svg>
+  );
+};
+
+// Product Icon - renders PNG from /icons/ folder
+const ProductIcon = ({ productId, size = 32 }) => {
+  const iconMap = {
+    auto: '/icons/icons500x500_vehiculo.png',
+    hogar: '/icons/icons500x500_vivienda.png',
+    art: '/icons/seguroart.png',
+    vida: '/icons/Segurodevida.png',
+    comercio: '/icons/seguros_integral.png',
+    moto: '/icons/icons500x500_vehiculo.png',
+    flota: '/icons/seguros_transporte.png',
+    rc: '/icons/seguros_responsabilidadcivil.png',
+    incendio: '/icons/icons500x500_incendio.png',
+    transporte: '/icons/seguros_transporte.png',
+    caucion: '/icons/seguros_caucion.png',
+    ap: '/icons/accidentespersonales.png',
+  };
+  const src = iconMap[productId];
+  if (!src) return <SvgIcon d={ICONS.tag} size={size} />;
+  return <img src={src} alt={productId} width={size} height={size} style={{ borderRadius: '50%', objectFit: 'cover' }} />;
+};
+
+// ============================================
 // CONFIGURACIÓN REDES SOCIALES
 // ============================================
 const REDES = {
   instagram: {
     name: 'Instagram',
-    icon: '📸',
+    icon: 'instagram',
     color: '#E4405F',
     formats: {
       post: { w: 1080, h: 1080, label: 'Post Feed' },
@@ -95,7 +161,7 @@ const REDES = {
   },
   facebook: {
     name: 'Facebook',
-    icon: '📘',
+    icon: 'facebook',
     color: '#1877F2',
     formats: {
       post: { w: 1200, h: 630, label: 'Post' },
@@ -106,7 +172,7 @@ const REDES = {
   },
   linkedin: {
     name: 'LinkedIn',
-    icon: '💼',
+    icon: 'linkedin',
     color: '#0077B5',
     formats: {
       post: { w: 1200, h: 627, label: 'Post' },
@@ -117,7 +183,7 @@ const REDES = {
   },
   x_twitter: {
     name: 'X (Twitter)',
-    icon: '𝕏',
+    icon: 'x_twitter',
     color: '#000000',
     formats: {
       post: { w: 1200, h: 675, label: 'Post' },
@@ -219,26 +285,26 @@ const TEMPLATES = [
 // CALENDARIO EDITORIAL
 // ============================================
 const CALENDARIO = {
-  Monday: { tipo: 'educativo', tema: 'Tips de seguros', emoji: '📚' },
-  Tuesday: { tipo: 'testimonial', tema: 'Historias de clientes', emoji: '⭐' },
-  Wednesday: { tipo: 'comercial', tema: 'Promoción producto', emoji: '💰' },
-  Thursday: { tipo: 'noticia', tema: 'Noticias del sector', emoji: '📰' },
-  Friday: { tipo: 'institucional', tema: 'AYMA marca', emoji: '🏢' },
+  Monday: { tipo: 'educativo', tema: 'Tips de seguros', iconKey: 'book' },
+  Tuesday: { tipo: 'testimonial', tema: 'Historias de clientes', iconKey: 'star' },
+  Wednesday: { tipo: 'comercial', tema: 'Promoción producto', iconKey: 'money' },
+  Thursday: { tipo: 'noticia', tema: 'Noticias del sector', iconKey: 'newspaper' },
+  Friday: { tipo: 'institucional', tema: 'AYMA marca', iconKey: 'building' },
 };
 
 const PRODUCTOS_SEGUROS = [
-  { id: 'auto', name: 'Seguro Automotor', icon: '🚗', color: '#3b82f6' },
-  { id: 'hogar', name: 'Seguro Hogar', icon: '🏠', color: '#22c55e' },
-  { id: 'art', name: 'ART Empresas', icon: '👷', color: '#f59e0b' },
-  { id: 'vida', name: 'Seguro de Vida', icon: '❤️', color: '#ef4444' },
-  { id: 'comercio', name: 'Integral Comercio', icon: '🏪', color: '#8b5cf6' },
-  { id: 'moto', name: 'Seguro Moto', icon: '🏍️', color: '#06b6d4' },
-  { id: 'flota', name: 'Flota Vehicular', icon: '🚛', color: '#0d9488' },
-  { id: 'rc', name: 'Resp. Civil', icon: '⚖️', color: '#6366f1' },
-  { id: 'incendio', name: 'Seg. Incendio', icon: '🔥', color: '#dc2626' },
-  { id: 'transporte', name: 'Seg. Transporte', icon: '📦', color: '#059669' },
-  { id: 'caucion', name: 'Caución', icon: '📋', color: '#7c3aed' },
-  { id: 'ap', name: 'Acc. Personales', icon: '🛡️', color: '#0284c7' },
+  { id: 'auto', name: 'Seguro Automotor', color: '#3b82f6' },
+  { id: 'hogar', name: 'Seguro Hogar', color: '#22c55e' },
+  { id: 'art', name: 'ART Empresas', color: '#f59e0b' },
+  { id: 'vida', name: 'Seguro de Vida', color: '#ef4444' },
+  { id: 'comercio', name: 'Integral Comercio', color: '#8b5cf6' },
+  { id: 'moto', name: 'Seguro Moto', color: '#06b6d4' },
+  { id: 'flota', name: 'Flota Vehicular', color: '#0d9488' },
+  { id: 'rc', name: 'Resp. Civil', color: '#6366f1' },
+  { id: 'incendio', name: 'Seg. Incendio', color: '#dc2626' },
+  { id: 'transporte', name: 'Seg. Transporte', color: '#059669' },
+  { id: 'caucion', name: 'Caución', color: '#7c3aed' },
+  { id: 'ap', name: 'Acc. Personales', color: '#0284c7' },
 ];
 
 // ============================================
@@ -404,7 +470,7 @@ export default function MarketingStudio() {
       token: token,
     };
     setContenidos(prev => [newContent, ...prev]);
-    showNotif(`✅ Aprobado — Token: ${token}`);
+    showNotif(`Aprobado — Token: ${token}`);
     setView('dashboard');
   };
 
@@ -471,10 +537,10 @@ export default function MarketingStudio() {
           gap: 16, padding: '24px 32px',
         }}>
           {[
-            { label: 'Pendientes', value: contenidos.filter(c => c.estado === 'pendiente').length, color: '#f59e0b', icon: '⏳' },
-            { label: 'Aprobados', value: contenidos.filter(c => c.estado === 'aprobado').length, color: '#22c55e', icon: '✅' },
-            { label: 'Publicados', value: contenidos.filter(c => c.estado === 'publicado').length, color: '#8b5cf6', icon: '📡' },
-            { label: 'Este Mes', value: contenidos.length, color: '#3b82f6', icon: '📊' },
+            { label: 'Pendientes', value: contenidos.filter(c => c.estado === 'pendiente').length, color: '#f59e0b', iconKey: 'clock' },
+            { label: 'Aprobados', value: contenidos.filter(c => c.estado === 'aprobado').length, color: '#22c55e', iconKey: 'check' },
+            { label: 'Publicados', value: contenidos.filter(c => c.estado === 'publicado').length, color: '#8b5cf6', iconKey: 'send' },
+            { label: 'Este Mes', value: contenidos.length, color: '#3b82f6', iconKey: 'chart' },
           ].map((stat, i) => (
             <div key={i} style={{
               background: 'rgba(255,255,255,0.04)',
@@ -483,7 +549,7 @@ export default function MarketingStudio() {
               padding: '20px',
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 24 }}>{stat.icon}</span>
+                <span style={{ color: stat.color }}><SvgIcon d={ICONS[stat.iconKey]} size={24} /></span>
                 <span style={{
                   fontSize: 32, fontWeight: 800, color: stat.color,
                   letterSpacing: '-0.03em',
@@ -521,7 +587,7 @@ export default function MarketingStudio() {
                 onMouseOver={e => e.currentTarget.style.background = 'rgba(37,99,235,0.1)'}
                 onMouseOut={e => e.currentTarget.style.background = isToday ? 'rgba(37,99,235,0.15)' : 'rgba(255,255,255,0.03)'}
                 >
-                  <div style={{ fontSize: 20, marginBottom: 6 }}>{info.emoji}</div>
+                  <div style={{ marginBottom: 6, color: '#3b82f6' }}><SvgIcon d={ICONS[info.iconKey]} size={22} /></div>
                   <div style={{ fontSize: 12, fontWeight: 600 }}>
                     {day.slice(0, 3).toUpperCase()}
                   </div>
@@ -564,7 +630,7 @@ export default function MarketingStudio() {
             onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <span style={{ fontSize: 22 }}>{REDES[c.red]?.icon || '📱'}</span>
+                <span style={{ color: REDES[c.red]?.color || '#666' }}><SocialIcon red={c.red} size={22} /></span>
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 600 }}>{c.titulo}</div>
                   <div style={{ fontSize: 11, color: BRAND.colors.grayLight, marginTop: 2 }}>
@@ -668,7 +734,7 @@ export default function MarketingStudio() {
               fontSize: 13,
             }}
           >
-            {generating ? '⏳ Generando...' : '🤖 Generar con IA'}
+            {generating ? 'Generando...' : <><SvgIcon d={ICONS.sparkles} size={16} /> Generar con IA</>}
           </button>
           <button
             onClick={approveContent}
@@ -683,7 +749,7 @@ export default function MarketingStudio() {
               fontSize: 13,
             }}
           >
-            ✅ Aprobar y Publicar
+            <><SvgIcon d={ICONS.check} size={16} /> Aprobar y Publicar</>
           </button>
         </div>
       </div>
@@ -710,7 +776,7 @@ export default function MarketingStudio() {
                 display: 'flex', alignItems: 'center', gap: 6,
               }}
             >
-              {red.icon} {red.name}
+              <SocialIcon red={key} size={16} /> {red.name}
             </button>
           ))}
         </div>
@@ -777,7 +843,7 @@ export default function MarketingStudio() {
         >
           {PRODUCTOS_SEGUROS.map(p => (
             <option key={p.id} value={p.id} style={{ background: '#1a1a2e' }}>
-              {p.icon} {p.name}
+              {p.name}
             </option>
           ))}
         </select>
@@ -935,7 +1001,7 @@ export default function MarketingStudio() {
             fontSize: 13,
           }}
         >
-          📋 Copiar Texto Completo
+          <><SvgIcon d={ICONS.copy} size={16} /> Copiar Texto Completo</>
         </button>
 
         {/* Preview multi-red */}
@@ -953,7 +1019,7 @@ export default function MarketingStudio() {
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               }}
             >
-              <span>{red.icon} {red.name}</span>
+              <span style={{display:"flex",alignItems:"center",gap:6}}><SocialIcon red={key} size={14} /> {red.name}</span>
               <span style={{ color: BRAND.colors.grayLight, fontSize: 10 }}>
                 {editor.cuerpo.length}/{red.maxChars}
               </span>
@@ -1097,9 +1163,9 @@ const CanvasPreview = React.forwardRef(({ editor, template, red, format, brand }
         zIndex: 2,
         gap: h * 0.02,
       }}>
-        {editor.showIcon && (
-          <div style={{ fontSize: w * 0.08, marginBottom: h * 0.01 }}>
-            {editor.producto.icon}
+        {editor.showIcon && editor.producto && (
+          <div style={{ marginBottom: h * 0.01 }}>
+            <ProductIcon productId={editor.producto.id} size={Math.round(w * 0.12)} />
           </div>
         )}
 
@@ -1265,12 +1331,12 @@ const textareaStyle = {
 function getRandomTitle(tipo, producto) {
   const titles = {
     educativo: [
-      `${producto.icon} ¿Sabías esto sobre tu ${producto.name}?`,
+      `¿Sabías esto sobre tu ${producto.name}?`,
       `5 errores al elegir ${producto.name.toLowerCase()}`,
       `Lo que nadie te dice sobre ${producto.name.toLowerCase()}`,
     ],
     comercial: [
-      `${producto.icon} ${producto.name}: protección real`,
+      `${producto.name}: protección real`,
       `Cotizá tu ${producto.name.toLowerCase()} sin compromiso`,
       `Nuevo plan ${producto.name} con 35% de ahorro`,
     ],
