@@ -341,38 +341,35 @@ export default function MarketingStudio() {
     customImage: null,
   });
 
+  // Estado para stats del dashboard
+  const [dashboardStats, setDashboardStats] = useState(null);
+
   // Cargar contenidos reales del backend
   useEffect(() => {
     const cargarDatos = async () => {
-      // Intentar cargar dashboard real
+      // 1. Cargar estadísticas del dashboard
       const dashboard = await fetchAPI('/api/v1/marketing/dashboard');
-      if (dashboard?.contenidos_recientes) {
-        setContenidos(dashboard.contenidos_recientes.map(c => ({
-          id: c.id,
-          titulo: c.titulo || c.texto?.slice(0, 50) || 'Sin título',
-          red: c.red_social || 'instagram',
-          formato: c.formato || 'post',
-          estado: c.estado || 'pendiente',
-          fecha: c.fecha_creacion?.split('T')[0] || new Date().toISOString().split('T')[0],
-          categoria: c.categoria || 'educativo',
-          token: c.token_marketing || `AYMA-MKT-${c.id}`,
-        })));
+      if (dashboard?.por_estado) {
+        setDashboardStats(dashboard);
       }
-      // Si no hay backend disponible, cargar pendientes
-      if (!dashboard) {
-        const pendientes = await fetchAPI('/api/v1/marketing/contenido/pendiente');
-        if (pendientes && Array.isArray(pendientes)) {
-          setContenidos(pendientes.map(c => ({
-            id: c.id,
-            titulo: c.titulo || 'Sin título',
-            red: c.red_social || 'instagram',
-            formato: 'post',
-            estado: c.estado || 'pendiente',
-            fecha: c.fecha_creacion?.split('T')[0] || new Date().toISOString().split('T')[0],
-            categoria: c.categoria || 'educativo',
-            token: c.token_marketing || `AYMA-MKT-${c.id}`,
-          })));
-        }
+
+      // 2. Cargar contenidos pendientes
+      const pendientesRes = await fetchAPI('/api/v1/marketing/contenido/pendiente');
+      const pendientesArr = pendientesRes?.contenidos || (Array.isArray(pendientesRes) ? pendientesRes : []);
+      
+      if (pendientesArr.length > 0) {
+        setContenidos(pendientesArr.map(c => ({
+          id: c.id || c.token,
+          titulo: c.titulo || c.copy_text?.slice(0, 60) || 'Sin título',
+          texto: c.copy_text || '',
+          red: c.channel || 'instagram',
+          formato: c.tipo || 'post',
+          estado: 'pendiente',
+          fecha: c.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+          categoria: c.categoria || 'educativo',
+          token: c.token || `AYMA-MKT-${c.id}`,
+          hashtags: c.hashtags || '',
+        })));
       }
     };
     cargarDatos();
@@ -537,10 +534,10 @@ export default function MarketingStudio() {
           gap: 16, padding: '24px 32px',
         }}>
           {[
-            { label: 'Pendientes', value: contenidos.filter(c => c.estado === 'pendiente').length, color: '#f59e0b', iconKey: 'clock' },
-            { label: 'Aprobados', value: contenidos.filter(c => c.estado === 'aprobado').length, color: '#22c55e', iconKey: 'check' },
-            { label: 'Publicados', value: contenidos.filter(c => c.estado === 'publicado').length, color: '#8b5cf6', iconKey: 'send' },
-            { label: 'Este Mes', value: contenidos.length, color: '#3b82f6', iconKey: 'chart' },
+            { label: 'Pendientes', value: dashboardStats?.por_estado?.pendientes ?? contenidos.filter(c => c.estado === 'pendiente').length, color: '#f59e0b', iconKey: 'clock' },
+            { label: 'Aprobados', value: dashboardStats?.por_estado?.aprobados ?? contenidos.filter(c => c.estado === 'aprobado').length, color: '#22c55e', iconKey: 'check' },
+            { label: 'Publicados', value: dashboardStats?.por_estado?.publicados ?? contenidos.filter(c => c.estado === 'publicado').length, color: '#8b5cf6', iconKey: 'send' },
+            { label: 'Este Mes', value: dashboardStats?.total_contenidos ?? contenidos.length, color: '#3b82f6', iconKey: 'chart' },
           ].map((stat, i) => (
             <div key={i} style={{
               background: 'rgba(255,255,255,0.04)',
