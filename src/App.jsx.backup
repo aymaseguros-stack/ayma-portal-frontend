@@ -1752,7 +1752,6 @@ function App() {
               <h4 className="font-semibold mb-4 text-slate-300">Contacto</h4>
               <ul className="space-y-2 text-sm text-slate-400">
                 <li><a href="tel:+5493416952259" className="hover:text-white transition">📞 341 695-2259</a></li>
-                <li><a href="tel:+5491153022929" className="hover:text-white transition">📞 11 5302-2929</a></li>
                 <li><a href="mailto:aymaseguros@hotmail.com" className="hover:text-white transition">📧 aymaseguros@hotmail.com</a></li>
                 <li><a href="https://wa.me/5493416952259" target="_blank" rel="noopener noreferrer" className="hover:text-white transition">💬 WhatsApp</a></li>
               </ul>
