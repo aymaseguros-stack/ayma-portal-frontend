@@ -483,13 +483,20 @@ function App() {
       <header className="bg-slate-800/50 backdrop-blur border-b border-slate-700">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-white">Portal AYMA</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-white">AYMA</h1>
+              <button
+                onClick={() => setActiveTab('datos')}
+                className="text-slate-300 hover:text-white hover:underline transition"
+              >
+                {state.user?.email}
+              </button>
+            </div>
             <div className="flex items-center gap-4">
-              <span className="text-slate-300 hidden md:inline">{state.user?.email}</span>
               <span className="px-3 py-1 bg-blue-600/30 text-blue-300 rounded-full text-sm capitalize">
                 {state.user?.tipo_usuario}
               </span>
-              <button 
+              <button
                 onClick={handleLogout}
                 className="px-4 py-2 bg-red-600/20 hover:bg-red-600/40 text-red-300 rounded-lg transition"
               >
@@ -506,7 +513,6 @@ function App() {
           <div className="flex gap-1 overflow-x-auto py-2">
             {[
               { id: 'dashboard', icon: '📊', label: 'Dashboard' },
-              { id: 'datos', icon: '👤', label: 'Mis Datos' },
               { id: 'polizas', icon: '📄', label: 'Mis Pólizas' },
               { id: 'vehiculos', icon: '🚗', label: 'Mis Vehículos' },
               { id: 'siniestro', icon: '🚨', label: 'Denunciar Siniestro' },
@@ -574,7 +580,7 @@ function App() {
                   <div className="flex justify-between items-start">
                     <div>
                       <p className="text-cyan-200 text-sm">Clientes</p>
-                      <p className="text-4xl font-bold mt-2">{state.dashboardData?.totalClientes || state.clientes.length || 0}</p>
+                      <p className="text-4xl font-bold mt-2">{state.dashboardData?.totalClientes ?? state.clientes.length ?? 0}</p>
                     </div>
                     <span className="text-4xl">👥</span>
                   </div>
