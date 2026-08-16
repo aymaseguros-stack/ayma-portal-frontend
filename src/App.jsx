@@ -2,9 +2,32 @@ import React, { useState, useEffect } from 'react';
 import CompliancePanel from './components/Admin/CompliancePanel';
 import IntelligencePanel from './components/Admin/IntelligencePanel';
 import MarketingStudio from './components/Admin/MarketingStudio';
+import RecuperablesPanel from './components/Admin/RecuperablesPanel';
 
 // API Configuration
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
+
+// Motivos de baja disponibles para marcar un cliente como recuperable
+const MOTIVOS_BAJA = [
+  'Precio / Costo elevado',
+  'Cambio de aseguradora',
+  'Venta o baja del vehículo',
+  'Falta de pago',
+  'Mala experiencia de atención',
+  'Mudanza fuera de zona de cobertura',
+  'Cancelación voluntaria',
+  'Otro'
+];
+
+// Extrae el rol de usuario en mayúsculas desde distintas fuentes posibles,
+// ya que el backend no es consistente sobre si el campo se llama "role" o "tipo_usuario"
+const extraerRol = (...fuentes) => {
+  for (const fuente of fuentes) {
+    if (fuente) return String(fuente).toUpperCase();
+  }
+  return null;
+};
+const esRolAdmin = (rol) => rol === 'ADMIN' || rol === 'ADMINISTRADOR';
 
 // Estado inicial
 const initialState = {
@@ -61,6 +84,16 @@ function App() {
   const [clienteCRM, setClienteCRM] = useState(null);
   const [crmHistorial, setCrmHistorial] = useState([]);
 
+  // Estado para marcar cliente como recuperable
+  const [recuperableCliente, setRecuperableCliente] = useState(null);
+  const [recuperableForm, setRecuperableForm] = useState({
+    motivo_baja: '',
+    motivo_baja_detalle: '',
+    fecha_recontacto: '',
+    hipotesis_retorno: '',
+    valor_cartera_perdida: ''
+  });
+
   // Verificar token al cargar
   useEffect(() => {
     const savedToken = localStorage.getItem('token');
@@ -91,7 +124,14 @@ function App() {
     setState(prev => ({ ...prev, loading: true }));
     try {
       let dashboardRes = null;
-      try { dashboardRes = await fetchAPI('/api/v1/dashboard/', authToken); } catch (e) { console.log('Dashboard error:', e.message); }
+      try {
+        dashboardRes = await fetchAPI('/api/v1/dashboard/', authToken);
+        ['role', 'totalPolizas', 'totalVehiculos', 'totalClientes', 'ticketsAbiertos', 'porVencer30d'].forEach(campo => {
+          if (dashboardRes[campo] === undefined) {
+            console.warn(`[Dashboard] El backend no devolvió el campo "${campo}" en /api/v1/dashboard/. Se mostrará un valor por defecto en su lugar.`);
+          }
+        });
+      } catch (e) { console.log('Dashboard error:', e.message); }
 
       let polizasRes = [];
       let vehiculosRes = [];
@@ -114,12 +154,14 @@ function App() {
         console.log('No se pudieron cargar siniestros:', e.message);
       }
       
-      // Cargar clientes/leads si es admin
+      // Cargar clientes/leads si es admin. Se prioriza el rol que ya vino en
+      // /api/v1/dashboard/ (dashboardRes.role) porque es la fuente más confiable;
+      // localStorage queda solo como fallback si el dashboard no respondió.
       let clientesRes = [];
       let leadsRes = [];
       const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
-      const tipoUsuario = savedUser.tipo_usuario?.toUpperCase();
-      if (tipoUsuario === 'ADMIN' || tipoUsuario === 'ADMINISTRADOR') {
+      const rolUsuario = extraerRol(dashboardRes?.role, savedUser.role, savedUser.tipo_usuario);
+      if (esRolAdmin(rolUsuario)) {
         try {
           clientesRes = await fetchAPI('/api/v1/admin/clientes', authToken);
           leadsRes = await fetchAPI('/api/v1/leads/', authToken);
@@ -248,6 +290,44 @@ function App() {
     }
   };
 
+  // Marcar cliente como recuperable
+  const marcarComoRecuperable = async (e) => {
+    e.preventDefault();
+    if (!recuperableCliente) return;
+    if (!recuperableForm.motivo_baja || !recuperableForm.fecha_recontacto) {
+      alert('Completá al menos el motivo de baja y la fecha de recontacto');
+      return;
+    }
+    try {
+      const response = await fetch(API_URL + `/api/v1/admin/clientes/${recuperableCliente.id}/recuperable`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + state.token
+        },
+        body: JSON.stringify({
+          motivo_baja: recuperableForm.motivo_baja,
+          motivo_baja_detalle: recuperableForm.motivo_baja_detalle || null,
+          fecha_recontacto: recuperableForm.fecha_recontacto,
+          hipotesis_retorno: recuperableForm.hipotesis_retorno || null,
+          valor_cartera_perdida: recuperableForm.valor_cartera_perdida ? Number(recuperableForm.valor_cartera_perdida) : null
+        })
+      });
+
+      if (response.ok) {
+        alert('✅ Cliente marcado como recuperable');
+        setRecuperableCliente(null);
+        setRecuperableForm({ motivo_baja: '', motivo_baja_detalle: '', fecha_recontacto: '', hipotesis_retorno: '', valor_cartera_perdida: '' });
+        cargarDatosConToken(state.token);
+      } else {
+        const error = await response.json().catch(() => ({}));
+        alert('Error: ' + (error.detail || 'No se pudo marcar como recuperable'));
+      }
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  };
+
   // Logout
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -271,10 +351,11 @@ function App() {
     }
   };
 
-  // Verificar si es admin
+  // Verificar si es admin. Prioriza el rol devuelto por /api/v1/dashboard/
+  // (dashboardData.role) por sobre lo guardado en localStorage, que es menos confiable.
   const isAdmin = () => {
-    const tipo = state.user?.tipo_usuario?.toUpperCase();
-    return tipo === 'ADMIN' || tipo === 'ADMINISTRADOR';
+    const rol = extraerRol(state.dashboardData?.role, state.user?.role, state.user?.tipo_usuario);
+    return esRolAdmin(rol);
   };
 
   // Login
@@ -292,17 +373,21 @@ function App() {
       if (!response.ok) throw new Error('Credenciales inválidas');
       
       const data = await response.json();
+      if (!data.tipo_usuario && !data.role) {
+        console.warn('[Auth] La respuesta de /api/v1/auth/login no incluyó "tipo_usuario" ni "role".');
+      }
       localStorage.setItem('token', data.access_token);
-      localStorage.setItem('user', JSON.stringify({ 
-        email: data.email, 
-        tipo_usuario: data.tipo_usuario 
+      localStorage.setItem('user', JSON.stringify({
+        email: data.email,
+        tipo_usuario: data.tipo_usuario,
+        role: data.role
       }));
-      
-      setState(prev => ({ 
-        ...prev, 
-        token: data.access_token, 
-        user: { email: data.email, tipo_usuario: data.tipo_usuario },
-        loading: false 
+
+      setState(prev => ({
+        ...prev,
+        token: data.access_token,
+        user: { email: data.email, tipo_usuario: data.tipo_usuario, role: data.role },
+        loading: false
       }));
       
       cargarDatosConToken(data.access_token);
@@ -494,7 +579,7 @@ function App() {
             </div>
             <div className="flex items-center gap-4">
               <span className="px-3 py-1 bg-blue-600/30 text-blue-300 rounded-full text-sm capitalize">
-                {state.user?.tipo_usuario}
+                {(state.dashboardData?.role || state.user?.role || state.user?.tipo_usuario || '').toLowerCase()}
               </span>
               <button
                 onClick={handleLogout}
@@ -520,6 +605,7 @@ function App() {
               ...(isAdmin() ? [
                 { id: 'leads', icon: '🎯', label: 'Leads', admin: true },
                 { id: 'clientes', icon: '👥', label: 'Clientes', admin: true },
+                { id: 'recuperables', icon: '🔄', label: 'Recuperables', admin: true },
                 { id: 'admin-siniestros', icon: '🚨', label: 'Siniestros', admin: true },
                 { id: 'crm', icon: '📈', label: 'CRM', admin: true },
                 { id: 'marketing', icon: '📢', label: 'Marketing', admin: true },
@@ -604,7 +690,7 @@ function App() {
                   <div>
                     <p className="text-orange-200 text-sm">Total Primas</p>
                     <p className="text-3xl font-bold mt-2">
-                      ${state.polizas.reduce((sum, p) => sum + (p.premio_total || 0), 0).toLocaleString('es-AR')}
+                      ${state.polizas.reduce((sum, p) => sum + (Number(p.premio_total) || 0), 0).toLocaleString('es-AR')}
                     </p>
                   </div>
                   <span className="text-4xl">💰</span>
@@ -632,7 +718,7 @@ function App() {
                 </div>
                 <div>
                   <p className="text-slate-500 text-sm">Rol</p>
-                  <p className="text-xl capitalize">{state.user?.tipo_usuario}</p>
+                  <p className="text-xl capitalize">{(state.dashboardData?.role || state.user?.role || state.user?.tipo_usuario || '').toLowerCase()}</p>
                 </div>
                 <div>
                   <p className="text-slate-500 text-sm">Estado</p>
@@ -1333,6 +1419,7 @@ function App() {
                         <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Documento</th>
                         <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Teléfono</th>
                         <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Scoring</th>
+                        <th className="px-4 py-3 text-center text-sm font-medium text-slate-300">Acción</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-700">
@@ -1343,6 +1430,17 @@ function App() {
                           <td className="px-4 py-3 text-sm text-slate-400">{cliente.documento}</td>
                           <td className="px-4 py-3 text-sm text-slate-400">{cliente.telefono || '-'}</td>
                           <td className="px-4 py-3 text-sm text-green-400">{cliente.scoring || 0} pts</td>
+                          <td className="px-4 py-3 text-center">
+                            <button
+                              onClick={() => {
+                                setRecuperableCliente(cliente);
+                                setRecuperableForm({ motivo_baja: '', motivo_baja_detalle: '', fecha_recontacto: '', hipotesis_retorno: '', valor_cartera_perdida: '' });
+                              }}
+                              className="px-3 py-1 bg-orange-600/20 hover:bg-orange-600/40 text-orange-400 rounded transition text-sm whitespace-nowrap"
+                            >
+                              🔄 Marcar como recuperable
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1350,7 +1448,112 @@ function App() {
                 </div>
               )}
             </div>
+
+            {/* Modal: Marcar como recuperable */}
+            {recuperableCliente && (
+              <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                <div className="bg-slate-800 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+                  <div className="p-6 border-b border-slate-700">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xl font-bold">
+                        Marcar como recuperable: {recuperableCliente.nombre} {recuperableCliente.apellido}
+                      </h3>
+                      <button
+                        onClick={() => setRecuperableCliente(null)}
+                        className="text-slate-400 hover:text-white text-2xl"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+
+                  <form onSubmit={marcarComoRecuperable} className="p-6 space-y-4">
+                    <div>
+                      <label className="block text-slate-400 text-sm mb-2">Motivo de Baja *</label>
+                      <select
+                        value={recuperableForm.motivo_baja}
+                        onChange={(e) => setRecuperableForm({ ...recuperableForm, motivo_baja: e.target.value })}
+                        className="w-full px-4 py-3 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                        required
+                      >
+                        <option value="">Seleccionar motivo...</option>
+                        {MOTIVOS_BAJA.map(motivo => (
+                          <option key={motivo} value={motivo}>{motivo}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-400 text-sm mb-2">Detalle del Motivo</label>
+                      <textarea
+                        value={recuperableForm.motivo_baja_detalle}
+                        onChange={(e) => setRecuperableForm({ ...recuperableForm, motivo_baja_detalle: e.target.value })}
+                        placeholder="Detalles adicionales sobre la baja..."
+                        rows={2}
+                        className="w-full px-4 py-3 rounded-lg bg-slate-700 border border-slate-600 text-white placeholder-slate-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-400 text-sm mb-2">Fecha de Recontacto *</label>
+                      <input
+                        type="date"
+                        value={recuperableForm.fecha_recontacto}
+                        onChange={(e) => setRecuperableForm({ ...recuperableForm, fecha_recontacto: e.target.value })}
+                        className="w-full px-4 py-3 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-400 text-sm mb-2">Hipótesis de Retorno</label>
+                      <textarea
+                        value={recuperableForm.hipotesis_retorno}
+                        onChange={(e) => setRecuperableForm({ ...recuperableForm, hipotesis_retorno: e.target.value })}
+                        placeholder="¿Qué podría hacer que el cliente vuelva?"
+                        rows={2}
+                        className="w-full px-4 py-3 rounded-lg bg-slate-700 border border-slate-600 text-white placeholder-slate-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-400 text-sm mb-2">Valor de Cartera Perdida</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={recuperableForm.valor_cartera_perdida}
+                        onChange={(e) => setRecuperableForm({ ...recuperableForm, valor_cartera_perdida: e.target.value })}
+                        placeholder="0.00"
+                        className="w-full px-4 py-3 rounded-lg bg-slate-700 border border-slate-600 text-white placeholder-slate-500"
+                      />
+                    </div>
+
+                    <div className="flex gap-4 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setRecuperableCliente(null)}
+                        className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 rounded-lg transition"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="submit"
+                        className="flex-1 py-3 bg-orange-600 hover:bg-orange-700 rounded-lg font-semibold transition"
+                      >
+                        💾 Guardar
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
+        )}
+
+        {/* RECUPERABLES */}
+        {state.activeTab === 'recuperables' && isAdmin() && (
+          <RecuperablesPanel token={state.token} />
         )}
 
         {/* SINIESTROS ADMIN */}
