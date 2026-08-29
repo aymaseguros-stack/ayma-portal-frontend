@@ -3,6 +3,11 @@ import CompliancePanel from './components/Admin/CompliancePanel';
 import IntelligencePanel from './components/Admin/IntelligencePanel';
 import MarketingStudio from './components/Admin/MarketingStudio';
 import RecuperablesPanel from './components/Admin/RecuperablesPanel';
+import Header from './components/Header';
+import PolizasGrid from './components/PolizasGrid';
+import PersonasPanel from './components/Crm/PersonasPanel';
+import EmpresasPanel from './components/Crm/EmpresasPanel';
+import { Icon } from './components/Icons';
 
 // API Configuration
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
@@ -73,6 +78,7 @@ function App() {
 
   // Estados para admin de siniestros
   const [siniestrosAdmin, setSiniestrosAdmin] = useState([]);
+  const [verTodosSiniestros, setVerTodosSiniestros] = useState(false);
   const [siniestroSeleccionado, setSiniestroSeleccionado] = useState(null);
   const [nuevoEstado, setNuevoEstado] = useState('');
   const [notasInternas, setNotasInternas] = useState('');
@@ -83,6 +89,10 @@ function App() {
   const [crmClientes, setCrmClientes] = useState([]);
   const [clienteCRM, setClienteCRM] = useState(null);
   const [crmHistorial, setCrmHistorial] = useState([]);
+
+  // CRM v2: navegación cruzada Leads -> ficha de Persona recién convertida
+  const [personaFichaAAbrir, setPersonaFichaAAbrir] = useState(null);
+  const [convirtiendoLeadId, setConvirtiendoLeadId] = useState(null);
 
   // Estado para marcar cliente como recuperable
   const [recuperableCliente, setRecuperableCliente] = useState(null);
@@ -290,6 +300,31 @@ function App() {
     }
   };
 
+  // Convertir un lead en persona (CRM v2) y navegar a su ficha
+  const convertirLeadEnPersona = async (leadId) => {
+    setConvirtiendoLeadId(leadId);
+    try {
+      const response = await fetch(API_URL + `/api/v1/crm/leads/${leadId}/convertir`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + state.token
+        }
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.detail || 'No se pudo convertir el lead');
+      }
+      const data = await response.json();
+      setActiveTab('personas');
+      setPersonaFichaAAbrir(data.persona_id);
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      setConvirtiendoLeadId(null);
+    }
+  };
+
   // Marcar cliente como recuperable
   const marcarComoRecuperable = async (e) => {
     e.preventDefault();
@@ -357,6 +392,11 @@ function App() {
     const rol = extraerRol(state.dashboardData?.role, state.user?.role, state.user?.tipo_usuario);
     return esRolAdmin(rol);
   };
+
+  // Siniestros "en curso" por defecto (todo lo distinto de CERRADO), salvo
+  // que el usuario tilde "ver todos"
+  const getSiniestrosVisibles = () =>
+    verTodosSiniestros ? siniestrosAdmin : siniestrosAdmin.filter(s => s.estado !== 'CERRADO');
 
   // Login
   const handleLogin = async (e) => {
@@ -564,70 +604,14 @@ function App() {
   // Dashboard Principal
   return (
     <div className="min-h-screen bg-slate-900 text-white">
-      {/* Header */}
-      <header className="bg-slate-800/50 backdrop-blur border-b border-slate-700">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-white">AYMA</h1>
-              <button
-                onClick={() => setActiveTab('datos')}
-                className="text-slate-300 hover:text-white hover:underline transition"
-              >
-                {state.user?.email}
-              </button>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="px-3 py-1 bg-blue-600/30 text-blue-300 rounded-full text-sm capitalize">
-                {(state.dashboardData?.role || state.user?.role || state.user?.tipo_usuario || '').toLowerCase()}
-              </span>
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 bg-red-600/20 hover:bg-red-600/40 text-red-300 rounded-lg transition"
-              >
-                🚪 Salir
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Navegación */}
-      <nav className="bg-slate-800/30 border-b border-slate-700">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex gap-1 overflow-x-auto py-2">
-            {[
-              { id: 'dashboard', icon: '📊', label: 'Dashboard' },
-              { id: 'polizas', icon: '📄', label: 'Mis Pólizas' },
-              { id: 'vehiculos', icon: '🚗', label: 'Mis Vehículos' },
-              { id: 'siniestro', icon: '🚨', label: 'Denunciar Siniestro' },
-              { id: 'soporte', icon: '💬', label: 'Soporte' },
-              ...(isAdmin() ? [
-                { id: 'leads', icon: '🎯', label: 'Leads', admin: true },
-                { id: 'clientes', icon: '👥', label: 'Clientes', admin: true },
-                { id: 'recuperables', icon: '🔄', label: 'Recuperables', admin: true },
-                { id: 'admin-siniestros', icon: '🚨', label: 'Siniestros', admin: true },
-                { id: 'crm', icon: '📈', label: 'CRM', admin: true },
-                { id: 'marketing', icon: '📢', label: 'Marketing', admin: true },
-                { id: 'compliance', icon: '✓', label: 'Compliance', admin: true },
-                { id: 'intelligence', icon: '🔍', label: 'Intelligence', admin: true },
-              ] : [])
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-3 rounded-lg font-medium transition whitespace-nowrap text-sm ${
-                  state.activeTab === tab.id 
-                    ? 'bg-blue-600 text-white' 
-                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
-                }`}
-              >
-                {tab.icon} {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </nav>
+      <Header
+        displayName={state.dashboardData?.cliente?.nombre || state.user?.nombre || state.user?.email}
+        rol={(state.dashboardData?.role || state.user?.role || state.user?.tipo_usuario || '').toLowerCase()}
+        activeTab={state.activeTab}
+        setActiveTab={setActiveTab}
+        isAdmin={isAdmin()}
+        onLogout={handleLogout}
+      />
 
       {/* Contenido Principal */}
       <main className="max-w-7xl mx-auto px-4 py-8">
@@ -733,79 +717,29 @@ function App() {
 
         {/* MIS PÓLIZAS */}
         {state.activeTab === 'polizas' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Gestión de Pólizas</h2>
-              <span className="text-slate-400">{state.polizas.length} póliza(s)</span>
-            </div>
-            
-            {state.polizas.length === 0 ? (
-              <div className="bg-slate-800/50 rounded-xl p-12 text-center border border-slate-700">
-                <span className="text-6xl">📄</span>
-                <p className="text-slate-400 mt-4">No tienes pólizas registradas</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {state.polizas.map(poliza => (
-                  <div key={poliza.id} className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden hover:border-blue-500/50 transition">
-                    <div className="bg-slate-700/50 px-6 py-4 flex justify-between items-center">
-                      <div>
-                        <p className="text-blue-400 font-bold">Póliza {poliza.numero_poliza}</p>
-                        <p className="text-slate-400 text-sm">{poliza.compania}</p>
-                      </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        poliza.estado === 'vigente' 
-                          ? 'bg-green-600/30 text-green-300' 
-                          : 'bg-red-600/30 text-red-300'
-                      }`}>
-                        {poliza.estado}
-                      </span>
-                    </div>
-                    
-                    <div className="p-6 space-y-4">
-                      {poliza.vehiculo && (
-                        <div className="flex items-center gap-3 bg-slate-700/30 rounded-lg p-3">
-                          <span className="text-2xl">🚗</span>
-                          <div>
-                            <p className="font-semibold">{poliza.vehiculo.marca} {poliza.vehiculo.modelo}</p>
-                            <p className="text-slate-400 text-sm">{poliza.vehiculo.dominio} • {poliza.vehiculo.anio}</p>
-                          </div>
-                        </div>
-                      )}
-                      
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <p className="text-slate-500">Cobertura</p>
-                          <p className="font-medium">{poliza.tipo_cobertura}</p>
-                        </div>
-                        <div>
-                          <p className="text-slate-500">Suma Asegurada</p>
-                          <p className="font-medium">${poliza.suma_asegurada?.toLocaleString('es-AR')}</p>
-                        </div>
-                        <div>
-                          <p className="text-slate-500">Premio Total</p>
-                          <p className="font-bold text-green-400">${poliza.premio_total?.toLocaleString('es-AR')}</p>
-                        </div>
-                        <div>
-                          <p className="text-slate-500">Vencimiento</p>
-                          <p className="font-medium">{new Date(poliza.fecha_vencimiento).toLocaleDateString('es-AR')}</p>
-                        </div>
-                      </div>
-                    </div>
+          <PolizasGrid
+            titulo="Gestión de Pólizas"
+            polizas={state.polizas}
+            emptyText="No tienes pólizas registradas"
+          />
+        )}
 
-                    <div className="px-6 py-3 bg-slate-700/30 flex justify-between items-center">
-                      <span className="text-xs text-slate-500">
-                        Vigencia: {new Date(poliza.fecha_inicio).toLocaleDateString('es-AR')} - {new Date(poliza.fecha_vencimiento).toLocaleDateString('es-AR')}
-                      </span>
-                      <button className="text-blue-400 hover:text-blue-300 text-sm font-medium">
-                        Ver PDF →
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+        {/* ART - cartera filtrada por ramo */}
+        {state.activeTab === 'art' && isAdmin() && (
+          <PolizasGrid
+            titulo="Cartera ART"
+            polizas={state.polizas.filter(p => (p.ramo || '').toUpperCase() === 'ART')}
+            emptyText="Sin pólizas de ART cargadas"
+          />
+        )}
+
+        {/* INTEGRAL COMERCIO - cartera filtrada por ramo */}
+        {state.activeTab === 'integral' && isAdmin() && (
+          <PolizasGrid
+            titulo="Cartera Integral Comercio"
+            polizas={state.polizas.filter(p => (p.ramo || '').toUpperCase() === 'INTEGRAL')}
+            emptyText="Sin pólizas de Integral Comercio cargadas"
+          />
         )}
 
         {/* MIS VEHÍCULOS */}
@@ -1331,6 +1265,7 @@ function App() {
                         <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Tipo</th>
                         <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Origen</th>
                         <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Estado</th>
+                        <th className="px-4 py-3 text-center text-sm font-medium text-slate-300">Acción</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-700">
@@ -1366,6 +1301,20 @@ function App() {
                             }`}>
                               {lead.estado}
                             </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {lead.persona_id ? (
+                              <span className="text-xs text-slate-500">Ya convertido</span>
+                            ) : (
+                              <button
+                                onClick={() => convertirLeadEnPersona(lead.id)}
+                                disabled={convirtiendoLeadId === lead.id}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 disabled:opacity-50 text-blue-400 rounded transition text-sm whitespace-nowrap"
+                              >
+                                <Icon name="arrow-right" size={14} />
+                                {convirtiendoLeadId === lead.id ? 'Convirtiendo...' : 'Convertir en persona'}
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -1556,19 +1505,31 @@ function App() {
           <RecuperablesPanel token={state.token} />
         )}
 
-        {/* SINIESTROS ADMIN */}
+        {/* SINIESTROS EN CURSO */}
         {state.activeTab === 'admin-siniestros' && isAdmin() && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold">🚨 Gestión de Siniestros</h2>
-              <button
-                onClick={cargarSiniestrosAdmin}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition"
-              >
-                🔄 Actualizar
-              </button>
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <h2 className="text-2xl font-bold">Siniestros en curso</h2>
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={verTodosSiniestros}
+                    onChange={(e) => setVerTodosSiniestros(e.target.checked)}
+                    className="w-4 h-4 rounded"
+                  />
+                  Ver todos
+                </label>
+                <button
+                  onClick={cargarSiniestrosAdmin}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition text-sm font-medium"
+                >
+                  <Icon name="arrow-path" />
+                  Actualizar
+                </button>
+              </div>
             </div>
-            
+
             {/* Estadísticas rápidas */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-yellow-900/30 border border-yellow-500/50 rounded-xl p-4 text-center">
@@ -1737,14 +1698,14 @@ function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-700">
-                    {siniestrosAdmin.length === 0 ? (
+                    {getSiniestrosVisibles().length === 0 ? (
                       <tr>
                         <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
-                          No hay siniestros registrados
+                          {verTodosSiniestros ? 'No hay siniestros registrados' : 'No hay siniestros en curso'}
                         </td>
                       </tr>
                     ) : (
-                      siniestrosAdmin.map(sin => (
+                      getSiniestrosVisibles().map(sin => (
                         <tr key={sin.id} className="hover:bg-slate-700/30 transition">
                           <td className="px-4 py-3">
                             <span className="font-mono text-sm text-blue-400">{sin.token}</span>
@@ -1953,6 +1914,20 @@ function App() {
               </div>
             )}
           </div>
+        )}
+
+        {/* PERSONAS (CRM v2) */}
+        {state.activeTab === 'personas' && isAdmin() && (
+          <PersonasPanel
+            token={state.token}
+            abrirFichaIdInicial={personaFichaAAbrir}
+            onFichaAbierta={() => setPersonaFichaAAbrir(null)}
+          />
+        )}
+
+        {/* EMPRESAS (CRM v2) */}
+        {state.activeTab === 'empresas' && isAdmin() && (
+          <EmpresasPanel token={state.token} />
         )}
 
         {/* MARKETING PANEL */}
