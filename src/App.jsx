@@ -803,7 +803,7 @@ function App() {
         {/* DENUNCIAR SINIESTRO */}
         {state.activeTab === 'siniestro' && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold">🚨 Denunciar Siniestro</h2>
+            <h2 className="text-2xl font-bold">Denunciar Siniestro</h2>
             
             {siniestroEnviado ? (
               <div className="bg-green-900/30 border border-green-500/50 rounded-xl p-8 text-center">
@@ -1223,7 +1223,7 @@ function App() {
         {/* LEADS - Solo Admin */}
         {state.activeTab === 'leads' && isAdmin() && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold">🎯 Leads</h2>
+            <h2 className="text-2xl font-bold">Leads</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 text-center">
@@ -1329,7 +1329,7 @@ function App() {
         {/* CLIENTES - Solo Admin */}
         {state.activeTab === 'clientes' && isAdmin() && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold">👥 Clientes</h2>
+            <h2 className="text-2xl font-bold">Clientes</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 text-center">
@@ -1768,7 +1768,7 @@ function App() {
         {state.activeTab === 'crm' && isAdmin() && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold">📈 CRM - Pipeline Comercial</h2>
+              <h2 className="text-2xl font-bold">CRM - Pipeline Comercial</h2>
               <button
                 onClick={() => { cargarCRMStats(); cargarCRMClientes(); }}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition"
