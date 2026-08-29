@@ -34,7 +34,7 @@ const RecuperablesPanel = ({ token }) => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">🔄 Clientes Recuperables</h2>
+        <h2 className="text-2xl font-bold">Clientes Recuperables</h2>
         <button
           onClick={cargarRecuperables}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition"
