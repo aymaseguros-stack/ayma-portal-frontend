@@ -7,6 +7,7 @@ import Header from './components/Header';
 import PolizasView from './components/PolizasView';
 import PersonasPanel from './components/Crm/PersonasPanel';
 import EmpresasPanel from './components/Crm/EmpresasPanel';
+import GruposPanel from './components/Crm/GruposPanel';
 import { Icon } from './components/Icons';
 import { normalizeList, formatApiError, authHeader, SESSION_EXPIRED_EVENT } from './utils/api';
 
@@ -100,6 +101,12 @@ function App() {
 
   // CRM v2: navegación cruzada Leads -> ficha de Persona recién convertida
   const [personaFichaAAbrir, setPersonaFichaAAbrir] = useState(null);
+  // CRM v2: navegación cruzada Persona -> ficha del Grupo al que pertenece
+  const [grupoFichaAAbrir, setGrupoFichaAAbrir] = useState(null);
+  const irAFichaGrupo = (grupoId) => {
+    setGrupoFichaAAbrir(grupoId);
+    setActiveTab('grupos');
+  };
   const [convirtiendoLeadId, setConvirtiendoLeadId] = useState(null);
 
   // Estado para marcar cliente como recuperable
@@ -1916,6 +1923,16 @@ function App() {
             token={state.token}
             abrirFichaIdInicial={personaFichaAAbrir}
             onFichaAbierta={() => setPersonaFichaAAbrir(null)}
+            onIrAGrupo={irAFichaGrupo}
+          />
+        )}
+
+        {/* GRUPOS (CRM v2) */}
+        {state.activeTab === 'grupos' && isAdmin() && (
+          <GruposPanel
+            token={state.token}
+            abrirFichaIdInicial={grupoFichaAAbrir}
+            onFichaAbierta={() => setGrupoFichaAAbrir(null)}
           />
         )}
 

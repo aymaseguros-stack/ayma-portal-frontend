@@ -36,7 +36,7 @@ const EstadoCrmBadge = ({ estado }) => {
   );
 };
 
-const PersonasPanel = ({ token, abrirFichaIdInicial, onFichaAbierta }) => {
+const PersonasPanel = ({ token, abrirFichaIdInicial, onFichaAbierta, onIrAGrupo }) => {
   const [personas, setPersonas] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -369,6 +369,26 @@ const PersonasPanel = ({ token, abrirFichaIdInicial, onFichaAbierta }) => {
                     <Dato label="Origen" valor={ficha.origen} />
                     <Dato label="Score" valor={ficha.score} />
                     <Dato label="Notas" valor={ficha.notas} full />
+                    <div className="md:col-span-2">
+                      <p className="text-slate-500 text-xs uppercase tracking-wide mb-2">Grupos</p>
+                      {!ficha.grupos || ficha.grupos.length === 0 ? (
+                        <p className="text-slate-500">-</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {ficha.grupos.map((g) => (
+                            <button
+                              key={g.id}
+                              type="button"
+                              onClick={() => onIrAGrupo?.(g.id)}
+                              className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 rounded-full text-sm transition"
+                            >
+                              <span className="font-medium">{g.nombre}</span>
+                              <span className="text-slate-400 text-xs">{g.rol}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )
               )}

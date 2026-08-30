@@ -12,6 +12,7 @@ const NAV_TABS = (admin) => [
 const CRM_TABS = [
   { id: 'crm', label: 'Pipeline' },
   { id: 'personas', label: 'Personas' },
+  { id: 'grupos', label: 'Grupos' },
   { id: 'empresas', label: 'Empresas' },
   { id: 'leads', label: 'Leads' },
   { id: 'recuperables', label: 'Recuperables' },
