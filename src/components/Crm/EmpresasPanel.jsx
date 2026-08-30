@@ -5,7 +5,7 @@ import FieldForm from '../FieldForm';
 import { EMPRESA_FIELD_SECTIONS, EMPRESA_INITIAL_FORM } from './empresaFields';
 import { Dato, ListaSimple } from './FichaHelpers';
 import { esCuitValido, formatearCuit } from '../../utils/cuit';
-import { normalizeList, formatApiError } from '../../utils/api';
+import { normalizeList, formatApiError, authHeader } from '../../utils/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -50,7 +50,7 @@ const EmpresasPanel = ({ token }) => {
   const [vinculando, setVinculando] = useState(false);
   const [errorVinculo, setErrorVinculo] = useState(null);
 
-  const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+  const headers = { ...authHeader(token), 'Content-Type': 'application/json' };
 
   useEffect(() => { cargarEmpresas(); }, []);
 

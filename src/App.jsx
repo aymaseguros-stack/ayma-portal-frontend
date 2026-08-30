@@ -8,7 +8,7 @@ import PolizasView from './components/PolizasView';
 import PersonasPanel from './components/Crm/PersonasPanel';
 import EmpresasPanel from './components/Crm/EmpresasPanel';
 import { Icon } from './components/Icons';
-import { normalizeList, formatApiError } from './utils/api';
+import { normalizeList, formatApiError, authHeader, SESSION_EXPIRED_EVENT } from './utils/api';
 
 // API Configuration
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
@@ -122,13 +122,24 @@ function App() {
     }
   }, []);
 
+  // Manejo global de 401: cualquier request autenticado que vuelva con 401
+  // (token vencido o inválido) limpia la sesión y vuelve a la pantalla de
+  // login con un mensaje claro, sin importar desde qué vista vino el error.
+  useEffect(() => {
+    const onSessionExpired = () => {
+      setState({ ...initialState, error: 'Tu sesión expiró, volvé a ingresar' });
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
+  }, []);
+
   // Función para hacer peticiones autenticadas
   const fetchAPI = async (endpoint, authToken) => {
     const response = await fetch(API_URL + endpoint, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + authToken
+        ...authHeader(authToken)
       }
     });
     if (!response.ok) {
@@ -255,7 +266,7 @@ function App() {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + state.token
+          ...authHeader(state.token)
         },
         body: JSON.stringify({
           estado: nuevoEstado,
@@ -316,7 +327,7 @@ function App() {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${state.token}`
+          ...authHeader(state.token)
         },
         body: JSON.stringify({ estado: nuevoEstado, notas })
       });
@@ -343,7 +354,7 @@ function App() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + state.token
+          ...authHeader(state.token)
         }
       });
       if (!response.ok) {
@@ -373,7 +384,7 @@ function App() {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + state.token
+          ...authHeader(state.token)
         },
         body: JSON.stringify({
           motivo_baja: recuperableForm.motivo_baja,
@@ -482,7 +493,7 @@ function App() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + state.token
+          ...authHeader(state.token)
         },
         body: JSON.stringify({
           poliza_id: siniestroForm.poliza_id,
@@ -546,7 +557,7 @@ function App() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + state.token
+          ...authHeader(state.token)
         },
         body: JSON.stringify({
           asunto: soporteForm.asunto,
@@ -935,7 +946,7 @@ function App() {
                       disabled={state.loading}
                       className="w-full py-4 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold rounded-xl transition text-lg"
                     >
-                      {state.loading ? '⏳ Enviando...' : '🚨 Enviar Denuncia de Siniestro'}
+                      {state.loading ? 'Enviando...' : 'Enviar Denuncia de Siniestro'}
                     </button>
                   </form>
                 </div>
@@ -1141,7 +1152,7 @@ function App() {
                     type="submit"
                     className="w-full py-4 bg-blue-600 hover:bg-blue-700 rounded-xl font-bold transition text-lg"
                   >
-                    📤 Enviar Ticket
+                    Enviar Ticket
                   </button>
                 </form>
               )}
@@ -1357,9 +1368,10 @@ function App() {
                                 setRecuperableCliente(cliente);
                                 setRecuperableForm({ motivo_baja: '', motivo_baja_detalle: '', fecha_recontacto: '', hipotesis_retorno: '', valor_cartera_perdida: '' });
                               }}
-                              className="px-3 py-1 bg-orange-600/20 hover:bg-orange-600/40 text-orange-400 rounded transition text-sm whitespace-nowrap"
+                              className="inline-flex items-center gap-1.5 px-3 py-1 bg-orange-600/20 hover:bg-orange-600/40 text-orange-400 rounded transition text-sm whitespace-nowrap"
                             >
-                              🔄 Marcar como recuperable
+                              <Icon name="arrow-path" size={14} />
+                              Marcar como recuperable
                             </button>
                           </td>
                         </tr>
@@ -1381,9 +1393,9 @@ function App() {
                       </h3>
                       <button
                         onClick={() => setRecuperableCliente(null)}
-                        className="text-slate-400 hover:text-white text-2xl"
+                        className="text-slate-400 hover:text-white"
                       >
-                        ✕
+                        <Icon name="x-mark" size={20} />
                       </button>
                     </div>
                   </div>
@@ -1462,7 +1474,7 @@ function App() {
                         type="submit"
                         className="flex-1 py-3 bg-orange-600 hover:bg-orange-700 rounded-lg font-semibold transition"
                       >
-                        💾 Guardar
+                        Guardar
                       </button>
                     </div>
                   </form>
@@ -1537,9 +1549,9 @@ function App() {
                       <h3 className="text-xl font-bold">Gestionar Siniestro</h3>
                       <button
                         onClick={() => setSiniestroSeleccionado(null)}
-                        className="text-slate-400 hover:text-white text-2xl"
+                        className="text-slate-400 hover:text-white"
                       >
-                        ✕
+                        <Icon name="x-mark" size={20} />
                       </button>
                     </div>
                   </div>
@@ -1647,7 +1659,7 @@ function App() {
                       onClick={() => actualizarEstadoSiniestro(siniestroSeleccionado.id)}
                       className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition"
                     >
-                      💾 Guardar Cambios
+                      Guardar Cambios
                     </button>
                   </div>
                 </div>
@@ -1750,9 +1762,10 @@ function App() {
               <h2 className="text-2xl font-bold">CRM - Pipeline Comercial</h2>
               <button
                 onClick={() => { cargarCRMStats(); cargarCRMClientes(); }}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition"
               >
-                🔄 Actualizar
+                <Icon name="arrow-path" size={16} />
+                Actualizar
               </button>
             </div>
 
@@ -1841,7 +1854,9 @@ function App() {
                 <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
                   <div className="p-4 border-b border-slate-700 flex justify-between items-center">
                     <h3 className="font-bold text-lg">{clienteCRM.nombre} {clienteCRM.apellido}</h3>
-                    <button onClick={() => setClienteCRM(null)} className="text-slate-400 hover:text-white">✕</button>
+                    <button onClick={() => setClienteCRM(null)} className="text-slate-400 hover:text-white">
+                      <Icon name="x-mark" size={20} />
+                    </button>
                   </div>
                   <div className="p-4 space-y-4">
                     <div className="grid grid-cols-2 gap-4">

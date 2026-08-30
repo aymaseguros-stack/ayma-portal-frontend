@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { Icon } from '../Icons';
+import { authHeader } from '../../utils/api';
 
 const IntelligencePanel = ({ token }) => {
   const [scrapes, setScrapes] = useState([]);
@@ -19,8 +21,8 @@ const IntelligencePanel = ({ token }) => {
   const cargarDatos = async () => {
     setLoading(true);
     try {
-      const headers = { 'Authorization': `Bearer ${token}` };
-      
+      const headers = authHeader(token);
+
       const [scrapesRes, prospectsRes] = await Promise.all([
         fetch(`${API_URL}/api/v1/intelligence/scrapes`, { headers }),
         fetch(`${API_URL}/api/v1/intelligence/prospects`, { headers })
@@ -40,7 +42,7 @@ const IntelligencePanel = ({ token }) => {
       const res = await fetch(`${API_URL}/api/v1/intelligence/scrape`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          ...authHeader(token),
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(scrapeForm)
@@ -103,9 +105,10 @@ const IntelligencePanel = ({ token }) => {
         <button
           onClick={iniciarScrape}
           disabled={!scrapeForm.target_name}
-          className="mt-4 px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed transition"
+          className="mt-4 inline-flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed transition"
         >
-          🔍 Iniciar Scraping
+          <Icon name="magnifying-glass" size={16} />
+          Iniciar Scraping
         </button>
       </div>
 

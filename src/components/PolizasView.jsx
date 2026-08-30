@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Icon } from './Icons';
 import PolizasGrid from './PolizasGrid';
-import { normalizeList, formatApiError } from '../utils/api';
+import { normalizeList, formatApiError, authHeader } from '../utils/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -38,7 +38,7 @@ const PolizasView = ({ token, isAdmin, todasPolizas, todasError, vehiculos, vehi
     (async () => {
       try {
         const res = await fetch(`${API_URL}/api/v1/polizas/admin?ramo=${ramoParam[subTab]}`, {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: authHeader(token),
         });
         if (!res.ok) throw new Error(await formatApiError(res));
         const data = await res.json();
