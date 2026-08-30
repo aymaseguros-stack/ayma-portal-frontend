@@ -27,6 +27,18 @@ const FieldForm = ({ sections, values, onChange, errors = {} }) => {
                     rows={3}
                     className={baseInputClass}
                   />
+                ) : campo.type === 'select' ? (
+                  <select
+                    value={values[campo.name] ?? ''}
+                    onChange={(e) => handle(campo.name, e.target.value)}
+                    required={campo.required}
+                    className={baseInputClass}
+                  >
+                    <option value="">Seleccionar...</option>
+                    {campo.options.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
                 ) : (
                   <input
                     type={campo.type}
