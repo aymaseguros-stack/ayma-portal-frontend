@@ -4,6 +4,7 @@ import Modal from '../Modal';
 import FieldForm from '../FieldForm';
 import { PERSONA_FIELD_SECTIONS, PERSONA_INITIAL_FORM } from './personaFields';
 import { Dato, ListaSimple } from './FichaHelpers';
+import { normalizeList, formatApiError } from '../../utils/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -74,11 +75,11 @@ const PersonasPanel = ({ token, abrirFichaIdInicial, onFichaAbierta }) => {
     setError(null);
     try {
       const res = await fetch(`${API_URL}/api/v1/crm/personas`, { headers });
-      if (!res.ok) throw new Error('Error ' + res.status);
-      setPersonas(await res.json());
+      if (!res.ok) throw new Error(await formatApiError(res));
+      setPersonas(normalizeList(await res.json()).items);
     } catch (err) {
       console.error('Error cargando personas:', err);
-      setError('No se pudieron cargar las personas');
+      setError(err.message);
     } finally {
       setLoading(false);
     }
