@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { Icon } from '../Icons';
+import { authHeader } from '../../utils/api';
 
 const CompliancePanel = ({ token }) => {
   const [validaciones, setValidaciones] = useState([]);
@@ -15,8 +17,8 @@ const CompliancePanel = ({ token }) => {
   const cargarDatos = async () => {
     setLoading(true);
     try {
-      const headers = { 'Authorization': `Bearer ${token}` };
-      
+      const headers = authHeader(token);
+
       const [pendientesRes, statsRes] = await Promise.all([
         fetch(`${API_URL}/api/v1/compliance/pending`, { headers }),
         fetch(`${API_URL}/api/v1/compliance/stats`, { headers })
@@ -36,7 +38,7 @@ const CompliancePanel = ({ token }) => {
       const res = await fetch(`${API_URL}/api/v1/compliance/human-decision`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          ...authHeader(token),
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -126,18 +128,20 @@ const CompliancePanel = ({ token }) => {
                       const notas = prompt('Notas de aprobación (opcional):');
                       if (notas !== null) aprobarValidacion(val.validation_token, true, notas);
                     }}
-                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
                   >
-                    ✓ Aprobar
+                    <Icon name="check" size={14} />
+                    Aprobar
                   </button>
                   <button
                     onClick={() => {
                       const notas = prompt('Razón de rechazo:');
                       if (notas) aprobarValidacion(val.validation_token, false, notas);
                     }}
-                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
                   >
-                    ✗ Rechazar
+                    <Icon name="x-mark" size={14} />
+                    Rechazar
                   </button>
                 </div>
               </div>

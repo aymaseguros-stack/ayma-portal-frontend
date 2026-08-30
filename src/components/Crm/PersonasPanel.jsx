@@ -4,7 +4,7 @@ import Modal from '../Modal';
 import FieldForm from '../FieldForm';
 import { PERSONA_FIELD_SECTIONS, PERSONA_INITIAL_FORM } from './personaFields';
 import { Dato, ListaSimple } from './FichaHelpers';
-import { normalizeList, formatApiError } from '../../utils/api';
+import { normalizeList, formatApiError, authHeader } from '../../utils/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -15,6 +15,26 @@ const FICHA_TABS = [
   { id: 'polizas', label: 'Pólizas' },
   { id: 'actividad', label: 'Actividad' },
 ];
+
+// Colores por estado_crm, según la convención del embudo CRM.
+const ESTADO_CRM_BADGE = {
+  DATO: 'bg-slate-500/20 text-slate-400',
+  PROSPECTO: 'bg-sky-500/20 text-sky-400',
+  POTENCIAL: 'bg-blue-500/20 text-blue-400',
+  CLIENTE: 'bg-green-500/20 text-green-400',
+  LOOP: 'bg-yellow-500/20 text-yellow-400',
+  RECUPERABLE: 'bg-orange-500/20 text-orange-400',
+};
+
+const EstadoCrmBadge = ({ estado }) => {
+  if (!estado) return <span className="text-slate-500 text-sm">-</span>;
+  const clases = ESTADO_CRM_BADGE[estado] || 'bg-slate-500/20 text-slate-400';
+  return (
+    <span className={`px-2 py-1 rounded text-xs font-medium ${clases}`}>
+      {estado}
+    </span>
+  );
+};
 
 const PersonasPanel = ({ token, abrirFichaIdInicial, onFichaAbierta }) => {
   const [personas, setPersonas] = useState([]);
@@ -37,7 +57,7 @@ const PersonasPanel = ({ token, abrirFichaIdInicial, onFichaAbierta }) => {
   const [editando, setEditando] = useState(false);
   const [editForm, setEditForm] = useState(PERSONA_INITIAL_FORM);
 
-  const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+  const headers = { ...authHeader(token), 'Content-Type': 'application/json' };
 
   useEffect(() => { cargarPersonas(); }, []);
 
@@ -237,11 +257,7 @@ const PersonasPanel = ({ token, abrirFichaIdInicial, onFichaAbierta }) => {
                       {esModoBusqueda ? (
                         <span className="text-slate-500 text-sm">—</span>
                       ) : (
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          p.activo ? 'bg-green-500/20 text-green-400' : 'bg-slate-500/20 text-slate-400'
-                        }`}>
-                          {p.activo ? 'Activo' : 'Inactivo'}
-                        </span>
+                        <EstadoCrmBadge estado={p.estado_crm} />
                       )}
                     </td>
                   </tr>

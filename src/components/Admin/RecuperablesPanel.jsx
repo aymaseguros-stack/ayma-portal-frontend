@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { normalizeList, formatApiError } from '../../utils/api';
+import { Icon } from '../Icons';
+import { normalizeList, formatApiError, authHeader } from '../../utils/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -17,7 +18,7 @@ const RecuperablesPanel = ({ token }) => {
     setError(null);
     try {
       const res = await fetch(`${API_URL}/api/v1/admin/recuperables`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: authHeader(token)
       });
       if (!res.ok) throw new Error(await formatApiError(res));
       const data = await res.json();
@@ -38,9 +39,10 @@ const RecuperablesPanel = ({ token }) => {
         <h2 className="text-2xl font-bold">Clientes Recuperables</h2>
         <button
           onClick={cargarRecuperables}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition"
         >
-          🔄 Actualizar
+          <Icon name="arrow-path" size={16} />
+          Actualizar
         </button>
       </div>
 
