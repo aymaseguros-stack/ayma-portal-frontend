@@ -3,15 +3,28 @@ import { Icon } from './Icons';
 
 // Grilla de pólizas reutilizada por "Pólizas", "ART" e "Integral Comercio"
 // (estas últimas dos son la misma vista con un filtro de ramo fijo).
-const PolizasGrid = ({ titulo, polizas, emptyText }) => {
+const PolizasGrid = ({ titulo, polizas, emptyText, error, loading, headerExtra }) => {
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">{titulo}</h2>
+      <div className="flex justify-between items-center flex-wrap gap-3">
+        <div className="flex items-center gap-4 flex-wrap">
+          {titulo && <h2 className="text-2xl font-bold">{titulo}</h2>}
+          {headerExtra}
+        </div>
         <span className="text-slate-400">{polizas.length} póliza(s)</span>
       </div>
 
-      {polizas.length === 0 ? (
+      {error ? (
+        <div className="bg-red-900/20 border border-red-500/40 rounded-xl p-12 text-center">
+          <Icon name="exclamation-triangle" size={48} className="text-red-400 mx-auto" />
+          <p className="text-red-300 font-semibold mt-4">No se pudieron cargar las pólizas</p>
+          <p className="text-red-400/80 text-sm mt-2">{error}</p>
+        </div>
+      ) : loading ? (
+        <div className="bg-slate-800/50 rounded-xl p-12 text-center border border-slate-700">
+          <p className="text-slate-400">Cargando...</p>
+        </div>
+      ) : polizas.length === 0 ? (
         <div className="bg-slate-800/50 rounded-xl p-12 text-center border border-slate-700">
           <Icon name="document-text" size={48} className="text-slate-600 mx-auto" />
           <p className="text-slate-400 mt-4">{emptyText}</p>
@@ -35,6 +48,17 @@ const PolizasGrid = ({ titulo, polizas, emptyText }) => {
               </div>
 
               <div className="p-6 space-y-4">
+                {poliza.cliente && (
+                  <div className="flex items-center gap-3 bg-slate-700/30 rounded-lg p-3">
+                    <Icon name="users" size={24} className="text-slate-400" />
+                    <div>
+                      <p className="font-semibold">{poliza.cliente.nombre_completo}</p>
+                      {poliza.cliente.numero_documento && (
+                        <p className="text-slate-400 text-sm">Doc. {poliza.cliente.numero_documento}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
                 {poliza.vehiculo && (
                   <div className="flex items-center gap-3 bg-slate-700/30 rounded-lg p-3">
                     <Icon name="truck" size={24} className="text-slate-400" />
@@ -49,13 +73,15 @@ const PolizasGrid = ({ titulo, polizas, emptyText }) => {
                     <p className="text-slate-500">Cobertura</p>
                     <p className="font-medium">{poliza.tipo_cobertura}</p>
                   </div>
-                  <div>
-                    <p className="text-slate-500">Suma Asegurada</p>
-                    <p className="font-medium">${poliza.suma_asegurada?.toLocaleString('es-AR')}</p>
-                  </div>
+                  {poliza.suma_asegurada != null && (
+                    <div>
+                      <p className="text-slate-500">Suma Asegurada</p>
+                      <p className="font-medium">${Number(poliza.suma_asegurada).toLocaleString('es-AR')}</p>
+                    </div>
+                  )}
                   <div>
                     <p className="text-slate-500">Premio Total</p>
-                    <p className="font-bold text-green-400">${poliza.premio_total?.toLocaleString('es-AR')}</p>
+                    <p className="font-bold text-green-400">${Number(poliza.premio_total || 0).toLocaleString('es-AR')}</p>
                   </div>
                   <div>
                     <p className="text-slate-500">Vencimiento</p>

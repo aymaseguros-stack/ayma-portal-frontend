@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { normalizeList, formatApiError } from '../../utils/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -18,12 +19,12 @@ const RecuperablesPanel = ({ token }) => {
       const res = await fetch(`${API_URL}/api/v1/admin/recuperables`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (!res.ok) throw new Error('Error ' + res.status);
+      if (!res.ok) throw new Error(await formatApiError(res));
       const data = await res.json();
-      setRecuperables(Array.isArray(data) ? data : (data?.recuperables || []));
+      setRecuperables(normalizeList(data).items);
     } catch (err) {
       console.error('Error cargando recuperables:', err);
-      setError('No se pudieron cargar los clientes recuperables');
+      setError(err.message);
     } finally {
       setLoading(false);
     }

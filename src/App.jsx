@@ -4,10 +4,11 @@ import IntelligencePanel from './components/Admin/IntelligencePanel';
 import MarketingStudio from './components/Admin/MarketingStudio';
 import RecuperablesPanel from './components/Admin/RecuperablesPanel';
 import Header from './components/Header';
-import PolizasGrid from './components/PolizasGrid';
+import PolizasView from './components/PolizasView';
 import PersonasPanel from './components/Crm/PersonasPanel';
 import EmpresasPanel from './components/Crm/EmpresasPanel';
 import { Icon } from './components/Icons';
+import { normalizeList, formatApiError } from './utils/api';
 
 // API Configuration
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
@@ -46,7 +47,14 @@ const initialState = {
   siniestros: [],
   dashboardData: null,
   loading: false,
-  error: null
+  error: null,
+  // Error real (status HTTP + detalle del backend) por sección, para
+  // distinguir "no hay datos" de "no se pudo cargar". null = sin error.
+  polizasError: null,
+  vehiculosError: null,
+  clientesError: null,
+  leadsError: null,
+  siniestrosError: null
 };
 
 function App() {
@@ -124,7 +132,7 @@ function App() {
       }
     });
     if (!response.ok) {
-      throw new Error('Error: ' + response.status);
+      throw new Error(await formatApiError(response));
     }
     return response.json();
   };
@@ -143,53 +151,78 @@ function App() {
         });
       } catch (e) { console.log('Dashboard error:', e.message); }
 
-      let polizasRes = [];
-      let vehiculosRes = [];
-      try {
-        const [pData, vData] = await Promise.all([
-          fetchAPI('/api/v1/polizas/', authToken),
-          fetchAPI('/api/v1/vehiculos/', authToken)
-        ]);
-        polizasRes = Array.isArray(pData) ? pData : (pData?.polizas || []);
-        vehiculosRes = Array.isArray(vData) ? vData : (vData?.vehiculos || []);
-      } catch (e) {
-        console.error('Error cargando pólizas/vehículos:', e.message);
+      // Pólizas y vehículos en paralelo, con allSettled para que un error en
+      // uno no oculte el resultado (ni el error real) del otro.
+      let polizasRes = [], vehiculosRes = [];
+      let polizasError = null, vehiculosError = null;
+      const [pResult, vResult] = await Promise.allSettled([
+        fetchAPI('/api/v1/polizas/', authToken),
+        fetchAPI('/api/v1/vehiculos/', authToken)
+      ]);
+      if (pResult.status === 'fulfilled') {
+        polizasRes = normalizeList(pResult.value).items;
+      } else {
+        polizasError = pResult.reason?.message || 'Error desconocido';
+        console.error('Error cargando pólizas:', polizasError);
       }
-      
+      if (vResult.status === 'fulfilled') {
+        vehiculosRes = normalizeList(vResult.value).items;
+      } else {
+        vehiculosError = vResult.reason?.message || 'Error desconocido';
+        console.error('Error cargando vehículos:', vehiculosError);
+      }
+
       // Cargar siniestros del usuario
       let siniestrosRes = [];
+      let siniestrosError = null;
       try {
-        siniestrosRes = await fetchAPI('/api/v1/siniestros/', authToken);
+        siniestrosRes = normalizeList(await fetchAPI('/api/v1/siniestros/', authToken)).items;
       } catch (e) {
+        siniestrosError = e.message;
         console.log('No se pudieron cargar siniestros:', e.message);
       }
-      
+
       // Cargar clientes/leads si es admin. Se prioriza el rol que ya vino en
       // /api/v1/dashboard/ (dashboardRes.role) porque es la fuente más confiable;
       // localStorage queda solo como fallback si el dashboard no respondió.
-      let clientesRes = [];
-      let leadsRes = [];
+      let clientesRes = [], leadsRes = [];
+      let clientesError = null, leadsError = null;
       const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
       const rolUsuario = extraerRol(dashboardRes?.role, savedUser.role, savedUser.tipo_usuario);
       if (esRolAdmin(rolUsuario)) {
-        try {
-          clientesRes = await fetchAPI('/api/v1/admin/clientes', authToken);
-          leadsRes = await fetchAPI('/api/v1/leads/', authToken);
-          setSiniestrosAdmin(siniestrosRes || []);
-        } catch (e) {
-          console.log('No se pudieron cargar clientes/leads:', e.message);
+        const [cResult, lResult] = await Promise.allSettled([
+          fetchAPI('/api/v1/admin/clientes', authToken),
+          fetchAPI('/api/v1/leads/', authToken)
+        ]);
+        if (cResult.status === 'fulfilled') {
+          clientesRes = normalizeList(cResult.value).items;
+        } else {
+          clientesError = cResult.reason?.message || 'Error desconocido';
+          console.error('Error cargando clientes:', clientesError);
         }
+        if (lResult.status === 'fulfilled') {
+          leadsRes = normalizeList(lResult.value).items;
+        } else {
+          leadsError = lResult.reason?.message || 'Error desconocido';
+          console.error('Error cargando leads:', leadsError);
+        }
+        setSiniestrosAdmin(siniestrosRes || []);
       }
-      
-      setState(prev => ({ 
-        ...prev, 
+
+      setState(prev => ({
+        ...prev,
         dashboardData: dashboardRes,
         polizas: polizasRes || [],
         vehiculos: vehiculosRes || [],
         clientes: clientesRes || [],
         leads: leadsRes || [],
         siniestros: siniestrosRes || [],
-        loading: false 
+        polizasError,
+        vehiculosError,
+        clientesError,
+        leadsError,
+        siniestrosError,
+        loading: false
       }));
     } catch (err) {
       console.error('Error cargando datos:', err);
@@ -202,9 +235,11 @@ function App() {
     if (!state.token || !isAdmin()) return;
     try {
       const response = await fetchAPI('/api/v1/siniestros/', state.token);
-      setSiniestrosAdmin(response || []);
+      setSiniestrosAdmin(normalizeList(response).items);
+      setState(prev => ({ ...prev, siniestrosError: null }));
     } catch (err) {
       console.log('Error cargando siniestros:', err);
+      setState(prev => ({ ...prev, siniestrosError: err.message }));
     }
   };
 
@@ -260,7 +295,7 @@ function App() {
     try {
       const url = estado ? `/api/v1/crm/clientes?estado=${estado}` : '/api/v1/crm/clientes';
       const response = await fetchAPI(url, state.token);
-      setCrmClientes(response?.clientes || []);
+      setCrmClientes(normalizeList(response).items);
     } catch (err) {
       console.error('Error cargando clientes CRM:', err);
     }
@@ -715,89 +750,16 @@ function App() {
           </div>
         )}
 
-        {/* MIS PÓLIZAS */}
+        {/* GESTIÓN DE PÓLIZAS (con sub-pestañas: Todas | Vehículos | ART | Comercio) */}
         {state.activeTab === 'polizas' && (
-          <PolizasGrid
-            titulo="Gestión de Pólizas"
-            polizas={state.polizas}
-            emptyText="No tienes pólizas registradas"
+          <PolizasView
+            token={state.token}
+            isAdmin={isAdmin()}
+            todasPolizas={state.polizas}
+            todasError={state.polizasError}
+            vehiculos={state.vehiculos}
+            vehiculosError={state.vehiculosError}
           />
-        )}
-
-        {/* ART - cartera filtrada por ramo */}
-        {state.activeTab === 'art' && isAdmin() && (
-          <PolizasGrid
-            titulo="Cartera ART"
-            polizas={state.polizas.filter(p => (p.ramo || '').toUpperCase() === 'ART')}
-            emptyText="Sin pólizas de ART cargadas"
-          />
-        )}
-
-        {/* INTEGRAL COMERCIO - cartera filtrada por ramo */}
-        {state.activeTab === 'integral' && isAdmin() && (
-          <PolizasGrid
-            titulo="Cartera Integral Comercio"
-            polizas={state.polizas.filter(p => (p.ramo || '').toUpperCase() === 'INTEGRAL')}
-            emptyText="Sin pólizas de Integral Comercio cargadas"
-          />
-        )}
-
-        {/* MIS VEHÍCULOS */}
-        {state.activeTab === 'vehiculos' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Gestión de Vehículos</h2>
-              <span className="text-slate-400">{state.vehiculos.length} vehículo(s)</span>
-            </div>
-            
-            {state.vehiculos.length === 0 ? (
-              <div className="bg-slate-800/50 rounded-xl p-12 text-center border border-slate-700">
-                <span className="text-6xl">🚗</span>
-                <p className="text-slate-400 mt-4">No tienes vehículos registrados</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {state.vehiculos.map(vehiculo => (
-                  <div key={vehiculo.id} className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden hover:border-green-500/50 transition">
-                    <div className="bg-slate-700/50 px-6 py-4 flex justify-between items-center">
-                      <div className="flex items-center gap-3">
-                        <span className="text-3xl">🚗</span>
-                        <div>
-                          <p className="font-bold">{vehiculo.marca} {vehiculo.modelo}</p>
-                          <p className="text-slate-400 text-sm">{vehiculo.tipo_vehiculo}</p>
-                        </div>
-                      </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        vehiculo.estado === 'activo' 
-                          ? 'bg-green-600/30 text-green-300' 
-                          : 'bg-slate-600/30 text-slate-300'
-                      }`}>
-                        {vehiculo.estado}
-                      </span>
-                    </div>
-                    
-                    <div className="p-6">
-                      <div className="bg-slate-700/50 rounded-xl p-4 text-center mb-4">
-                        <p className="text-slate-500 text-xs mb-1">Dominio/Patente</p>
-                        <p className="text-3xl font-black text-blue-400 tracking-wider">{vehiculo.dominio}</p>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <p className="text-slate-500">Año</p>
-                          <p className="font-bold text-2xl">{vehiculo.anio}</p>
-                        </div>
-                        <div>
-                          <p className="text-slate-500">Uso</p>
-                          <p className="font-medium capitalize">{vehiculo.uso || 'Particular'}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         )}
 
         {/* DENUNCIAR SINIESTRO */}
@@ -1249,7 +1211,12 @@ function App() {
                 <h3 className="font-semibold">Lista de Leads</h3>
                 <span className="text-sm text-slate-400">{state.leads.length} registros</span>
               </div>
-              {state.leads.length === 0 ? (
+              {state.leadsError ? (
+                <div className="p-8 text-center">
+                  <p className="text-red-300 font-semibold">No se pudieron cargar los leads</p>
+                  <p className="text-red-400/80 text-sm mt-2">{state.leadsError}</p>
+                </div>
+              ) : state.leads.length === 0 ? (
                 <div className="p-8 text-center">
                   <p className="text-slate-400">No hay leads registrados</p>
                   <p className="text-slate-500 text-sm mt-2">Los leads del chatbot aparecerán aquí</p>
@@ -1354,9 +1321,14 @@ function App() {
               <div className="p-4 border-b border-slate-700">
                 <h3 className="font-semibold">Lista de Clientes</h3>
               </div>
-              {state.clientes.length === 0 ? (
+              {state.clientesError ? (
                 <div className="p-8 text-center">
-                  <p className="text-slate-400">Cargando clientes...</p>
+                  <p className="text-red-300 font-semibold">No se pudieron cargar los clientes</p>
+                  <p className="text-red-400/80 text-sm mt-2">{state.clientesError}</p>
+                </div>
+              ) : state.clientes.length === 0 ? (
+                <div className="p-8 text-center">
+                  <p className="text-slate-400">No hay clientes registrados</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -1698,7 +1670,14 @@ function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-700">
-                    {getSiniestrosVisibles().length === 0 ? (
+                    {state.siniestrosError ? (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-8 text-center">
+                          <p className="text-red-300 font-semibold">No se pudieron cargar los siniestros</p>
+                          <p className="text-red-400/80 text-sm mt-2">{state.siniestrosError}</p>
+                        </td>
+                      </tr>
+                    ) : getSiniestrosVisibles().length === 0 ? (
                       <tr>
                         <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
                           {verTodosSiniestros ? 'No hay siniestros registrados' : 'No hay siniestros en curso'}

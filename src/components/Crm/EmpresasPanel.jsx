@@ -5,6 +5,7 @@ import FieldForm from '../FieldForm';
 import { EMPRESA_FIELD_SECTIONS, EMPRESA_INITIAL_FORM } from './empresaFields';
 import { Dato, ListaSimple } from './FichaHelpers';
 import { esCuitValido, formatearCuit } from '../../utils/cuit';
+import { normalizeList, formatApiError } from '../../utils/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -77,11 +78,11 @@ const EmpresasPanel = ({ token }) => {
     setError(null);
     try {
       const res = await fetch(`${API_URL}/api/v1/crm/empresas`, { headers });
-      if (!res.ok) throw new Error('Error ' + res.status);
-      setEmpresas(await res.json());
+      if (!res.ok) throw new Error(await formatApiError(res));
+      setEmpresas(normalizeList(await res.json()).items);
     } catch (err) {
       console.error('Error cargando empresas:', err);
-      setError('No se pudieron cargar las empresas');
+      setError(err.message);
     } finally {
       setLoading(false);
     }
