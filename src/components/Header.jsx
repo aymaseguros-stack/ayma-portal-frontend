@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import ScoringIndicator from './ScoringIndicator';
 import { CRM_TABS, MAIL_TABS } from './navTabs';
 
@@ -42,6 +42,20 @@ const Header = ({
   panelPrincipal, onPanelPrincipalChange,
 }) => {
   const subTabs = isAdmin ? SUB_TABS_POR_PANEL[panelPrincipal] : null;
+
+  // Menú del badge de rol: única entrada al día es "Seguridad" (2FA).
+  const [menuRolAbierto, setMenuRolAbierto] = useState(false);
+  const menuRolRef = useRef(null);
+  useEffect(() => {
+    if (!menuRolAbierto) return;
+    const cerrarSiClickAfuera = (e) => {
+      if (menuRolRef.current && !menuRolRef.current.contains(e.target)) {
+        setMenuRolAbierto(false);
+      }
+    };
+    document.addEventListener('mousedown', cerrarSiClickAfuera);
+    return () => document.removeEventListener('mousedown', cerrarSiClickAfuera);
+  }, [menuRolAbierto]);
 
   return (
     <header className="bg-slate-800/50 backdrop-blur border-b border-slate-700">
@@ -89,9 +103,26 @@ const Header = ({
             </button>
             {isAdmin && <ScoringIndicator token={token} />}
             {rol && (
-              <span className="px-3 py-1 bg-blue-600/30 text-blue-300 rounded-full text-sm capitalize">
-                {rol}
-              </span>
+              <div className="relative" ref={menuRolRef}>
+                <button
+                  onClick={() => setMenuRolAbierto(!menuRolAbierto)}
+                  className="px-3 py-1 bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 rounded-full text-sm capitalize transition"
+                >
+                  {rol}
+                </button>
+                {menuRolAbierto && (
+                  <div className="absolute right-0 mt-2 w-44 bg-slate-800 border border-slate-700 rounded-lg shadow-xl overflow-hidden z-10">
+                    <button
+                      onClick={() => { setActiveTab('seguridad'); setMenuRolAbierto(false); }}
+                      className={`w-full text-left px-4 py-2.5 text-sm transition ${
+                        activeTab === 'seguridad' ? 'bg-blue-600 text-white' : 'text-slate-200 hover:bg-slate-700'
+                      }`}
+                    >
+                      🔒 Seguridad
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
             <button
               onClick={onLogout}

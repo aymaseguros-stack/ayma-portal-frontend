@@ -14,6 +14,8 @@ import AgendaPanel from './components/Crm/AgendaPanel';
 import Timeline from './components/Crm/Timeline';
 import Modal from './components/Modal';
 import { Icon } from './components/Icons';
+import TwoFactorLoginStep from './components/Auth/TwoFactorLoginStep';
+import SecurityPanel from './components/Security/SecurityPanel';
 import { normalizeList, formatApiError, authHeader, SESSION_EXPIRED_EVENT } from './utils/api';
 
 // API Configuration
@@ -116,6 +118,10 @@ function App() {
   // Toggle Dashboard/CRM de la fila 2 del header, persistido entre recargas.
   const [panelPrincipal, setPanelPrincipal] = useState(leerPanelPrincipal);
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  // Login en dos pasos: cuando /auth/login devuelve requiere_2fa, se guarda
+  // el token_temporal acá y se muestra la segunda pantalla en vez del
+  // dashboard, hasta que TwoFactorLoginStep resuelva el código.
+  const [tokenTemporal2FA, setTokenTemporal2FA] = useState(null);
   
   // Estado para formulario de siniestro
   const [siniestroForm, setSiniestroForm] = useState({
@@ -474,40 +480,56 @@ function App() {
   const getSiniestrosEnCurso = () => siniestrosAdmin.filter(s => s.estado !== 'CERRADO');
   const getSiniestrosResueltos = () => siniestrosAdmin.filter(s => s.estado === 'CERRADO');
 
+  // Completa el login (llamado directo sin 2FA, o segundo paso del 2FA) una
+  // vez que el backend ya devolvió el JWT definitivo.
+  const finalizarLogin = (data) => {
+    if (!data.tipo_usuario && !data.role) {
+      console.warn('[Auth] La respuesta de login no incluyó "tipo_usuario" ni "role".');
+    }
+    localStorage.setItem('token', data.access_token);
+    localStorage.setItem('user', JSON.stringify({
+      email: data.email,
+      tipo_usuario: data.tipo_usuario,
+      role: data.role
+    }));
+
+    setTokenTemporal2FA(null);
+    setState(prev => ({
+      ...prev,
+      token: data.access_token,
+      user: { email: data.email, tipo_usuario: data.tipo_usuario, role: data.role },
+      loading: false
+    }));
+
+    cargarDatosConToken(data.access_token);
+  };
+
   // Login
   const handleLogin = async (e) => {
     e.preventDefault();
     setState(prev => ({ ...prev, loading: true, error: null }));
-    
+
     try {
       const response = await fetch(API_URL + '/api/v1/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(loginForm)
       });
-      
-      if (!response.ok) throw new Error('Credenciales inválidas');
-      
-      const data = await response.json();
-      if (!data.tipo_usuario && !data.role) {
-        console.warn('[Auth] La respuesta de /api/v1/auth/login no incluyó "tipo_usuario" ni "role".');
-      }
-      localStorage.setItem('token', data.access_token);
-      localStorage.setItem('user', JSON.stringify({
-        email: data.email,
-        tipo_usuario: data.tipo_usuario,
-        role: data.role
-      }));
 
-      setState(prev => ({
-        ...prev,
-        token: data.access_token,
-        user: { email: data.email, tipo_usuario: data.tipo_usuario, role: data.role },
-        loading: false
-      }));
-      
-      cargarDatosConToken(data.access_token);
-      
+      if (!response.ok) throw new Error('Credenciales inválidas');
+
+      const data = await response.json();
+
+      // El backend puede pedir un segundo factor en vez de devolver el JWT
+      // directamente: en ese caso se muestra la pantalla de código de 2FA.
+      if (data.requiere_2fa && data.token_temporal) {
+        setTokenTemporal2FA(data.token_temporal);
+        setState(prev => ({ ...prev, loading: false }));
+        return;
+      }
+
+      finalizarLogin(data);
+
     } catch (err) {
       setState(prev => ({ ...prev, error: err.message, loading: false }));
     }
@@ -621,6 +643,17 @@ function App() {
   // =============================================
   // RENDERIZADO
   // =============================================
+
+  // Segundo paso del login (2FA), antes de mostrar el formulario o el dashboard
+  if (!state.token && tokenTemporal2FA) {
+    return (
+      <TwoFactorLoginStep
+        tokenTemporal={tokenTemporal2FA}
+        onSuccess={finalizarLogin}
+        onVolver={() => setTokenTemporal2FA(null)}
+      />
+    );
+  }
 
   // Login Form
   if (!state.token) {
@@ -792,6 +825,11 @@ function App() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* SEGURIDAD (2FA) */}
+        {state.activeTab === 'seguridad' && (
+          <SecurityPanel token={state.token} />
         )}
 
         {/* GESTIÓN DE PÓLIZAS (con sub-pestañas: Todas | Vehículos | ART | Comercio) */}
