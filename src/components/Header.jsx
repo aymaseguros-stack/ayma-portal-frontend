@@ -2,31 +2,31 @@ import React, { useEffect, useRef, useState } from 'react';
 import ScoringIndicator from './ScoringIndicator';
 import { CRM_TABS, MAIL_TABS } from './navTabs';
 
-// Fila 2: navegación principal Pólizas / Clientes / Siniestros. "Clientes" y
-// "Siniestros" son admin-only.
+// Nav de fila 1 (junto al toggle): Pólizas / Clientes / Siniestros. "Clientes"
+// y "Siniestros" son admin-only.
 const NAV_TABS = (admin) => [
   { id: 'polizas', label: 'Pólizas' },
   ...(admin ? [{ id: 'clientes', label: 'Clientes' }] : []),
   ...(admin ? [{ id: 'admin-siniestros', label: 'Siniestros' }] : []),
 ];
 
-// Padding horizontal ajustado (no la fuente) para que los tabs del CRM y de
-// Siniestros entren sin desbordar la fila 3 a 1280/1440px; overflow-x-auto +
-// shrink-0 como red de seguridad si aun así no entran.
+// Padding horizontal ajustado (no la fuente) para que todo entre en una sola
+// fila a 1280/1440px; overflow-x-auto + shrink-0 como red de seguridad si aun
+// así no entra.
 const tabButtonClass = (active) =>
-  `px-2.5 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition shrink-0 ${
+  `px-2 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition shrink-0 ${
     active ? 'bg-blue-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
   }`;
 
 const toggleButtonClass = (active) =>
-  `px-2.5 py-1.5 rounded-md text-sm font-medium whitespace-nowrap transition shrink-0 ${
+  `px-2 py-1.5 rounded-md text-sm font-medium whitespace-nowrap transition shrink-0 ${
     active ? 'bg-blue-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
   }`;
 
-// Sub-tabs de la fila 3 según el toggle activo de la fila 2. Dashboard no
-// tiene fila 3 (se pinta el dashboard directamente en el contenido).
-// Siniestros ya no es un toggle de fila 2: es su propia vista en la fila 1,
-// con sub-pestañas propias (ver navTabs.SINIESTROS_TABS), igual que Pólizas.
+// Sub-tabs de la fila 2 según el toggle activo de la fila 1. Dashboard no
+// tiene fila 2 (se pinta el dashboard directamente en el contenido).
+// Siniestros no es un toggle: es su propia vista en la fila 1, con
+// sub-pestañas propias (ver navTabs.SINIESTROS_TABS), igual que Pólizas.
 const SUB_TABS_POR_PANEL = {
   mail: MAIL_TABS,
   crm: CRM_TABS,
@@ -59,11 +59,12 @@ const Header = ({
   return (
     <header className="bg-slate-800/50 backdrop-blur border-b border-slate-700">
       <div className="max-w-7xl mx-auto px-4">
-        {/* Fila 1: logo + toggle mutuamente excluyente Dashboard / Mail / CRM
-            a la izquierda, y a la derecha Denuncia + Soporte + badge de rol
-            + Salir */}
+        {/* Fila 1: logo + toggle Dashboard / Mail / CRM + nav Pólizas /
+            Clientes / Siniestros a la izquierda (separados por un divisor
+            vertical sutil), y a la derecha Denuncia + Soporte + badge de rol
+            + Salir. */}
         <div className="py-3 flex items-center justify-between gap-6">
-          <div className="flex items-center gap-6 min-w-0">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="shrink-0">
               <h1 className="text-xl font-bold text-white leading-tight">AYMA</h1>
               {displayName && (
@@ -95,6 +96,24 @@ const Header = ({
                 </button>
               )}
             </div>
+
+            <div className="w-px self-stretch bg-slate-700/60 shrink-0" />
+
+            <nav className="flex items-center gap-1 overflow-x-auto min-w-0">
+              {NAV_TABS(isAdmin).map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={tabButtonClass(
+                    tab.id === 'admin-siniestros'
+                      ? SINIESTROS_VIEW_IDS.includes(activeTab)
+                      : activeTab === tab.id
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
@@ -142,27 +161,8 @@ const Header = ({
           </div>
         </div>
 
-        {/* Fila 2: nav principal Pólizas / Clientes / Siniestros */}
-        <div className="border-t border-slate-700/60 py-2 flex items-center gap-3 overflow-x-auto">
-          <nav className="flex items-center gap-1 overflow-x-auto min-w-0">
-            {NAV_TABS(isAdmin).map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={tabButtonClass(
-                  tab.id === 'admin-siniestros'
-                    ? SINIESTROS_VIEW_IDS.includes(activeTab)
-                    : activeTab === tab.id
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        {/* Fila 3: sub-tabs del toggle activo, en su propia línea debajo de
-            la fila 2. Dashboard no tiene fila 3. */}
+        {/* Fila 2: sub-tabs del toggle activo, en su propia línea debajo de
+            la fila 1. Dashboard no tiene fila 2. */}
         {subTabs && (
           <div className="border-t border-slate-700/60 py-2">
             <nav className="flex items-center gap-1 overflow-x-auto">
