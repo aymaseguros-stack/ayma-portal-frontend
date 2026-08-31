@@ -5,6 +5,8 @@ import FieldForm from '../FieldForm';
 import { GRUPO_FIELD_SECTIONS, GRUPO_INITIAL_FORM, TIPO_GRUPO_OPCIONES } from './grupoFields';
 import { Dato, ListaSimple } from './FichaHelpers';
 import { normalizeList, formatApiError, authHeader } from '../../utils/api';
+import NuevaOportunidadModal from './NuevaOportunidadModal';
+import OportunidadFichaModal from './OportunidadFichaModal';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -54,9 +56,31 @@ const GruposPanel = ({ token, abrirFichaIdInicial, onFichaAbierta }) => {
   const [agregando, setAgregando] = useState(false);
   const [errorAgregar, setErrorAgregar] = useState(null);
 
+  const [mostrarNuevaOportunidad, setMostrarNuevaOportunidad] = useState(false);
+  const [trackPreseleccionado, setTrackPreseleccionado] = useState(null);
+  const [oportunidadAbierta, setOportunidadAbierta] = useState(null);
+  // Mapa ramo -> track del catálogo de productos, para poder precargar el
+  // track correcto al crear una oportunidad desde un chip de "producto faltante".
+  const [ramoATrack, setRamoATrack] = useState({});
+
   const headers = { ...authHeader(token), 'Content-Type': 'application/json' };
 
-  useEffect(() => { cargarGrupos(); }, []);
+  useEffect(() => { cargarGrupos(); cargarCatalogoProductos(); }, []);
+
+  const cargarCatalogoProductos = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/v1/crm/productos`, { headers });
+      if (!res.ok) return;
+      const productos = await res.json();
+      const mapa = {};
+      for (const p of productos) {
+        if (p.ramo && p.track) mapa[p.ramo] = p.track;
+      }
+      setRamoATrack(mapa);
+    } catch (err) {
+      console.error('Error cargando catálogo de productos:', err);
+    }
+  };
 
   // Navegación directa desde la ficha de Persona ("ver grupo")
   useEffect(() => {
@@ -240,8 +264,9 @@ const GruposPanel = ({ token, abrirFichaIdInicial, onFichaAbierta }) => {
     }
   };
 
-  const crearOportunidadDesdeProducto = () => {
-    // Disponible en Fase 2: hoy los chips de productos faltantes están deshabilitados.
+  const crearOportunidadDesdeProducto = (ramo) => {
+    setTrackPreseleccionado(ramoATrack[ramo] || null);
+    setMostrarNuevaOportunidad(true);
   };
 
   return (
@@ -386,6 +411,15 @@ const GruposPanel = ({ token, abrirFichaIdInicial, onFichaAbierta }) => {
                     Agregar miembro
                   </button>
                 )}
+                {fichaTab === 'oportunidades' && (
+                  <button
+                    onClick={() => { setTrackPreseleccionado(null); setMostrarNuevaOportunidad(true); }}
+                    className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition text-sm"
+                  >
+                    <Icon name="plus" />
+                    Nueva oportunidad
+                  </button>
+                )}
               </div>
 
               {fichaTab === 'datos' && (
@@ -495,12 +529,12 @@ const GruposPanel = ({ token, abrirFichaIdInicial, onFichaAbierta }) => {
                     items={ficha.oportunidades}
                     vacio="Sin oportunidades"
                     render={(o) => (
-                      <>
+                      <button type="button" onClick={() => setOportunidadAbierta(o.id)} className="w-full text-left">
                         <span className="font-mono text-xs text-blue-400">{o.token}</span>
                         <span className="ml-2 font-medium">{o.track}</span>
                         <span className="ml-2 px-2 py-0.5 bg-slate-600 rounded text-xs">{o.estado_crm}</span>
                         <span className="ml-2 px-2 py-0.5 bg-slate-600 rounded text-xs">{o.resultado}</span>
-                      </>
+                      </button>
                     )}
                   />
 
@@ -511,15 +545,15 @@ const GruposPanel = ({ token, abrirFichaIdInicial, onFichaAbierta }) => {
                       </h4>
                       <div className="flex flex-wrap gap-2">
                         {ficha.productos_faltantes.map((prod, idx) => {
+                          const ramo = typeof prod === 'string' ? prod : prod.ramo;
                           const label = typeof prod === 'string' ? prod : (prod.label || prod.ramo);
                           return (
                             <button
                               key={idx}
                               type="button"
-                              disabled
-                              title="Disponible en Fase 2"
-                              onClick={crearOportunidadDesdeProducto}
-                              className="px-3 py-1.5 bg-slate-700/60 border border-slate-600 rounded-full text-sm text-slate-300 cursor-not-allowed opacity-70"
+                              title="Crear oportunidad para este producto"
+                              onClick={() => crearOportunidadDesdeProducto(ramo)}
+                              className="px-3 py-1.5 bg-slate-700/60 border border-slate-600 rounded-full text-sm text-slate-300 hover:bg-blue-600/30 hover:border-blue-500 hover:text-white transition"
                             >
                               {label}
                             </button>
@@ -622,6 +656,24 @@ const GruposPanel = ({ token, abrirFichaIdInicial, onFichaAbierta }) => {
             </div>
           </form>
         </Modal>
+      )}
+
+      {mostrarNuevaOportunidad && ficha && (
+        <NuevaOportunidadModal
+          token={token}
+          preset={{ grupo_id: ficha.id, nombre: ficha.nombre, track: trackPreseleccionado }}
+          onClose={() => setMostrarNuevaOportunidad(false)}
+          onCreated={async () => { setMostrarNuevaOportunidad(false); await refrescarFichaActual(); cargarGrupos(); }}
+        />
+      )}
+
+      {oportunidadAbierta && (
+        <OportunidadFichaModal
+          token={token}
+          oportunidadId={oportunidadAbierta}
+          onClose={() => setOportunidadAbierta(null)}
+          onChanged={refrescarFichaActual}
+        />
       )}
     </div>
   );

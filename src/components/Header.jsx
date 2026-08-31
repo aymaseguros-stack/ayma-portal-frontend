@@ -1,4 +1,5 @@
 import React from 'react';
+import ScoringIndicator from './ScoringIndicator';
 
 const NAV_TABS = (admin) => [
   { id: 'dashboard', label: 'Dashboard' },
@@ -11,6 +12,7 @@ const NAV_TABS = (admin) => [
 
 const CRM_TABS = [
   { id: 'crm', label: 'Pipeline' },
+  { id: 'agenda', label: 'Agenda' },
   { id: 'personas', label: 'Personas' },
   { id: 'grupos', label: 'Grupos' },
   { id: 'empresas', label: 'Empresas' },
@@ -26,7 +28,7 @@ const tabButtonClass = (active) =>
     active ? 'bg-blue-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
   }`;
 
-const Header = ({ displayName, rol, activeTab, setActiveTab, isAdmin, onLogout }) => {
+const Header = ({ displayName, rol, activeTab, setActiveTab, isAdmin, onLogout, token }) => {
   return (
     <header className="bg-slate-800/50 backdrop-blur border-b border-slate-700">
       <div className="max-w-7xl mx-auto px-4">
@@ -54,6 +56,7 @@ const Header = ({ displayName, rol, activeTab, setActiveTab, isAdmin, onLogout }
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
+            {isAdmin && <ScoringIndicator token={token} />}
             {rol && (
               <span className="px-3 py-1 bg-blue-600/30 text-blue-300 rounded-full text-sm capitalize">
                 {rol}

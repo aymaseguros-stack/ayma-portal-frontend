@@ -5,6 +5,8 @@ import FieldForm from '../FieldForm';
 import { PERSONA_FIELD_SECTIONS, PERSONA_INITIAL_FORM } from './personaFields';
 import { Dato, ListaSimple } from './FichaHelpers';
 import { normalizeList, formatApiError, authHeader } from '../../utils/api';
+import NuevaOportunidadModal from './NuevaOportunidadModal';
+import OportunidadFichaModal from './OportunidadFichaModal';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -56,6 +58,9 @@ const PersonasPanel = ({ token, abrirFichaIdInicial, onFichaAbierta, onIrAGrupo 
   const [fichaTab, setFichaTab] = useState('datos');
   const [editando, setEditando] = useState(false);
   const [editForm, setEditForm] = useState(PERSONA_INITIAL_FORM);
+
+  const [mostrarNuevaOportunidad, setMostrarNuevaOportunidad] = useState(false);
+  const [oportunidadAbierta, setOportunidadAbierta] = useState(null);
 
   const headers = { ...authHeader(token), 'Content-Type': 'application/json' };
 
@@ -138,17 +143,22 @@ const PersonasPanel = ({ token, abrirFichaIdInicial, onFichaAbierta, onIrAGrupo 
     }
   };
 
+  const cargarFicha = async (id) => {
+    const res = await fetch(`${API_URL}/api/v1/crm/personas/${id}/ficha`, { headers });
+    if (!res.ok) throw new Error('Error ' + res.status);
+    const data = await res.json();
+    setFicha(data);
+    setEditForm({ ...PERSONA_INITIAL_FORM, ...data });
+    return data;
+  };
+
   const abrirFicha = async (id) => {
     setFichaId(id);
     setFichaTab('datos');
     setEditando(false);
     setFichaLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/v1/crm/personas/${id}/ficha`, { headers });
-      if (!res.ok) throw new Error('Error ' + res.status);
-      const data = await res.json();
-      setFicha(data);
-      setEditForm({ ...PERSONA_INITIAL_FORM, ...data });
+      await cargarFicha(id);
     } catch (err) {
       console.error('Error cargando ficha:', err);
       alert('No se pudo cargar la ficha de la persona');
@@ -156,6 +166,11 @@ const PersonasPanel = ({ token, abrirFichaIdInicial, onFichaAbierta, onIrAGrupo 
     } finally {
       setFichaLoading(false);
     }
+  };
+
+  const refrescarFichaActual = async () => {
+    if (!fichaId) return;
+    try { await cargarFicha(fichaId); } catch (err) { console.error('Error refrescando ficha:', err); }
   };
 
   const guardarEdicion = async (e) => {
@@ -332,6 +347,15 @@ const PersonasPanel = ({ token, abrirFichaIdInicial, onFichaAbierta, onIrAGrupo 
                     Editar
                   </button>
                 )}
+                {fichaTab === 'oportunidades' && (
+                  <button
+                    onClick={() => setMostrarNuevaOportunidad(true)}
+                    className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition text-sm"
+                  >
+                    <Icon name="plus" />
+                    Nueva oportunidad
+                  </button>
+                )}
               </div>
 
               {fichaTab === 'datos' && (
@@ -413,12 +437,12 @@ const PersonasPanel = ({ token, abrirFichaIdInicial, onFichaAbierta, onIrAGrupo 
                   items={ficha.oportunidades}
                   vacio="Sin oportunidades"
                   render={(o) => (
-                    <>
+                    <button type="button" onClick={() => setOportunidadAbierta(o.id)} className="w-full text-left">
                       <span className="font-mono text-xs text-blue-400">{o.token}</span>
                       <span className="ml-2 font-medium">{o.track}</span>
                       <span className="ml-2 px-2 py-0.5 bg-slate-600 rounded text-xs">{o.estado_crm}</span>
                       <span className="ml-2 px-2 py-0.5 bg-slate-600 rounded text-xs">{o.resultado}</span>
-                    </>
+                    </button>
                   )}
                 />
               )}
@@ -455,6 +479,24 @@ const PersonasPanel = ({ token, abrirFichaIdInicial, onFichaAbierta, onIrAGrupo 
             </div>
           )}
         </Modal>
+      )}
+
+      {mostrarNuevaOportunidad && ficha && (
+        <NuevaOportunidadModal
+          token={token}
+          preset={{ persona_id: ficha.id, nombre: `${ficha.nombre} ${ficha.apellido || ''}`.trim() }}
+          onClose={() => setMostrarNuevaOportunidad(false)}
+          onCreated={async () => { setMostrarNuevaOportunidad(false); await refrescarFichaActual(); cargarPersonas(); }}
+        />
+      )}
+
+      {oportunidadAbierta && (
+        <OportunidadFichaModal
+          token={token}
+          oportunidadId={oportunidadAbierta}
+          onClose={() => setOportunidadAbierta(null)}
+          onChanged={refrescarFichaActual}
+        />
       )}
     </div>
   );
