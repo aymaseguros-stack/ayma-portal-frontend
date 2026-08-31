@@ -2,9 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import ScoringIndicator from './ScoringIndicator';
 import { CRM_TABS, MAIL_TABS } from './navTabs';
 
-// Fila 1: navegación principal a la izquierda del logo. "Clientes" y
-// "Siniestros" son admin-only; "Denuncia" y "Soporte" (extremo derecho) son
-// los accesos de clientes y demás usuarios, por eso van agrupados aparte.
+// Fila 2: navegación principal Pólizas / Clientes / Siniestros. "Clientes" y
+// "Siniestros" son admin-only.
 const NAV_TABS = (admin) => [
   { id: 'polizas', label: 'Pólizas' },
   ...(admin ? [{ id: 'clientes', label: 'Clientes' }] : []),
@@ -60,8 +59,9 @@ const Header = ({
   return (
     <header className="bg-slate-800/50 backdrop-blur border-b border-slate-700">
       <div className="max-w-7xl mx-auto px-4">
-        {/* Fila 1: logo + mail a la izquierda, nav principal, y a la derecha
-            Soporte + badge de rol + Salir */}
+        {/* Fila 1: logo + toggle mutuamente excluyente Dashboard / Mail / CRM
+            a la izquierda, y a la derecha Denuncia + Soporte + badge de rol
+            + Salir */}
         <div className="py-3 flex items-center justify-between gap-6">
           <div className="flex items-center gap-6 min-w-0">
             <div className="shrink-0">
@@ -71,21 +71,30 @@ const Header = ({
               )}
             </div>
 
-            <nav className="flex items-center gap-1 overflow-x-auto min-w-0">
-              {NAV_TABS(isAdmin).map((tab) => (
+            <div className="flex items-center gap-0.5 bg-slate-900/40 rounded-lg p-0.5 shrink-0">
+              <button
+                onClick={() => onPanelPrincipalChange('dashboard')}
+                className={toggleButtonClass(panelPrincipal === 'dashboard')}
+              >
+                Dashboard
+              </button>
+              {isAdmin && (
                 <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={tabButtonClass(
-                    tab.id === 'admin-siniestros'
-                      ? SINIESTROS_VIEW_IDS.includes(activeTab)
-                      : activeTab === tab.id
-                  )}
+                  onClick={() => onPanelPrincipalChange('mail')}
+                  className={toggleButtonClass(panelPrincipal === 'mail')}
                 >
-                  {tab.label}
+                  Mail
                 </button>
-              ))}
-            </nav>
+              )}
+              {isAdmin && (
+                <button
+                  onClick={() => onPanelPrincipalChange('crm')}
+                  className={toggleButtonClass(panelPrincipal === 'crm')}
+                >
+                  CRM
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
@@ -133,32 +142,23 @@ const Header = ({
           </div>
         </div>
 
-        {/* Fila 2: toggle mutuamente excluyente Dashboard / Mail / CRM */}
+        {/* Fila 2: nav principal Pólizas / Clientes / Siniestros */}
         <div className="border-t border-slate-700/60 py-2 flex items-center gap-3 overflow-x-auto">
-          <div className="flex items-center gap-0.5 bg-slate-900/40 rounded-lg p-0.5 shrink-0">
-            <button
-              onClick={() => onPanelPrincipalChange('dashboard')}
-              className={toggleButtonClass(panelPrincipal === 'dashboard')}
-            >
-              Dashboard
-            </button>
-            {isAdmin && (
+          <nav className="flex items-center gap-1 overflow-x-auto min-w-0">
+            {NAV_TABS(isAdmin).map((tab) => (
               <button
-                onClick={() => onPanelPrincipalChange('mail')}
-                className={toggleButtonClass(panelPrincipal === 'mail')}
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={tabButtonClass(
+                  tab.id === 'admin-siniestros'
+                    ? SINIESTROS_VIEW_IDS.includes(activeTab)
+                    : activeTab === tab.id
+                )}
               >
-                Mail
+                {tab.label}
               </button>
-            )}
-            {isAdmin && (
-              <button
-                onClick={() => onPanelPrincipalChange('crm')}
-                className={toggleButtonClass(panelPrincipal === 'crm')}
-              >
-                CRM
-              </button>
-            )}
-          </div>
+            ))}
+          </nav>
         </div>
 
         {/* Fila 3: sub-tabs del toggle activo, en su propia línea debajo de
