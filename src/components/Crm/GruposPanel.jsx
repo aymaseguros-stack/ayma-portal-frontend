@@ -33,7 +33,9 @@ const formatMoneda = (valor) => {
 // Vista genérica de Grupos, parametrizada por `tipos`: se reutiliza tanto
 // para "Grupos" (FAMILIAR) como para "Grupos Empresariales" (CONSORCIO,
 // FLOTA, SOCIEDAD_HECHO) sin duplicar el componente.
-const GruposPanel = ({ token, tipos, titulo = 'Grupos', tipoDefault, abrirFichaIdInicial, onFichaAbierta }) => {
+const GruposPanel = ({
+  token, tipos, titulo = 'Grupos', tipoDefault, abrirFichaIdInicial, onFichaAbierta, encabezado,
+}) => {
   const tipoInicial = tipoDefault || tipos[0];
   const secciones = useMemo(() => seccionesGrupoParaTipos(tipos), [tipos]);
 
@@ -283,18 +285,30 @@ const GruposPanel = ({ token, tipos, titulo = 'Grupos', tipoDefault, abrirFichaI
     setMostrarNuevaOportunidad(true);
   };
 
+  const abrirNuevoGrupo = () => {
+    setNuevaForm(formularioGrupoInicial(tipoInicial));
+    setErrorForm(null);
+    setMostrarNueva(true);
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-2xl font-bold">{titulo}</h2>
-        <button
-          onClick={() => { setNuevaForm(formularioGrupoInicial(tipoInicial)); setErrorForm(null); setMostrarNueva(true); }}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition text-sm font-medium"
-        >
-          <Icon name="plus" />
-          Nuevo grupo
-        </button>
-      </div>
+      {/* Personas y Empresas embeben este panel como sub-pestaña (Grupos
+          familiares / Grupos empresariales) y ya traen su propio título +
+          switcher de sub-pestañas; `encabezado` les permite reemplazar esta
+          fila por la suya sin duplicar la lógica de alta de grupo. */}
+      {encabezado ? encabezado(abrirNuevoGrupo) : (
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <h2 className="text-2xl font-bold">{titulo}</h2>
+          <button
+            onClick={abrirNuevoGrupo}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition text-sm font-medium"
+          >
+            <Icon name="plus" />
+            Nuevo grupo
+          </button>
+        </div>
+      )}
 
       <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
         <div className="overflow-x-auto">

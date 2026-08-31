@@ -2,13 +2,13 @@
 // pintarlos) y App.jsx (para saber qué tabs cuentan como "del CRM" al
 // persistir el último tab visitado). En un archivo aparte porque Header.jsx
 // solo puede exportar el componente (react-refresh/only-export-components).
+// Grupos (familiares/empresariales) NO son tabs de esta barra: son
+// sub-pestañas dentro de Personas y Empresas (ver PersonasPanel/EmpresasPanel).
 export const CRM_TABS = [
   { id: 'crm', label: 'Pipeline' },
   { id: 'agenda', label: 'Agenda' },
   { id: 'personas', label: 'Personas' },
-  { id: 'grupos', label: 'Grupos' },
   { id: 'empresas', label: 'Empresas' },
-  { id: 'grupos-empresariales', label: 'Grupos Empresariales' },
   { id: 'leads', label: 'Leads' },
   { id: 'recuperables', label: 'Recuperables' },
   { id: 'marketing', label: 'Marketing' },
