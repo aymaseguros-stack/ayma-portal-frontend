@@ -4,7 +4,7 @@ import IntelligencePanel from './components/Admin/IntelligencePanel';
 import MarketingStudio from './components/Admin/MarketingStudio';
 import RecuperablesPanel from './components/Admin/RecuperablesPanel';
 import Header from './components/Header';
-import { CRM_TAB_IDS } from './components/navTabs';
+import { CRM_TAB_IDS, SINIESTROS_TAB_IDS } from './components/navTabs';
 import PolizasView from './components/PolizasView';
 import PersonasPanel from './components/Crm/PersonasPanel';
 import EmpresasPanel from './components/Crm/EmpresasPanel';
@@ -38,10 +38,12 @@ const extraerRol = (...fuentes) => {
 };
 const esRolAdmin = (rol) => rol === 'ADMIN' || rol === 'ADMINISTRADOR';
 
-// Persistencia del toggle Dashboard/CRM (fila 2) entre recargas: qué panel
-// está activo y, dentro de CRM, cuál fue el último tab visitado.
+// Persistencia del toggle Dashboard/CRM/Siniestros (fila 2) entre recargas:
+// qué panel está activo y, dentro de CRM o Siniestros, cuál fue el último
+// sub-tab (fila 3) visitado en cada uno.
 const PANEL_PRINCIPAL_KEY = 'ayma_panel_principal';
 const ULTIMO_TAB_CRM_KEY = 'ayma_ultimo_tab_crm';
+const ULTIMO_TAB_SINIESTROS_KEY = 'ayma_ultimo_tab_siniestros';
 
 const leerPanelPrincipal = () => {
   try { return localStorage.getItem(PANEL_PRINCIPAL_KEY) || 'dashboard'; } catch { return 'dashboard'; }
@@ -54,18 +56,34 @@ const leerUltimoTabCRM = () => {
     return 'crm';
   }
 };
+const leerUltimoTabSiniestros = () => {
+  try {
+    const guardado = localStorage.getItem(ULTIMO_TAB_SINIESTROS_KEY);
+    return SINIESTROS_TAB_IDS.includes(guardado) ? guardado : 'admin-siniestros';
+  } catch {
+    return 'admin-siniestros';
+  }
+};
 const guardarPanelPrincipal = (panel) => {
   try { localStorage.setItem(PANEL_PRINCIPAL_KEY, panel); } catch { /* localStorage no disponible */ }
 };
 const guardarUltimoTabCRM = (tab) => {
   try { localStorage.setItem(ULTIMO_TAB_CRM_KEY, tab); } catch { /* localStorage no disponible */ }
 };
+const guardarUltimoTabSiniestros = (tab) => {
+  try { localStorage.setItem(ULTIMO_TAB_SINIESTROS_KEY, tab); } catch { /* localStorage no disponible */ }
+};
 
 // Estado inicial
 const initialState = {
   user: null,
   token: null,
-  activeTab: leerPanelPrincipal() === 'crm' ? leerUltimoTabCRM() : 'dashboard',
+  activeTab: (() => {
+    const panel = leerPanelPrincipal();
+    if (panel === 'crm') return leerUltimoTabCRM();
+    if (panel === 'siniestros') return leerUltimoTabSiniestros();
+    return 'dashboard';
+  })(),
   polizas: [],
   vehiculos: [],
   clientes: [],
@@ -114,7 +132,6 @@ function App() {
 
   // Estados para admin de siniestros
   const [siniestrosAdmin, setSiniestrosAdmin] = useState([]);
-  const [verTodosSiniestros, setVerTodosSiniestros] = useState(false);
   const [siniestroSeleccionado, setSiniestroSeleccionado] = useState(null);
   const [nuevoEstado, setNuevoEstado] = useState('');
   const [notasInternas, setNotasInternas] = useState('');
@@ -406,20 +423,30 @@ function App() {
     if (tab !== 'siniestro') {
       setSiniestroEnviado(null);
     }
-    if (tab === 'admin-siniestros') {
+    if (tab === 'admin-siniestros' || tab === 'siniestros-resueltos') {
       cargarSiniestrosAdmin();
     }
     if (CRM_TAB_IDS.includes(tab)) {
       guardarUltimoTabCRM(tab);
     }
+    if (SINIESTROS_TAB_IDS.includes(tab)) {
+      guardarUltimoTabSiniestros(tab);
+    }
   };
 
-  // Toggle Dashboard/CRM (fila 2 del header): Dashboard reemplaza el contenido
-  // por el dashboard; CRM vuelve al último tab del CRM que se haya visitado.
+  // Toggle Dashboard/CRM/Siniestros (fila 2 del header): Dashboard reemplaza
+  // el contenido por el dashboard; CRM y Siniestros vuelven al último
+  // sub-tab que se haya visitado dentro de cada uno.
   const cambiarPanelPrincipal = (panel) => {
     setPanelPrincipal(panel);
     guardarPanelPrincipal(panel);
-    setActiveTab(panel === 'dashboard' ? 'dashboard' : leerUltimoTabCRM());
+    if (panel === 'dashboard') {
+      setActiveTab('dashboard');
+    } else if (panel === 'crm') {
+      setActiveTab(leerUltimoTabCRM());
+    } else {
+      setActiveTab(leerUltimoTabSiniestros());
+    }
   };
 
   // Verificar si es admin. Prioriza el rol devuelto por /api/v1/dashboard/
@@ -429,10 +456,10 @@ function App() {
     return esRolAdmin(rol);
   };
 
-  // Siniestros "en curso" por defecto (todo lo distinto de CERRADO), salvo
-  // que el usuario tilde "ver todos"
-  const getSiniestrosVisibles = () =>
-    verTodosSiniestros ? siniestrosAdmin : siniestrosAdmin.filter(s => s.estado !== 'CERRADO');
+  // Siniestros "en curso" (todo lo distinto de CERRADO) vs "resueltos"
+  // (CERRADO), cada uno en su propio sub-tab de la fila 3.
+  const getSiniestrosEnCurso = () => siniestrosAdmin.filter(s => s.estado !== 'CERRADO');
+  const getSiniestrosResueltos = () => siniestrosAdmin.filter(s => s.estado === 'CERRADO');
 
   // Login
   const handleLogin = async (e) => {
@@ -1482,57 +1509,53 @@ function App() {
           <RecuperablesPanel token={state.token} />
         )}
 
-        {/* SINIESTROS EN CURSO */}
-        {state.activeTab === 'admin-siniestros' && isAdmin() && (
+        {/* SINIESTROS: "En curso" (distinto de CERRADO) y "Resueltos" (CERRADO),
+            sub-tabs de la fila 3 cuando el toggle Siniestros está activo.
+            Comparten modal de gestión y tabla; solo cambia la lista filtrada
+            y, en "En curso", las estadísticas rápidas. */}
+        {(state.activeTab === 'admin-siniestros' || state.activeTab === 'siniestros-resueltos') && isAdmin() && (
           <div className="space-y-6">
             <div className="flex items-center justify-between flex-wrap gap-3">
-              <h2 className="text-2xl font-bold">Siniestros en curso</h2>
-              <div className="flex items-center gap-3">
-                <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={verTodosSiniestros}
-                    onChange={(e) => setVerTodosSiniestros(e.target.checked)}
-                    className="w-4 h-4 rounded"
-                  />
-                  Ver todos
-                </label>
-                <button
-                  onClick={cargarSiniestrosAdmin}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition text-sm font-medium"
-                >
-                  <Icon name="arrow-path" />
-                  Actualizar
-                </button>
-              </div>
+              <h2 className="text-2xl font-bold">
+                {state.activeTab === 'admin-siniestros' ? 'Siniestros en curso' : 'Siniestros resueltos'}
+              </h2>
+              <button
+                onClick={cargarSiniestrosAdmin}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition text-sm font-medium"
+              >
+                <Icon name="arrow-path" />
+                Actualizar
+              </button>
             </div>
 
-            {/* Estadísticas rápidas */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-yellow-900/30 border border-yellow-500/50 rounded-xl p-4 text-center">
-                <p className="text-3xl font-bold text-yellow-400">
-                  {siniestrosAdmin.filter(s => s.estado === 'PENDIENTE').length}
-                </p>
-                <p className="text-slate-400 text-sm">Pendientes</p>
+            {/* Estadísticas rápidas (solo en "En curso") */}
+            {state.activeTab === 'admin-siniestros' && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-yellow-900/30 border border-yellow-500/50 rounded-xl p-4 text-center">
+                  <p className="text-3xl font-bold text-yellow-400">
+                    {siniestrosAdmin.filter(s => s.estado === 'PENDIENTE').length}
+                  </p>
+                  <p className="text-slate-400 text-sm">Pendientes</p>
+                </div>
+                <div className="bg-blue-900/30 border border-blue-500/50 rounded-xl p-4 text-center">
+                  <p className="text-3xl font-bold text-blue-400">
+                    {siniestrosAdmin.filter(s => ['EN_REVISION', 'ENVIADO_CIA', 'EN_TRAMITE'].includes(s.estado)).length}
+                  </p>
+                  <p className="text-slate-400 text-sm">En Trámite</p>
+                </div>
+                <div className="bg-green-900/30 border border-green-500/50 rounded-xl p-4 text-center">
+                  <p className="text-3xl font-bold text-green-400">
+                    {siniestrosAdmin.filter(s => s.estado === 'APROBADO').length}
+                  </p>
+                  <p className="text-slate-400 text-sm">Aprobados</p>
+                </div>
+                <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center">
+                  <p className="text-3xl font-bold text-slate-300">{siniestrosAdmin.length}</p>
+                  <p className="text-slate-400 text-sm">Total</p>
+                </div>
               </div>
-              <div className="bg-blue-900/30 border border-blue-500/50 rounded-xl p-4 text-center">
-                <p className="text-3xl font-bold text-blue-400">
-                  {siniestrosAdmin.filter(s => ['EN_REVISION', 'ENVIADO_CIA', 'EN_TRAMITE'].includes(s.estado)).length}
-                </p>
-                <p className="text-slate-400 text-sm">En Trámite</p>
-              </div>
-              <div className="bg-green-900/30 border border-green-500/50 rounded-xl p-4 text-center">
-                <p className="text-3xl font-bold text-green-400">
-                  {siniestrosAdmin.filter(s => s.estado === 'APROBADO').length}
-                </p>
-                <p className="text-slate-400 text-sm">Aprobados</p>
-              </div>
-              <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center">
-                <p className="text-3xl font-bold text-slate-300">{siniestrosAdmin.length}</p>
-                <p className="text-slate-400 text-sm">Total</p>
-              </div>
-            </div>
-            
+            )}
+
             {/* Modal de edición */}
             {siniestroSeleccionado && (
               <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
@@ -1682,14 +1705,14 @@ function App() {
                           <p className="text-red-400/80 text-sm mt-2">{state.siniestrosError}</p>
                         </td>
                       </tr>
-                    ) : getSiniestrosVisibles().length === 0 ? (
+                    ) : (state.activeTab === 'admin-siniestros' ? getSiniestrosEnCurso() : getSiniestrosResueltos()).length === 0 ? (
                       <tr>
                         <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
-                          {verTodosSiniestros ? 'No hay siniestros registrados' : 'No hay siniestros en curso'}
+                          {state.activeTab === 'admin-siniestros' ? 'No hay siniestros en curso' : 'No hay siniestros resueltos'}
                         </td>
                       </tr>
                     ) : (
-                      getSiniestrosVisibles().map(sin => (
+                      (state.activeTab === 'admin-siniestros' ? getSiniestrosEnCurso() : getSiniestrosResueltos()).map(sin => (
                         <tr key={sin.id} className="hover:bg-slate-700/30 transition">
                           <td className="px-4 py-3">
                             <span className="font-mono text-sm text-blue-400">{sin.token}</span>

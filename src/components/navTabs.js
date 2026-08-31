@@ -17,3 +17,15 @@ export const CRM_TABS = [
 ];
 
 export const CRM_TAB_IDS = CRM_TABS.map(t => t.id);
+
+// Sub-pestañas del toggle "Siniestros" (fila 3 del header, cuando el toggle
+// activo es Siniestros): "En curso" y "Resueltos" filtran la misma lista por
+// estado (distinto de CERRADO / CERRADO); "Denunciar" reutiliza el mismo
+// formulario de denuncia que el tab "siniestro" de la fila 1.
+export const SINIESTROS_TABS = [
+  { id: 'admin-siniestros', label: 'En curso' },
+  { id: 'siniestros-resueltos', label: 'Resueltos' },
+  { id: 'siniestro', label: 'Denunciar' },
+];
+
+export const SINIESTROS_TAB_IDS = SINIESTROS_TABS.map(t => t.id);
