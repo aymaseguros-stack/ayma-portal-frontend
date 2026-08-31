@@ -1,6 +1,6 @@
 import React from 'react';
 import ScoringIndicator from './ScoringIndicator';
-import { CRM_TABS, SINIESTROS_TABS } from './navTabs';
+import { CRM_TABS, SINIESTROS_TABS, MAIL_TABS } from './navTabs';
 
 // Fila 1: navegación principal a la izquierda del logo. "Clientes" es la
 // única entrada admin-only; "Denuncia" y "Soporte" (extremo derecho) son
@@ -27,6 +27,7 @@ const toggleButtonClass = (active) =>
 // Sub-tabs de la fila 3 según el toggle activo de la fila 2. Dashboard no
 // tiene fila 3 (se pinta el dashboard directamente en el contenido).
 const SUB_TABS_POR_PANEL = {
+  mail: MAIL_TABS,
   crm: CRM_TABS,
   siniestros: SINIESTROS_TABS,
 };
@@ -95,6 +96,14 @@ const Header = ({
             >
               Dashboard
             </button>
+            {isAdmin && (
+              <button
+                onClick={() => onPanelPrincipalChange('mail')}
+                className={toggleButtonClass(panelPrincipal === 'mail')}
+              >
+                Mail
+              </button>
+            )}
             {isAdmin && (
               <button
                 onClick={() => onPanelPrincipalChange('crm')}

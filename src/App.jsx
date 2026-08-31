@@ -4,12 +4,15 @@ import IntelligencePanel from './components/Admin/IntelligencePanel';
 import MarketingStudio from './components/Admin/MarketingStudio';
 import RecuperablesPanel from './components/Admin/RecuperablesPanel';
 import Header from './components/Header';
-import { CRM_TAB_IDS, SINIESTROS_TAB_IDS } from './components/navTabs';
+import { CRM_TAB_IDS, SINIESTROS_TAB_IDS, MAIL_TAB_IDS } from './components/navTabs';
+import MailPanel from './components/Mail/MailPanel';
 import PolizasView from './components/PolizasView';
 import PersonasPanel from './components/Crm/PersonasPanel';
 import EmpresasPanel from './components/Crm/EmpresasPanel';
 import PipelineKanban from './components/Crm/PipelineKanban';
 import AgendaPanel from './components/Crm/AgendaPanel';
+import Timeline from './components/Crm/Timeline';
+import Modal from './components/Modal';
 import { Icon } from './components/Icons';
 import { normalizeList, formatApiError, authHeader, SESSION_EXPIRED_EVENT } from './utils/api';
 
@@ -44,6 +47,7 @@ const esRolAdmin = (rol) => rol === 'ADMIN' || rol === 'ADMINISTRADOR';
 const PANEL_PRINCIPAL_KEY = 'ayma_panel_principal';
 const ULTIMO_TAB_CRM_KEY = 'ayma_ultimo_tab_crm';
 const ULTIMO_TAB_SINIESTROS_KEY = 'ayma_ultimo_tab_siniestros';
+const ULTIMO_TAB_MAIL_KEY = 'ayma_ultimo_tab_mail';
 
 const leerPanelPrincipal = () => {
   try { return localStorage.getItem(PANEL_PRINCIPAL_KEY) || 'dashboard'; } catch { return 'dashboard'; }
@@ -64,6 +68,14 @@ const leerUltimoTabSiniestros = () => {
     return 'admin-siniestros';
   }
 };
+const leerUltimoTabMail = () => {
+  try {
+    const guardado = localStorage.getItem(ULTIMO_TAB_MAIL_KEY);
+    return MAIL_TAB_IDS.includes(guardado) ? guardado : 'mail-bandeja';
+  } catch {
+    return 'mail-bandeja';
+  }
+};
 const guardarPanelPrincipal = (panel) => {
   try { localStorage.setItem(PANEL_PRINCIPAL_KEY, panel); } catch { /* localStorage no disponible */ }
 };
@@ -72,6 +84,9 @@ const guardarUltimoTabCRM = (tab) => {
 };
 const guardarUltimoTabSiniestros = (tab) => {
   try { localStorage.setItem(ULTIMO_TAB_SINIESTROS_KEY, tab); } catch { /* localStorage no disponible */ }
+};
+const guardarUltimoTabMail = (tab) => {
+  try { localStorage.setItem(ULTIMO_TAB_MAIL_KEY, tab); } catch { /* localStorage no disponible */ }
 };
 
 // Estado inicial
@@ -82,6 +97,7 @@ const initialState = {
     const panel = leerPanelPrincipal();
     if (panel === 'crm') return leerUltimoTabCRM();
     if (panel === 'siniestros') return leerUltimoTabSiniestros();
+    if (panel === 'mail') return leerUltimoTabMail();
     return 'dashboard';
   })(),
   polizas: [],
@@ -155,6 +171,9 @@ function App() {
     }
   };
   const [convirtiendoLeadId, setConvirtiendoLeadId] = useState(null);
+  // Ficha liviana de actividad de un Lead (timeline unificado), abierta desde
+  // el botón "Actividad" de la tabla de Leads.
+  const [leadActividadAbierto, setLeadActividadAbierto] = useState(null);
 
   // Estado para marcar cliente como recuperable
   const [recuperableCliente, setRecuperableCliente] = useState(null);
@@ -432,11 +451,14 @@ function App() {
     if (SINIESTROS_TAB_IDS.includes(tab)) {
       guardarUltimoTabSiniestros(tab);
     }
+    if (MAIL_TAB_IDS.includes(tab)) {
+      guardarUltimoTabMail(tab);
+    }
   };
 
-  // Toggle Dashboard/CRM/Siniestros (fila 2 del header): Dashboard reemplaza
-  // el contenido por el dashboard; CRM y Siniestros vuelven al último
-  // sub-tab que se haya visitado dentro de cada uno.
+  // Toggle Dashboard/Mail/CRM/Siniestros (fila 2 del header): Dashboard
+  // reemplaza el contenido por el dashboard; Mail, CRM y Siniestros vuelven
+  // al último sub-tab que se haya visitado dentro de cada uno.
   const cambiarPanelPrincipal = (panel) => {
     setPanelPrincipal(panel);
     guardarPanelPrincipal(panel);
@@ -444,6 +466,8 @@ function App() {
       setActiveTab('dashboard');
     } else if (panel === 'crm') {
       setActiveTab(leerUltimoTabCRM());
+    } else if (panel === 'mail') {
+      setActiveTab(leerUltimoTabMail());
     } else {
       setActiveTab(leerUltimoTabSiniestros());
     }
@@ -1301,18 +1325,27 @@ function App() {
                             </span>
                           </td>
                           <td className="px-4 py-3 text-center">
-                            {lead.persona_id ? (
-                              <span className="text-xs text-slate-500">Ya convertido</span>
-                            ) : (
+                            <div className="flex items-center justify-center gap-2">
                               <button
-                                onClick={() => convertirLeadEnPersona(lead.id)}
-                                disabled={convirtiendoLeadId === lead.id}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 disabled:opacity-50 text-blue-400 rounded transition text-sm whitespace-nowrap"
+                                onClick={() => setLeadActividadAbierto(lead)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded transition text-sm whitespace-nowrap"
                               >
-                                <Icon name="arrow-right" size={14} />
-                                {convirtiendoLeadId === lead.id ? 'Convirtiendo...' : 'Convertir en persona'}
+                                <Icon name="clock" size={14} />
+                                Actividad
                               </button>
-                            )}
+                              {lead.persona_id ? (
+                                <span className="text-xs text-slate-500">Ya convertido</span>
+                              ) : (
+                                <button
+                                  onClick={() => convertirLeadEnPersona(lead.id)}
+                                  disabled={convirtiendoLeadId === lead.id}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 disabled:opacity-50 text-blue-400 rounded transition text-sm whitespace-nowrap"
+                                >
+                                  <Icon name="arrow-right" size={14} />
+                                  {convirtiendoLeadId === lead.id ? 'Convirtiendo...' : 'Convertir en persona'}
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1321,6 +1354,21 @@ function App() {
                 </div>
               )}
             </div>
+
+            {leadActividadAbierto && (
+              <Modal
+                title={`Actividad · ${leadActividadAbierto.nombre}`}
+                onClose={() => setLeadActividadAbierto(null)}
+                maxWidth="max-w-2xl"
+              >
+                <Timeline
+                  token={state.token}
+                  tipo="lead"
+                  id={leadActividadAbierto.id}
+                  destinatarioEmail={leadActividadAbierto.email}
+                />
+              </Modal>
+            )}
           </div>
         )}
 
@@ -1618,7 +1666,17 @@ function App() {
                         <p className="text-red-400 font-semibold text-sm">🚑 HAY LESIONADOS</p>
                       </div>
                     )}
-                    
+
+                    <div>
+                      <p className="text-slate-400 text-sm mb-2">Actividad:</p>
+                      <Timeline
+                        token={state.token}
+                        tipo="siniestro"
+                        id={siniestroSeleccionado.id}
+                        destinatarioEmail={siniestroSeleccionado.cliente_email}
+                      />
+                    </div>
+
                     <hr className="border-slate-700" />
                     
                     <div className="space-y-4">
@@ -1769,6 +1827,11 @@ function App() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* MAIL (bandeja de correo del portal) */}
+        {MAIL_TAB_IDS.includes(state.activeTab) && isAdmin() && (
+          <MailPanel token={state.token} subTab={state.activeTab} />
         )}
 
         {/* PIPELINE (CRM Fase 2 - Kanban) */}
