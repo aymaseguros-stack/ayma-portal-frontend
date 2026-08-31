@@ -8,6 +8,7 @@ import { esCuitValido, formatearCuit } from '../../utils/cuit';
 import { normalizeList, formatApiError, authHeader } from '../../utils/api';
 import NuevaOportunidadModal from './NuevaOportunidadModal';
 import OportunidadFichaModal from './OportunidadFichaModal';
+import OfertasSugeridas from './OfertasSugeridas';
 import GruposPanel from './GruposPanel';
 import Timeline from './Timeline';
 
@@ -35,7 +36,9 @@ const subTabButtonClass = (active) =>
     active ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
   }`;
 
-const EmpresasPanel = ({ token, abrirGrupoFichaIdInicial, onGrupoFichaAbierta }) => {
+const EmpresasPanel = ({
+  token, abrirFichaIdInicial, onFichaAbierta, abrirGrupoFichaIdInicial, onGrupoFichaAbierta,
+}) => {
   const [subTab, setSubTab] = useState('empresas');
   const [grupoFichaIdParaAbrir, setGrupoFichaIdParaAbrir] = useState(null);
 
@@ -75,6 +78,15 @@ const EmpresasPanel = ({ token, abrirGrupoFichaIdInicial, onGrupoFichaAbierta })
   const headers = { ...authHeader(token), 'Content-Type': 'application/json' };
 
   useEffect(() => { cargarEmpresas(); }, []);
+
+  // Navegación directa desde otra vista (p. ej. "Oportunidades detectadas")
+  useEffect(() => {
+    if (abrirFichaIdInicial) {
+      abrirFicha(abrirFichaIdInicial);
+      onFichaAbierta?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [abrirFichaIdInicial]);
 
   // Navegación cruzada desde la ficha de una Persona hacia un grupo
   // empresarial: cambia a la sub-pestaña "Grupos empresariales" y abre esa
@@ -545,18 +557,29 @@ const EmpresasPanel = ({ token, abrirGrupoFichaIdInicial, onGrupoFichaAbierta })
               )}
 
               {fichaTab === 'oportunidades' && (
-                <ListaSimple
-                  items={ficha.oportunidades}
-                  vacio="Sin oportunidades"
-                  render={(o) => (
-                    <button type="button" onClick={() => setOportunidadAbierta(o.id)} className="w-full text-left">
-                      <span className="font-mono text-xs text-blue-400">{o.token}</span>
-                      <span className="ml-2 font-medium">{o.track}</span>
-                      <span className="ml-2 px-2 py-0.5 bg-slate-600 rounded text-xs">{o.estado_crm}</span>
-                      <span className="ml-2 px-2 py-0.5 bg-slate-600 rounded text-xs">{o.resultado}</span>
-                    </button>
-                  )}
-                />
+                <div className="space-y-6">
+                  <ListaSimple
+                    items={ficha.oportunidades}
+                    vacio="Sin oportunidades"
+                    render={(o) => (
+                      <button type="button" onClick={() => setOportunidadAbierta(o.id)} className="w-full text-left">
+                        <span className="font-mono text-xs text-blue-400">{o.token}</span>
+                        <span className="ml-2 font-medium">{o.track}</span>
+                        <span className="ml-2 px-2 py-0.5 bg-slate-600 rounded text-xs">{o.estado_crm}</span>
+                        <span className="ml-2 px-2 py-0.5 bg-slate-600 rounded text-xs">{o.resultado}</span>
+                      </button>
+                    )}
+                  />
+
+                  <OfertasSugeridas
+                    token={token}
+                    tipo="empresa"
+                    id={ficha.id}
+                    ofertas={ficha.ofertas_sugeridas}
+                    onOportunidadCreada={async (creada) => { await refrescarFichaActual(); setOportunidadAbierta(creada.id); }}
+                    onVerOportunidad={setOportunidadAbierta}
+                  />
+                </div>
               )}
 
               {fichaTab === 'polizas' && (

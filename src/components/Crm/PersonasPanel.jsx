@@ -7,6 +7,7 @@ import { Dato, ListaSimple } from './FichaHelpers';
 import { normalizeList, formatApiError, authHeader } from '../../utils/api';
 import NuevaOportunidadModal from './NuevaOportunidadModal';
 import OportunidadFichaModal from './OportunidadFichaModal';
+import OfertasSugeridas from './OfertasSugeridas';
 import GruposPanel from './GruposPanel';
 import Timeline from './Timeline';
 
@@ -508,18 +509,29 @@ const PersonasPanel = ({
               )}
 
               {fichaTab === 'oportunidades' && (
-                <ListaSimple
-                  items={ficha.oportunidades}
-                  vacio="Sin oportunidades"
-                  render={(o) => (
-                    <button type="button" onClick={() => setOportunidadAbierta(o.id)} className="w-full text-left">
-                      <span className="font-mono text-xs text-blue-400">{o.token}</span>
-                      <span className="ml-2 font-medium">{o.track}</span>
-                      <span className="ml-2 px-2 py-0.5 bg-slate-600 rounded text-xs">{o.estado_crm}</span>
-                      <span className="ml-2 px-2 py-0.5 bg-slate-600 rounded text-xs">{o.resultado}</span>
-                    </button>
-                  )}
-                />
+                <div className="space-y-6">
+                  <ListaSimple
+                    items={ficha.oportunidades}
+                    vacio="Sin oportunidades"
+                    render={(o) => (
+                      <button type="button" onClick={() => setOportunidadAbierta(o.id)} className="w-full text-left">
+                        <span className="font-mono text-xs text-blue-400">{o.token}</span>
+                        <span className="ml-2 font-medium">{o.track}</span>
+                        <span className="ml-2 px-2 py-0.5 bg-slate-600 rounded text-xs">{o.estado_crm}</span>
+                        <span className="ml-2 px-2 py-0.5 bg-slate-600 rounded text-xs">{o.resultado}</span>
+                      </button>
+                    )}
+                  />
+
+                  <OfertasSugeridas
+                    token={token}
+                    tipo="persona"
+                    id={ficha.id}
+                    ofertas={ficha.ofertas_sugeridas}
+                    onOportunidadCreada={async (creada) => { await refrescarFichaActual(); setOportunidadAbierta(creada.id); }}
+                    onVerOportunidad={setOportunidadAbierta}
+                  />
+                </div>
               )}
 
               {fichaTab === 'polizas' && (

@@ -6,6 +6,7 @@
 // sub-pestañas dentro de Personas y Empresas (ver PersonasPanel/EmpresasPanel).
 export const CRM_TABS = [
   { id: 'crm', label: 'Pipeline' },
+  { id: 'oportunidades', label: 'Oportunidades' },
   { id: 'agenda', label: 'Agenda' },
   { id: 'personas', label: 'Personas' },
   { id: 'empresas', label: 'Empresas' },
