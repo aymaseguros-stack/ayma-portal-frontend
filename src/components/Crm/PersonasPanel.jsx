@@ -8,6 +8,7 @@ import { normalizeList, formatApiError, authHeader } from '../../utils/api';
 import NuevaOportunidadModal from './NuevaOportunidadModal';
 import OportunidadFichaModal from './OportunidadFichaModal';
 import GruposPanel from './GruposPanel';
+import Timeline from './Timeline';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -536,19 +537,7 @@ const PersonasPanel = ({
               )}
 
               {fichaTab === 'actividad' && (
-                <ListaSimple
-                  items={ficha.interacciones}
-                  vacio="Sin actividad registrada"
-                  render={(i) => (
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">{i.asunto || i.canal}</span>
-                        <span className="text-slate-500 text-xs">{new Date(i.fecha).toLocaleString('es-AR')}</span>
-                      </div>
-                      {i.resumen && <p className="text-slate-400 text-sm mt-1">{i.resumen}</p>}
-                    </div>
-                  )}
-                />
+                <Timeline token={token} tipo="persona" id={ficha.id} destinatarioEmail={ficha.email} />
               )}
             </div>
           )}

@@ -3,8 +3,9 @@ import { Icon } from '../Icons';
 import Modal from '../Modal';
 import { Dato } from './FichaHelpers';
 import { authHeader } from '../../utils/api';
+import Timeline from './Timeline';
 import {
-  ESTADO_CRM_BADGE, CANALES_VALIDOS, CANAL_ICON, MOTIVOS_PERDIDA_VALIDOS,
+  ESTADO_CRM_BADGE, CANALES_VALIDOS, MOTIVOS_PERDIDA_VALIDOS,
   formatMoneda,
 } from './oportunidadConstants';
 
@@ -23,8 +24,7 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('datos');
 
-  const [timeline, setTimeline] = useState([]);
-  const [timelineLoading, setTimelineLoading] = useState(false);
+  const [timelineRefreshKey, setTimelineRefreshKey] = useState(0);
 
   const [mostrarInteraccion, setMostrarInteraccion] = useState(false);
   const [interaccionForm, setInteraccionForm] = useState({ canal: 'LLAMADA', direccion: 'OUT', asunto: '', resumen: '' });
@@ -44,30 +44,11 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
     setDetalle(await res.json());
   };
 
-  const cargarTimeline = async () => {
-    setTimelineLoading(true);
-    try {
-      const res = await fetch(`${API_URL}/api/v1/crm/interacciones/timeline/oportunidad/${oportunidadId}`, { headers });
-      if (!res.ok) throw new Error('Error ' + res.status);
-      const data = await res.json();
-      setTimeline(data.items || []);
-    } catch (err) {
-      console.error('Error cargando timeline:', err);
-    } finally {
-      setTimelineLoading(false);
-    }
-  };
-
   useEffect(() => {
     setLoading(true);
     cargarDetalle().finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [oportunidadId]);
-
-  useEffect(() => {
-    if (tab === 'timeline') cargarTimeline();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
 
   const registrarInteraccion = async (e) => {
     e.preventDefault();
@@ -94,7 +75,7 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
       setMostrarInteraccion(false);
       setInteraccionForm({ canal: 'LLAMADA', direccion: 'OUT', asunto: '', resumen: '' });
       await cargarDetalle();
-      if (tab === 'timeline') await cargarTimeline();
+      setTimelineRefreshKey(k => k + 1);
       onChanged?.();
     } catch (err) {
       setErrorAccion(err.message);
@@ -237,29 +218,14 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
           )}
 
           {tab === 'timeline' && (
-            timelineLoading ? (
-              <p className="text-slate-400 text-center py-8">Cargando timeline...</p>
-            ) : timeline.length === 0 ? (
-              <p className="text-slate-500 text-sm text-center py-8">Sin actividad registrada</p>
-            ) : (
-              <div className="space-y-2">
-                {timeline.map((item) => (
-                  <div key={`${item.tipo}-${item.id}`} className="bg-slate-700/30 rounded-lg p-3 flex gap-3">
-                    <div className="shrink-0 mt-0.5 text-blue-400">
-                      <Icon name={item.tipo === 'tarea' ? 'flag' : (CANAL_ICON[item.canal] || 'ellipsis-horizontal')} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-medium truncate">{item.titulo || item.canal || 'Actividad'}</span>
-                        <span className="text-slate-500 text-xs shrink-0">{new Date(item.fecha).toLocaleString('es-AR')}</span>
-                      </div>
-                      {item.detalle && <p className="text-slate-400 text-sm mt-1">{item.detalle}</p>}
-                      {item.estado && <span className="inline-block mt-1 px-2 py-0.5 bg-slate-600 rounded text-xs">{item.estado}</span>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )
+            <Timeline
+              key={timelineRefreshKey}
+              token={token}
+              tipo="oportunidad"
+              id={oportunidadId}
+              destinatarioEmail={detalle.email}
+              oportunidadId={oportunidadId}
+            />
           )}
 
           {tab === 'tareas' && (

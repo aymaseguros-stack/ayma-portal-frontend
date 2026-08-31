@@ -9,6 +9,7 @@ import { Dato, ListaSimple } from './FichaHelpers';
 import { normalizeList, formatApiError, authHeader } from '../../utils/api';
 import NuevaOportunidadModal from './NuevaOportunidadModal';
 import OportunidadFichaModal from './OportunidadFichaModal';
+import Timeline from './Timeline';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -17,6 +18,7 @@ const FICHA_TABS = [
   { id: 'miembros', label: 'Miembros' },
   { id: 'cartera', label: 'Cartera' },
   { id: 'oportunidades', label: 'Oportunidades' },
+  { id: 'actividad', label: 'Actividad' },
 ];
 
 const ROLES_MIEMBRO = ['TITULAR_PRINCIPAL', 'CONYUGE', 'HIJO', 'FAMILIAR', 'MIEMBRO', 'OTRO'];
@@ -591,6 +593,10 @@ const GruposPanel = ({
                     </div>
                   )}
                 </div>
+              )}
+
+              {fichaTab === 'actividad' && (
+                <Timeline token={token} tipo="grupo" id={ficha.id} />
               )}
             </div>
           )}
