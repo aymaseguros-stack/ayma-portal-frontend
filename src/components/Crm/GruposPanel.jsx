@@ -9,6 +9,7 @@ import { Dato, ListaSimple } from './FichaHelpers';
 import { normalizeList, formatApiError, authHeader } from '../../utils/api';
 import NuevaOportunidadModal from './NuevaOportunidadModal';
 import OportunidadFichaModal from './OportunidadFichaModal';
+import OfertasSugeridas from './OfertasSugeridas';
 import Timeline from './Timeline';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
@@ -71,28 +72,10 @@ const GruposPanel = ({
   const [mostrarNuevaOportunidad, setMostrarNuevaOportunidad] = useState(false);
   const [trackPreseleccionado, setTrackPreseleccionado] = useState(null);
   const [oportunidadAbierta, setOportunidadAbierta] = useState(null);
-  // Mapa ramo -> track del catálogo de productos, para poder precargar el
-  // track correcto al crear una oportunidad desde un chip de "producto faltante".
-  const [ramoATrack, setRamoATrack] = useState({});
 
   const headers = { ...authHeader(token), 'Content-Type': 'application/json' };
 
-  useEffect(() => { cargarGrupos(); cargarCatalogoProductos(); }, []);
-
-  const cargarCatalogoProductos = async () => {
-    try {
-      const res = await fetch(`${API_URL}/api/v1/crm/productos`, { headers });
-      if (!res.ok) return;
-      const productos = await res.json();
-      const mapa = {};
-      for (const p of productos) {
-        if (p.ramo && p.track) mapa[p.ramo] = p.track;
-      }
-      setRamoATrack(mapa);
-    } catch (err) {
-      console.error('Error cargando catálogo de productos:', err);
-    }
-  };
+  useEffect(() => { cargarGrupos(); }, []);
 
   // Navegación directa desde la ficha de Persona ("ver grupo")
   useEffect(() => {
@@ -280,11 +263,6 @@ const GruposPanel = ({
     } finally {
       setAgregando(false);
     }
-  };
-
-  const crearOportunidadDesdeProducto = (ramo) => {
-    setTrackPreseleccionado(ramoATrack[ramo] || null);
-    setMostrarNuevaOportunidad(true);
   };
 
   const abrirNuevoGrupo = () => {
@@ -568,30 +546,14 @@ const GruposPanel = ({
                     )}
                   />
 
-                  {ficha.productos_faltantes && ficha.productos_faltantes.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">
-                        Productos faltantes
-                      </h4>
-                      <div className="flex flex-wrap gap-2">
-                        {ficha.productos_faltantes.map((prod, idx) => {
-                          const ramo = typeof prod === 'string' ? prod : prod.ramo;
-                          const label = typeof prod === 'string' ? prod : (prod.label || prod.ramo);
-                          return (
-                            <button
-                              key={idx}
-                              type="button"
-                              title="Crear oportunidad para este producto"
-                              onClick={() => crearOportunidadDesdeProducto(ramo)}
-                              className="px-3 py-1.5 bg-slate-700/60 border border-slate-600 rounded-full text-sm text-slate-300 hover:bg-blue-600/30 hover:border-blue-500 hover:text-white transition"
-                            >
-                              {label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                  <OfertasSugeridas
+                    token={token}
+                    tipo="grupo"
+                    id={ficha.id}
+                    ofertas={ficha.ofertas_sugeridas}
+                    onOportunidadCreada={async (creada) => { await refrescarFichaActual(); setOportunidadAbierta(creada.id); }}
+                    onVerOportunidad={setOportunidadAbierta}
+                  />
                 </div>
               )}
 

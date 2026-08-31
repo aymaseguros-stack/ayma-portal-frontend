@@ -10,6 +10,7 @@ import PolizasView from './components/PolizasView';
 import PersonasPanel from './components/Crm/PersonasPanel';
 import EmpresasPanel from './components/Crm/EmpresasPanel';
 import PipelineKanban from './components/Crm/PipelineKanban';
+import OportunidadesPanel from './components/Crm/OportunidadesPanel';
 import AgendaPanel from './components/Crm/AgendaPanel';
 import Timeline from './components/Crm/Timeline';
 import Modal from './components/Modal';
@@ -155,6 +156,19 @@ function App() {
 
   // CRM v2: navegación cruzada Leads -> ficha de Persona recién convertida
   const [personaFichaAAbrir, setPersonaFichaAAbrir] = useState(null);
+  // CRM Fase 4: navegación cruzada Oportunidades detectadas -> ficha de Empresa
+  const [empresaFichaAAbrir, setEmpresaFichaAAbrir] = useState(null);
+  // Fila de "Oportunidades detectadas" -> ficha de la entidad (persona/empresa).
+  // Grupos no participan del motor de oferta global todavía.
+  const irAFichaEntidad = (tipoEntidad, entidadId) => {
+    if (tipoEntidad === 'empresa') {
+      setEmpresaFichaAAbrir(entidadId);
+      setActiveTab('empresas');
+    } else {
+      setPersonaFichaAAbrir(entidadId);
+      setActiveTab('personas');
+    }
+  };
   // CRM v2: navegación cruzada Persona -> ficha del Grupo al que pertenece.
   // Grupos familiares (FAMILIAR) viven como sub-pestaña dentro de Personas;
   // grupos empresariales (CONSORCIO/FLOTA/SOCIEDAD_HECHO), dentro de Empresas.
@@ -1882,6 +1896,11 @@ function App() {
           <PipelineKanban token={state.token} />
         )}
 
+        {/* OPORTUNIDADES DETECTADAS + REGLAS (CRM Fase 4 - Motor de oferta) */}
+        {state.activeTab === 'oportunidades' && isAdmin() && (
+          <OportunidadesPanel token={state.token} onIrAFicha={irAFichaEntidad} />
+        )}
+
         {/* AGENDA (CRM Fase 2) */}
         {state.activeTab === 'agenda' && isAdmin() && (
           <AgendaPanel token={state.token} />
@@ -1903,6 +1922,8 @@ function App() {
         {state.activeTab === 'empresas' && isAdmin() && (
           <EmpresasPanel
             token={state.token}
+            abrirFichaIdInicial={empresaFichaAAbrir}
+            onFichaAbierta={() => setEmpresaFichaAAbrir(null)}
             abrirGrupoFichaIdInicial={grupoFichaEmpresarialAAbrir}
             onGrupoFichaAbierta={() => setGrupoFichaEmpresarialAAbrir(null)}
           />
