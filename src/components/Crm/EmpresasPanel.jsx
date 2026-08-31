@@ -8,6 +8,7 @@ import { esCuitValido, formatearCuit } from '../../utils/cuit';
 import { normalizeList, formatApiError, authHeader } from '../../utils/api';
 import NuevaOportunidadModal from './NuevaOportunidadModal';
 import OportunidadFichaModal from './OportunidadFichaModal';
+import GruposPanel from './GruposPanel';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -21,7 +22,22 @@ const FICHA_TABS = [
 
 const ROLES = ['TITULAR', 'GERENTE', 'RRHH', 'CONTADOR', 'COMPRAS', 'OTRO'];
 
-const EmpresasPanel = ({ token }) => {
+// Sub-pestañas en línea con el título "Empresas", mismo estilo que
+// PolizasView (Todas | Vehículos | ART | Comercio).
+const SUB_TABS = [
+  { id: 'empresas', label: 'Empresas' },
+  { id: 'grupos', label: 'Grupos empresariales' },
+];
+
+const subTabButtonClass = (active) =>
+  `px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition ${
+    active ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+  }`;
+
+const EmpresasPanel = ({ token, abrirGrupoFichaIdInicial, onGrupoFichaAbierta }) => {
+  const [subTab, setSubTab] = useState('empresas');
+  const [grupoFichaIdParaAbrir, setGrupoFichaIdParaAbrir] = useState(null);
+
   const [empresas, setEmpresas] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -58,6 +74,18 @@ const EmpresasPanel = ({ token }) => {
   const headers = { ...authHeader(token), 'Content-Type': 'application/json' };
 
   useEffect(() => { cargarEmpresas(); }, []);
+
+  // Navegación cruzada desde la ficha de una Persona hacia un grupo
+  // empresarial: cambia a la sub-pestaña "Grupos empresariales" y abre esa
+  // ficha ahí.
+  useEffect(() => {
+    if (abrirGrupoFichaIdInicial) {
+      setSubTab('grupos');
+      setGrupoFichaIdParaAbrir(abrirGrupoFichaIdInicial);
+      onGrupoFichaAbierta?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [abrirGrupoFichaIdInicial]);
 
   useEffect(() => {
     if (!vincularQuery.trim()) { setVincularResultados([]); return; }
@@ -257,10 +285,54 @@ const EmpresasPanel = ({ token }) => {
     }
   };
 
+  const subTabPills = (
+    <div className="flex gap-1 overflow-x-auto">
+      {SUB_TABS.map(t => (
+        <button
+          key={t.id}
+          onClick={() => setSubTab(t.id)}
+          className={subTabButtonClass(subTab === t.id)}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (subTab === 'grupos') {
+    return (
+      <GruposPanel
+        token={token}
+        tipos={['CONSORCIO', 'FLOTA', 'SOCIEDAD_HECHO']}
+        tipoDefault="CONSORCIO"
+        abrirFichaIdInicial={grupoFichaIdParaAbrir}
+        onFichaAbierta={() => setGrupoFichaIdParaAbrir(null)}
+        encabezado={(abrirNuevoGrupo) => (
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-4 flex-wrap">
+              <h2 className="text-2xl font-bold">Empresas</h2>
+              {subTabPills}
+            </div>
+            <button
+              onClick={abrirNuevoGrupo}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition text-sm font-medium"
+            >
+              <Icon name="plus" />
+              Nuevo grupo
+            </button>
+          </div>
+        )}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-2xl font-bold">Empresas</h2>
+        <div className="flex items-center gap-4 flex-wrap">
+          <h2 className="text-2xl font-bold">Empresas</h2>
+          {subTabPills}
+        </div>
         <button
           onClick={() => { setNuevaForm(EMPRESA_INITIAL_FORM); setErrorForm(null); setCuitInvalido(false); setMostrarNueva(true); }}
           className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition text-sm font-medium"

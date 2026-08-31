@@ -8,7 +8,6 @@ import { CRM_TAB_IDS } from './components/navTabs';
 import PolizasView from './components/PolizasView';
 import PersonasPanel from './components/Crm/PersonasPanel';
 import EmpresasPanel from './components/Crm/EmpresasPanel';
-import GruposPanel from './components/Crm/GruposPanel';
 import PipelineKanban from './components/Crm/PipelineKanban';
 import AgendaPanel from './components/Crm/AgendaPanel';
 import { Icon } from './components/Icons';
@@ -124,17 +123,18 @@ function App() {
   // CRM v2: navegación cruzada Leads -> ficha de Persona recién convertida
   const [personaFichaAAbrir, setPersonaFichaAAbrir] = useState(null);
   // CRM v2: navegación cruzada Persona -> ficha del Grupo al que pertenece.
-  // Hay dos vistas de Grupos (Grupos = FAMILIAR, Grupos Empresariales =
-  // CONSORCIO/FLOTA/SOCIEDAD_HECHO): el tipo del grupo decide a cuál ir.
+  // Grupos familiares (FAMILIAR) viven como sub-pestaña dentro de Personas;
+  // grupos empresariales (CONSORCIO/FLOTA/SOCIEDAD_HECHO), dentro de Empresas.
+  // El tipo del grupo decide a qué vista y sub-pestaña ir.
   const [grupoFichaAAbrir, setGrupoFichaAAbrir] = useState(null);
   const [grupoFichaEmpresarialAAbrir, setGrupoFichaEmpresarialAAbrir] = useState(null);
   const irAFichaGrupo = (grupoId, tipo) => {
     if (tipo === 'FAMILIAR') {
       setGrupoFichaAAbrir(grupoId);
-      setActiveTab('grupos');
+      setActiveTab('personas');
     } else {
       setGrupoFichaEmpresarialAAbrir(grupoId);
-      setActiveTab('grupos-empresariales');
+      setActiveTab('empresas');
     }
   };
   const [convirtiendoLeadId, setConvirtiendoLeadId] = useState(null);
@@ -1758,42 +1758,24 @@ function App() {
           <AgendaPanel token={state.token} />
         )}
 
-        {/* PERSONAS (CRM v2) */}
+        {/* PERSONAS (CRM v2) - incluye sub-pestaña "Grupos familiares" */}
         {state.activeTab === 'personas' && isAdmin() && (
           <PersonasPanel
             token={state.token}
             abrirFichaIdInicial={personaFichaAAbrir}
             onFichaAbierta={() => setPersonaFichaAAbrir(null)}
             onIrAGrupo={irAFichaGrupo}
+            abrirGrupoFichaIdInicial={grupoFichaAAbrir}
+            onGrupoFichaAbierta={() => setGrupoFichaAAbrir(null)}
           />
         )}
 
-        {/* GRUPOS (CRM v2) - grupos FAMILIAR */}
-        {state.activeTab === 'grupos' && isAdmin() && (
-          <GruposPanel
-            token={state.token}
-            tipos={['FAMILIAR']}
-            titulo="Grupos"
-            tipoDefault="FAMILIAR"
-            abrirFichaIdInicial={grupoFichaAAbrir}
-            onFichaAbierta={() => setGrupoFichaAAbrir(null)}
-          />
-        )}
-
-        {/* EMPRESAS (CRM v2) */}
+        {/* EMPRESAS (CRM v2) - incluye sub-pestaña "Grupos empresariales" */}
         {state.activeTab === 'empresas' && isAdmin() && (
-          <EmpresasPanel token={state.token} />
-        )}
-
-        {/* GRUPOS EMPRESARIALES (CRM v2) - grupos CONSORCIO/FLOTA/SOCIEDAD_HECHO */}
-        {state.activeTab === 'grupos-empresariales' && isAdmin() && (
-          <GruposPanel
+          <EmpresasPanel
             token={state.token}
-            tipos={['CONSORCIO', 'FLOTA', 'SOCIEDAD_HECHO']}
-            titulo="Grupos Empresariales"
-            tipoDefault="CONSORCIO"
-            abrirFichaIdInicial={grupoFichaEmpresarialAAbrir}
-            onFichaAbierta={() => setGrupoFichaEmpresarialAAbrir(null)}
+            abrirGrupoFichaIdInicial={grupoFichaEmpresarialAAbrir}
+            onGrupoFichaAbierta={() => setGrupoFichaEmpresarialAAbrir(null)}
           />
         )}
 
