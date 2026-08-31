@@ -401,9 +401,9 @@ const PersonasPanel = ({ token, abrirFichaIdInicial, onFichaAbierta, onIrAGrupo 
                         <div className="flex flex-wrap gap-2">
                           {ficha.grupos.map((g) => (
                             <button
-                              key={g.id}
+                              key={g.grupo_id}
                               type="button"
-                              onClick={() => onIrAGrupo?.(g.id)}
+                              onClick={() => onIrAGrupo?.(g.grupo_id, g.tipo)}
                               className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 rounded-full text-sm transition"
                             >
                               <span className="font-medium">{g.nombre}</span>

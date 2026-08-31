@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../Icons';
 import Modal from '../Modal';
 import FieldForm from '../FieldForm';
-import { GRUPO_FIELD_SECTIONS, GRUPO_INITIAL_FORM, TIPO_GRUPO_OPCIONES } from './grupoFields';
+import {
+  TIPO_GRUPO_OPCIONES, seccionesGrupoParaTipos, formularioGrupoInicial,
+} from './grupoFields';
 import { Dato, ListaSimple } from './FichaHelpers';
 import { normalizeList, formatApiError, authHeader } from '../../utils/api';
 import NuevaOportunidadModal from './NuevaOportunidadModal';
@@ -28,13 +30,19 @@ const formatMoneda = (valor) => {
   return numero.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
 };
 
-const GruposPanel = ({ token, abrirFichaIdInicial, onFichaAbierta }) => {
+// Vista genérica de Grupos, parametrizada por `tipos`: se reutiliza tanto
+// para "Grupos" (FAMILIAR) como para "Grupos Empresariales" (CONSORCIO,
+// FLOTA, SOCIEDAD_HECHO) sin duplicar el componente.
+const GruposPanel = ({ token, tipos, titulo = 'Grupos', tipoDefault, abrirFichaIdInicial, onFichaAbierta }) => {
+  const tipoInicial = tipoDefault || tipos[0];
+  const secciones = useMemo(() => seccionesGrupoParaTipos(tipos), [tipos]);
+
   const [grupos, setGrupos] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const [mostrarNueva, setMostrarNueva] = useState(false);
-  const [nuevaForm, setNuevaForm] = useState(GRUPO_INITIAL_FORM);
+  const [nuevaForm, setNuevaForm] = useState(() => formularioGrupoInicial(tipoInicial));
   const [guardando, setGuardando] = useState(false);
   const [errorForm, setErrorForm] = useState(null);
 
@@ -43,7 +51,7 @@ const GruposPanel = ({ token, abrirFichaIdInicial, onFichaAbierta }) => {
   const [fichaLoading, setFichaLoading] = useState(false);
   const [fichaTab, setFichaTab] = useState('datos');
   const [editando, setEditando] = useState(false);
-  const [editForm, setEditForm] = useState(GRUPO_INITIAL_FORM);
+  const [editForm, setEditForm] = useState(() => formularioGrupoInicial());
 
   // Agregar miembro
   const [mostrarAgregar, setMostrarAgregar] = useState(false);
@@ -114,9 +122,15 @@ const GruposPanel = ({ token, abrirFichaIdInicial, onFichaAbierta }) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_URL}/api/v1/crm/grupos`, { headers });
+      // El backend solo filtra por un tipo exacto (?tipo=X); para vistas con
+      // varios tipos (Grupos Empresariales) se trae todo y se filtra acá.
+      const url = tipos.length === 1
+        ? `${API_URL}/api/v1/crm/grupos?tipo=${tipos[0]}`
+        : `${API_URL}/api/v1/crm/grupos?limit=200`;
+      const res = await fetch(url, { headers });
       if (!res.ok) throw new Error(await formatApiError(res));
-      setGrupos(normalizeList(await res.json()).items);
+      const items = normalizeList(await res.json()).items;
+      setGrupos(tipos.length === 1 ? items : items.filter(g => tipos.includes(g.tipo)));
     } catch (err) {
       console.error('Error cargando grupos:', err);
       setError(err.message);
@@ -148,7 +162,7 @@ const GruposPanel = ({ token, abrirFichaIdInicial, onFichaAbierta }) => {
       }
       const creado = await res.json();
       setMostrarNueva(false);
-      setNuevaForm(GRUPO_INITIAL_FORM);
+      setNuevaForm(formularioGrupoInicial(tipoInicial));
       cargarGrupos();
       abrirFicha(creado.id);
     } catch (err) {
@@ -164,7 +178,7 @@ const GruposPanel = ({ token, abrirFichaIdInicial, onFichaAbierta }) => {
     if (!res.ok) throw new Error('Error ' + res.status);
     const data = await res.json();
     setFicha(data);
-    setEditForm({ ...GRUPO_INITIAL_FORM, ...data });
+    setEditForm({ ...formularioGrupoInicial(), ...data });
     return data;
   };
 
@@ -199,7 +213,7 @@ const GruposPanel = ({ token, abrirFichaIdInicial, onFichaAbierta }) => {
     try {
       const payload = Object.fromEntries(
         Object.entries(editForm)
-          .filter(([k]) => GRUPO_FIELD_SECTIONS.some(s => s.campos.some(c => c.name === k)))
+          .filter(([k]) => secciones.some(s => s.campos.some(c => c.name === k)))
           .map(([k, v]) => [k, v === '' ? null : v])
       );
       const res = await fetch(`${API_URL}/api/v1/crm/grupos/${fichaId}`, {
@@ -272,9 +286,9 @@ const GruposPanel = ({ token, abrirFichaIdInicial, onFichaAbierta }) => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-2xl font-bold">Grupos</h2>
+        <h2 className="text-2xl font-bold">{titulo}</h2>
         <button
-          onClick={() => { setNuevaForm(GRUPO_INITIAL_FORM); setErrorForm(null); setMostrarNueva(true); }}
+          onClick={() => { setNuevaForm(formularioGrupoInicial(tipoInicial)); setErrorForm(null); setMostrarNueva(true); }}
           className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition text-sm font-medium"
         >
           <Icon name="plus" />
@@ -329,7 +343,7 @@ const GruposPanel = ({ token, abrirFichaIdInicial, onFichaAbierta }) => {
       {mostrarNueva && (
         <Modal title="Nuevo grupo" onClose={() => setMostrarNueva(false)} maxWidth="max-w-3xl">
           <form onSubmit={crearGrupo} className="space-y-6">
-            <FieldForm sections={GRUPO_FIELD_SECTIONS} values={nuevaForm} onChange={setNuevaForm} />
+            <FieldForm sections={secciones} values={nuevaForm} onChange={setNuevaForm} />
             {errorForm && (
               <div className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-2 rounded-lg text-sm">
                 {errorForm}
@@ -425,7 +439,7 @@ const GruposPanel = ({ token, abrirFichaIdInicial, onFichaAbierta }) => {
               {fichaTab === 'datos' && (
                 editando ? (
                   <form onSubmit={guardarEdicion} className="space-y-6">
-                    <FieldForm sections={GRUPO_FIELD_SECTIONS} values={editForm} onChange={setEditForm} />
+                    <FieldForm sections={secciones} values={editForm} onChange={setEditForm} />
                     <div className="flex gap-4 pt-2">
                       <button
                         type="button"
