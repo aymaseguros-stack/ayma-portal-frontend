@@ -6,6 +6,8 @@ import { EMPRESA_FIELD_SECTIONS, EMPRESA_INITIAL_FORM } from './empresaFields';
 import { Dato, ListaSimple } from './FichaHelpers';
 import { esCuitValido, formatearCuit } from '../../utils/cuit';
 import { normalizeList, formatApiError, authHeader } from '../../utils/api';
+import NuevaOportunidadModal from './NuevaOportunidadModal';
+import OportunidadFichaModal from './OportunidadFichaModal';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -49,6 +51,9 @@ const EmpresasPanel = ({ token }) => {
   const [esContactoPrincipal, setEsContactoPrincipal] = useState(false);
   const [vinculando, setVinculando] = useState(false);
   const [errorVinculo, setErrorVinculo] = useState(null);
+
+  const [mostrarNuevaOportunidad, setMostrarNuevaOportunidad] = useState(false);
+  const [oportunidadAbierta, setOportunidadAbierta] = useState(null);
 
   const headers = { ...authHeader(token), 'Content-Type': 'application/json' };
 
@@ -394,6 +399,15 @@ const EmpresasPanel = ({ token }) => {
                     Vincular persona
                   </button>
                 )}
+                {fichaTab === 'oportunidades' && (
+                  <button
+                    onClick={() => setMostrarNuevaOportunidad(true)}
+                    className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition text-sm"
+                  >
+                    <Icon name="plus" />
+                    Nueva oportunidad
+                  </button>
+                )}
               </div>
 
               {fichaTab === 'datos' && (
@@ -462,12 +476,12 @@ const EmpresasPanel = ({ token }) => {
                   items={ficha.oportunidades}
                   vacio="Sin oportunidades"
                   render={(o) => (
-                    <>
+                    <button type="button" onClick={() => setOportunidadAbierta(o.id)} className="w-full text-left">
                       <span className="font-mono text-xs text-blue-400">{o.token}</span>
                       <span className="ml-2 font-medium">{o.track}</span>
                       <span className="ml-2 px-2 py-0.5 bg-slate-600 rounded text-xs">{o.estado_crm}</span>
                       <span className="ml-2 px-2 py-0.5 bg-slate-600 rounded text-xs">{o.resultado}</span>
-                    </>
+                    </button>
                   )}
                 />
               )}
@@ -599,6 +613,24 @@ const EmpresasPanel = ({ token }) => {
             </div>
           </form>
         </Modal>
+      )}
+
+      {mostrarNuevaOportunidad && ficha && (
+        <NuevaOportunidadModal
+          token={token}
+          preset={{ empresa_id: ficha.id, nombre: ficha.razon_social }}
+          onClose={() => setMostrarNuevaOportunidad(false)}
+          onCreated={async () => { setMostrarNuevaOportunidad(false); await refrescarFichaActual(); cargarEmpresas(); }}
+        />
+      )}
+
+      {oportunidadAbierta && (
+        <OportunidadFichaModal
+          token={token}
+          oportunidadId={oportunidadAbierta}
+          onClose={() => setOportunidadAbierta(null)}
+          onChanged={refrescarFichaActual}
+        />
       )}
     </div>
   );
