@@ -4,7 +4,7 @@ import IntelligencePanel from './components/Admin/IntelligencePanel';
 import MarketingStudio from './components/Admin/MarketingStudio';
 import RecuperablesPanel from './components/Admin/RecuperablesPanel';
 import Header from './components/Header';
-import { CRM_TAB_IDS, SINIESTROS_TAB_IDS, MAIL_TAB_IDS } from './components/navTabs';
+import { CRM_TAB_IDS, SINIESTROS_TABS, MAIL_TAB_IDS } from './components/navTabs';
 import MailPanel from './components/Mail/MailPanel';
 import PolizasView from './components/PolizasView';
 import PersonasPanel from './components/Crm/PersonasPanel';
@@ -41,16 +41,22 @@ const extraerRol = (...fuentes) => {
 };
 const esRolAdmin = (rol) => rol === 'ADMIN' || rol === 'ADMINISTRADOR';
 
-// Persistencia del toggle Dashboard/CRM/Siniestros (fila 2) entre recargas:
-// qué panel está activo y, dentro de CRM o Siniestros, cuál fue el último
-// sub-tab (fila 3) visitado en cada uno.
+// Persistencia del toggle Dashboard/Mail/CRM (fila 2) entre recargas: qué
+// panel está activo y, dentro de CRM, cuál fue el último sub-tab (fila 3)
+// visitado. Siniestros ya no es parte de este toggle: es su propia vista de
+// fila 1 (ver NAV_TABS en Header.jsx) y siempre abre en "En curso".
+const PANELES_PRINCIPALES_VALIDOS = ['dashboard', 'mail', 'crm'];
 const PANEL_PRINCIPAL_KEY = 'ayma_panel_principal';
 const ULTIMO_TAB_CRM_KEY = 'ayma_ultimo_tab_crm';
-const ULTIMO_TAB_SINIESTROS_KEY = 'ayma_ultimo_tab_siniestros';
 const ULTIMO_TAB_MAIL_KEY = 'ayma_ultimo_tab_mail';
 
 const leerPanelPrincipal = () => {
-  try { return localStorage.getItem(PANEL_PRINCIPAL_KEY) || 'dashboard'; } catch { return 'dashboard'; }
+  try {
+    const guardado = localStorage.getItem(PANEL_PRINCIPAL_KEY);
+    return PANELES_PRINCIPALES_VALIDOS.includes(guardado) ? guardado : 'dashboard';
+  } catch {
+    return 'dashboard';
+  }
 };
 const leerUltimoTabCRM = () => {
   try {
@@ -58,14 +64,6 @@ const leerUltimoTabCRM = () => {
     return CRM_TAB_IDS.includes(guardado) ? guardado : 'crm';
   } catch {
     return 'crm';
-  }
-};
-const leerUltimoTabSiniestros = () => {
-  try {
-    const guardado = localStorage.getItem(ULTIMO_TAB_SINIESTROS_KEY);
-    return SINIESTROS_TAB_IDS.includes(guardado) ? guardado : 'admin-siniestros';
-  } catch {
-    return 'admin-siniestros';
   }
 };
 const leerUltimoTabMail = () => {
@@ -82,9 +80,6 @@ const guardarPanelPrincipal = (panel) => {
 const guardarUltimoTabCRM = (tab) => {
   try { localStorage.setItem(ULTIMO_TAB_CRM_KEY, tab); } catch { /* localStorage no disponible */ }
 };
-const guardarUltimoTabSiniestros = (tab) => {
-  try { localStorage.setItem(ULTIMO_TAB_SINIESTROS_KEY, tab); } catch { /* localStorage no disponible */ }
-};
 const guardarUltimoTabMail = (tab) => {
   try { localStorage.setItem(ULTIMO_TAB_MAIL_KEY, tab); } catch { /* localStorage no disponible */ }
 };
@@ -96,7 +91,6 @@ const initialState = {
   activeTab: (() => {
     const panel = leerPanelPrincipal();
     if (panel === 'crm') return leerUltimoTabCRM();
-    if (panel === 'siniestros') return leerUltimoTabSiniestros();
     if (panel === 'mail') return leerUltimoTabMail();
     return 'dashboard';
   })(),
@@ -448,17 +442,14 @@ function App() {
     if (CRM_TAB_IDS.includes(tab)) {
       guardarUltimoTabCRM(tab);
     }
-    if (SINIESTROS_TAB_IDS.includes(tab)) {
-      guardarUltimoTabSiniestros(tab);
-    }
     if (MAIL_TAB_IDS.includes(tab)) {
       guardarUltimoTabMail(tab);
     }
   };
 
-  // Toggle Dashboard/Mail/CRM/Siniestros (fila 2 del header): Dashboard
-  // reemplaza el contenido por el dashboard; Mail, CRM y Siniestros vuelven
-  // al último sub-tab que se haya visitado dentro de cada uno.
+  // Toggle Dashboard/Mail/CRM (fila 2 del header): Dashboard reemplaza el
+  // contenido por el dashboard; Mail y CRM vuelven al último sub-tab que se
+  // haya visitado dentro de cada uno.
   const cambiarPanelPrincipal = (panel) => {
     setPanelPrincipal(panel);
     guardarPanelPrincipal(panel);
@@ -466,10 +457,8 @@ function App() {
       setActiveTab('dashboard');
     } else if (panel === 'crm') {
       setActiveTab(leerUltimoTabCRM());
-    } else if (panel === 'mail') {
-      setActiveTab(leerUltimoTabMail());
     } else {
-      setActiveTab(leerUltimoTabSiniestros());
+      setActiveTab(leerUltimoTabMail());
     }
   };
 
@@ -1557,16 +1546,32 @@ function App() {
           <RecuperablesPanel token={state.token} />
         )}
 
-        {/* SINIESTROS: "En curso" (distinto de CERRADO) y "Resueltos" (CERRADO),
-            sub-tabs de la fila 3 cuando el toggle Siniestros está activo.
-            Comparten modal de gestión y tabla; solo cambia la lista filtrada
-            y, en "En curso", las estadísticas rápidas. */}
+        {/* SINIESTROS: vista propia de la fila 1, con sub-pestañas "En curso"
+            (distinto de CERRADO) y "Resueltos" (CERRADO) en línea con el
+            título, igual que Pólizas. Comparten modal de gestión y tabla;
+            solo cambia la lista filtrada y, en "En curso", las estadísticas
+            rápidas. */}
         {(state.activeTab === 'admin-siniestros' || state.activeTab === 'siniestros-resueltos') && isAdmin() && (
           <div className="space-y-6">
             <div className="flex items-center justify-between flex-wrap gap-3">
-              <h2 className="text-2xl font-bold">
-                {state.activeTab === 'admin-siniestros' ? 'Siniestros en curso' : 'Siniestros resueltos'}
-              </h2>
+              <div className="flex items-center gap-4 flex-wrap">
+                <h2 className="text-2xl font-bold">Siniestros</h2>
+                <div className="flex gap-1 overflow-x-auto">
+                  {SINIESTROS_TABS.map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition ${
+                        state.activeTab === tab.id
+                          ? 'bg-blue-600 text-white'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <button
                 onClick={cargarSiniestrosAdmin}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition text-sm font-medium"

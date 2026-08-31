@@ -1,14 +1,14 @@
 import React from 'react';
 import ScoringIndicator from './ScoringIndicator';
-import { CRM_TABS, SINIESTROS_TABS, MAIL_TABS } from './navTabs';
+import { CRM_TABS, MAIL_TABS } from './navTabs';
 
-// Fila 1: navegación principal a la izquierda del logo. "Clientes" es la
-// única entrada admin-only; "Denuncia" y "Soporte" (extremo derecho) son
-// para todos los usuarios.
+// Fila 1: navegación principal a la izquierda del logo. "Clientes" y
+// "Siniestros" son admin-only; "Denuncia" y "Soporte" (extremo derecho) son
+// los accesos de clientes y demás usuarios, por eso van agrupados aparte.
 const NAV_TABS = (admin) => [
   { id: 'polizas', label: 'Pólizas' },
   ...(admin ? [{ id: 'clientes', label: 'Clientes' }] : []),
-  { id: 'siniestro', label: 'Denuncia' },
+  ...(admin ? [{ id: 'admin-siniestros', label: 'Siniestros' }] : []),
 ];
 
 // Padding horizontal ajustado (no la fuente) para que los tabs del CRM y de
@@ -26,11 +26,16 @@ const toggleButtonClass = (active) =>
 
 // Sub-tabs de la fila 3 según el toggle activo de la fila 2. Dashboard no
 // tiene fila 3 (se pinta el dashboard directamente en el contenido).
+// Siniestros ya no es un toggle de fila 2: es su propia vista en la fila 1,
+// con sub-pestañas propias (ver navTabs.SINIESTROS_TABS), igual que Pólizas.
 const SUB_TABS_POR_PANEL = {
   mail: MAIL_TABS,
   crm: CRM_TABS,
-  siniestros: SINIESTROS_TABS,
 };
+
+// IDs de la vista Siniestros (fila 1), para resaltar el tab aunque el
+// usuario esté en su sub-pestaña "Resueltos".
+const SINIESTROS_VIEW_IDS = ['admin-siniestros', 'siniestros-resueltos'];
 
 const Header = ({
   displayName, rol, activeTab, setActiveTab, isAdmin, onLogout, token,
@@ -57,7 +62,11 @@ const Header = ({
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={tabButtonClass(activeTab === tab.id)}
+                  className={tabButtonClass(
+                    tab.id === 'admin-siniestros'
+                      ? SINIESTROS_VIEW_IDS.includes(activeTab)
+                      : activeTab === tab.id
+                  )}
                 >
                   {tab.label}
                 </button>
@@ -66,6 +75,12 @@ const Header = ({
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
+            <button
+              onClick={() => setActiveTab('siniestro')}
+              className={tabButtonClass(activeTab === 'siniestro')}
+            >
+              Denuncia
+            </button>
             <button
               onClick={() => setActiveTab('soporte')}
               className={tabButtonClass(activeTab === 'soporte')}
@@ -87,7 +102,7 @@ const Header = ({
           </div>
         </div>
 
-        {/* Fila 2: toggle mutuamente excluyente Dashboard / CRM / Siniestros */}
+        {/* Fila 2: toggle mutuamente excluyente Dashboard / Mail / CRM */}
         <div className="border-t border-slate-700/60 py-2 flex items-center gap-3 overflow-x-auto">
           <div className="flex items-center gap-0.5 bg-slate-900/40 rounded-lg p-0.5 shrink-0">
             <button
@@ -110,14 +125,6 @@ const Header = ({
                 className={toggleButtonClass(panelPrincipal === 'crm')}
               >
                 CRM
-              </button>
-            )}
-            {isAdmin && (
-              <button
-                onClick={() => onPanelPrincipalChange('siniestros')}
-                className={toggleButtonClass(panelPrincipal === 'siniestros')}
-              >
-                Siniestros
               </button>
             )}
           </div>

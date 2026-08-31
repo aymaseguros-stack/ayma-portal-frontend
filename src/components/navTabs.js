@@ -18,17 +18,14 @@ export const CRM_TABS = [
 
 export const CRM_TAB_IDS = CRM_TABS.map(t => t.id);
 
-// Sub-pestañas del toggle "Siniestros" (fila 3 del header, cuando el toggle
-// activo es Siniestros): "En curso" y "Resueltos" filtran la misma lista por
-// estado (distinto de CERRADO / CERRADO); "Denunciar" reutiliza el mismo
-// formulario de denuncia que el tab "siniestro" de la fila 1.
+// Sub-pestañas propias de la vista "Siniestros" (fila 1): "En curso" y
+// "Resueltos" filtran la misma lista por estado (distinto de CERRADO /
+// CERRADO). Se renderizan dentro de la vista misma, igual que las
+// sub-pestañas de Pólizas, no en la fila 3 del header.
 export const SINIESTROS_TABS = [
   { id: 'admin-siniestros', label: 'En curso' },
   { id: 'siniestros-resueltos', label: 'Resueltos' },
-  { id: 'siniestro', label: 'Denunciar' },
 ];
-
-export const SINIESTROS_TAB_IDS = SINIESTROS_TABS.map(t => t.id);
 
 // Sub-pestañas del toggle "Mail" (fila 3 del header, cuando el toggle activo
 // es Mail): bandeja general, correos sin vincular a una ficha del CRM,
