@@ -1,8 +1,8 @@
 import React from 'react';
 import ScoringIndicator from './ScoringIndicator';
+import { CRM_TABS } from './navTabs';
 
 const NAV_TABS = (admin) => [
-  { id: 'dashboard', label: 'Dashboard' },
   { id: 'polizas', label: 'Pólizas' },
   ...(admin ? [{ id: 'clientes', label: 'Clientes' }] : []),
   { id: 'siniestro', label: 'Denuncia' },
@@ -10,25 +10,23 @@ const NAV_TABS = (admin) => [
   ...(admin ? [{ id: 'admin-siniestros', label: 'Siniestros en curso' }] : []),
 ];
 
-const CRM_TABS = [
-  { id: 'crm', label: 'Pipeline' },
-  { id: 'agenda', label: 'Agenda' },
-  { id: 'personas', label: 'Personas' },
-  { id: 'grupos', label: 'Grupos' },
-  { id: 'empresas', label: 'Empresas' },
-  { id: 'leads', label: 'Leads' },
-  { id: 'recuperables', label: 'Recuperables' },
-  { id: 'marketing', label: 'Marketing' },
-  { id: 'compliance', label: 'Compliance' },
-  { id: 'intelligence', label: 'Intelligence' },
-];
-
+// Padding horizontal ajustado (no la fuente) para que los 11 tabs del CRM
+// entren sin desbordar la fila 2 a 1280/1440px; overflow-x-auto + shrink-0
+// como red de seguridad si aun así no entran.
 const tabButtonClass = (active) =>
-  `px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition shrink-0 ${
+  `px-2.5 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition shrink-0 ${
     active ? 'bg-blue-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
   }`;
 
-const Header = ({ displayName, rol, activeTab, setActiveTab, isAdmin, onLogout, token }) => {
+const toggleButtonClass = (active) =>
+  `px-2.5 py-1.5 rounded-md text-sm font-medium whitespace-nowrap transition shrink-0 ${
+    active ? 'bg-blue-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+  }`;
+
+const Header = ({
+  displayName, rol, activeTab, setActiveTab, isAdmin, onLogout, token,
+  panelPrincipal, onPanelPrincipalChange,
+}) => {
   return (
     <header className="bg-slate-800/50 backdrop-blur border-b border-slate-700">
       <div className="max-w-7xl mx-auto px-4">
@@ -71,10 +69,25 @@ const Header = ({ displayName, rol, activeTab, setActiveTab, isAdmin, onLogout, 
           </div>
         </div>
 
-        {/* Renglón 2: barra del CRM, ítems en línea (sin dropdown) */}
-        {isAdmin && (
-          <div className="border-t border-slate-700/60 py-2 flex items-center gap-3 overflow-x-auto">
-            <span className="text-[11px] uppercase tracking-wide text-white/50 shrink-0">CRM</span>
+        {/* Renglón 2: toggle Dashboard/CRM y, con CRM activo, sus tabs en línea */}
+        <div className="border-t border-slate-700/60 py-2 flex items-center gap-3 overflow-x-auto">
+          <div className="flex items-center gap-0.5 bg-slate-900/40 rounded-lg p-0.5 shrink-0">
+            <button
+              onClick={() => onPanelPrincipalChange('dashboard')}
+              className={toggleButtonClass(panelPrincipal === 'dashboard')}
+            >
+              Dashboard
+            </button>
+            {isAdmin && (
+              <button
+                onClick={() => onPanelPrincipalChange('crm')}
+                className={toggleButtonClass(panelPrincipal === 'crm')}
+              >
+                CRM
+              </button>
+            )}
+          </div>
+          {isAdmin && panelPrincipal === 'crm' && (
             <nav className="flex items-center gap-1">
               {CRM_TABS.map((tab) => (
                 <button
@@ -86,8 +99,8 @@ const Header = ({ displayName, rol, activeTab, setActiveTab, isAdmin, onLogout, 
                 </button>
               ))}
             </nav>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </header>
   );

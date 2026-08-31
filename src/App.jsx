@@ -4,6 +4,7 @@ import IntelligencePanel from './components/Admin/IntelligencePanel';
 import MarketingStudio from './components/Admin/MarketingStudio';
 import RecuperablesPanel from './components/Admin/RecuperablesPanel';
 import Header from './components/Header';
+import { CRM_TAB_IDS } from './components/navTabs';
 import PolizasView from './components/PolizasView';
 import PersonasPanel from './components/Crm/PersonasPanel';
 import EmpresasPanel from './components/Crm/EmpresasPanel';
@@ -38,11 +39,34 @@ const extraerRol = (...fuentes) => {
 };
 const esRolAdmin = (rol) => rol === 'ADMIN' || rol === 'ADMINISTRADOR';
 
+// Persistencia del toggle Dashboard/CRM (fila 2) entre recargas: qué panel
+// está activo y, dentro de CRM, cuál fue el último tab visitado.
+const PANEL_PRINCIPAL_KEY = 'ayma_panel_principal';
+const ULTIMO_TAB_CRM_KEY = 'ayma_ultimo_tab_crm';
+
+const leerPanelPrincipal = () => {
+  try { return localStorage.getItem(PANEL_PRINCIPAL_KEY) || 'dashboard'; } catch { return 'dashboard'; }
+};
+const leerUltimoTabCRM = () => {
+  try {
+    const guardado = localStorage.getItem(ULTIMO_TAB_CRM_KEY);
+    return CRM_TAB_IDS.includes(guardado) ? guardado : 'crm';
+  } catch {
+    return 'crm';
+  }
+};
+const guardarPanelPrincipal = (panel) => {
+  try { localStorage.setItem(PANEL_PRINCIPAL_KEY, panel); } catch { /* localStorage no disponible */ }
+};
+const guardarUltimoTabCRM = (tab) => {
+  try { localStorage.setItem(ULTIMO_TAB_CRM_KEY, tab); } catch { /* localStorage no disponible */ }
+};
+
 // Estado inicial
 const initialState = {
   user: null,
   token: null,
-  activeTab: 'dashboard',
+  activeTab: leerPanelPrincipal() === 'crm' ? leerUltimoTabCRM() : 'dashboard',
   polizas: [],
   vehiculos: [],
   clientes: [],
@@ -62,6 +86,8 @@ const initialState = {
 
 function App() {
   const [state, setState] = useState(initialState);
+  // Toggle Dashboard/CRM de la fila 2 del header, persistido entre recargas.
+  const [panelPrincipal, setPanelPrincipal] = useState(leerPanelPrincipal);
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   
   // Estado para formulario de siniestro
@@ -97,11 +123,19 @@ function App() {
 
   // CRM v2: navegación cruzada Leads -> ficha de Persona recién convertida
   const [personaFichaAAbrir, setPersonaFichaAAbrir] = useState(null);
-  // CRM v2: navegación cruzada Persona -> ficha del Grupo al que pertenece
+  // CRM v2: navegación cruzada Persona -> ficha del Grupo al que pertenece.
+  // Hay dos vistas de Grupos (Grupos = FAMILIAR, Grupos Empresariales =
+  // CONSORCIO/FLOTA/SOCIEDAD_HECHO): el tipo del grupo decide a cuál ir.
   const [grupoFichaAAbrir, setGrupoFichaAAbrir] = useState(null);
-  const irAFichaGrupo = (grupoId) => {
-    setGrupoFichaAAbrir(grupoId);
-    setActiveTab('grupos');
+  const [grupoFichaEmpresarialAAbrir, setGrupoFichaEmpresarialAAbrir] = useState(null);
+  const irAFichaGrupo = (grupoId, tipo) => {
+    if (tipo === 'FAMILIAR') {
+      setGrupoFichaAAbrir(grupoId);
+      setActiveTab('grupos');
+    } else {
+      setGrupoFichaEmpresarialAAbrir(grupoId);
+      setActiveTab('grupos-empresariales');
+    }
   };
   const [convirtiendoLeadId, setConvirtiendoLeadId] = useState(null);
 
@@ -375,6 +409,17 @@ function App() {
     if (tab === 'admin-siniestros') {
       cargarSiniestrosAdmin();
     }
+    if (CRM_TAB_IDS.includes(tab)) {
+      guardarUltimoTabCRM(tab);
+    }
+  };
+
+  // Toggle Dashboard/CRM (fila 2 del header): Dashboard reemplaza el contenido
+  // por el dashboard; CRM vuelve al último tab del CRM que se haya visitado.
+  const cambiarPanelPrincipal = (panel) => {
+    setPanelPrincipal(panel);
+    guardarPanelPrincipal(panel);
+    setActiveTab(panel === 'dashboard' ? 'dashboard' : leerUltimoTabCRM());
   };
 
   // Verificar si es admin. Prioriza el rol devuelto por /api/v1/dashboard/
@@ -603,6 +648,8 @@ function App() {
         isAdmin={isAdmin()}
         onLogout={handleLogout}
         token={state.token}
+        panelPrincipal={panelPrincipal}
+        onPanelPrincipalChange={cambiarPanelPrincipal}
       />
 
       {/* Contenido Principal */}
@@ -1721,10 +1768,13 @@ function App() {
           />
         )}
 
-        {/* GRUPOS (CRM v2) */}
+        {/* GRUPOS (CRM v2) - grupos FAMILIAR */}
         {state.activeTab === 'grupos' && isAdmin() && (
           <GruposPanel
             token={state.token}
+            tipos={['FAMILIAR']}
+            titulo="Grupos"
+            tipoDefault="FAMILIAR"
             abrirFichaIdInicial={grupoFichaAAbrir}
             onFichaAbierta={() => setGrupoFichaAAbrir(null)}
           />
@@ -1733,6 +1783,18 @@ function App() {
         {/* EMPRESAS (CRM v2) */}
         {state.activeTab === 'empresas' && isAdmin() && (
           <EmpresasPanel token={state.token} />
+        )}
+
+        {/* GRUPOS EMPRESARIALES (CRM v2) - grupos CONSORCIO/FLOTA/SOCIEDAD_HECHO */}
+        {state.activeTab === 'grupos-empresariales' && isAdmin() && (
+          <GruposPanel
+            token={state.token}
+            tipos={['CONSORCIO', 'FLOTA', 'SOCIEDAD_HECHO']}
+            titulo="Grupos Empresariales"
+            tipoDefault="CONSORCIO"
+            abrirFichaIdInicial={grupoFichaEmpresarialAAbrir}
+            onFichaAbierta={() => setGrupoFichaEmpresarialAAbrir(null)}
+          />
         )}
 
         {/* MARKETING PANEL */}
