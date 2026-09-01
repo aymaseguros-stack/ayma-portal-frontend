@@ -10,6 +10,8 @@ import NuevaOportunidadModal from './NuevaOportunidadModal';
 import OportunidadFichaModal from './OportunidadFichaModal';
 import OfertasSugeridas from './OfertasSugeridas';
 import GruposPanel from './GruposPanel';
+import CarteraArtPanel from './CarteraArtPanel';
+import { ArtDatos, ArtHistorial } from './EmpresaArtSection';
 import Timeline from './Timeline';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
@@ -29,6 +31,7 @@ const ROLES = ['TITULAR', 'GERENTE', 'RRHH', 'CONTADOR', 'COMPRAS', 'OTRO'];
 const SUB_TABS = [
   { id: 'empresas', label: 'Empresas' },
   { id: 'grupos', label: 'Grupos empresariales' },
+  { id: 'cartera_art', label: 'Cartera ART' },
 ];
 
 const subTabButtonClass = (active) =>
@@ -312,6 +315,21 @@ const EmpresasPanel = ({
     </div>
   );
 
+  if (subTab === 'cartera_art') {
+    return (
+      <CarteraArtPanel
+        token={token}
+        onAbrirFicha={abrirFicha}
+        encabezado={(
+          <div className="flex items-center gap-4 flex-wrap">
+            <h2 className="text-2xl font-bold">Empresas</h2>
+            {subTabPills}
+          </div>
+        )}
+      />
+    );
+  }
+
   if (subTab === 'grupos') {
     return (
       <GruposPanel
@@ -522,20 +540,31 @@ const EmpresasPanel = ({
                     </div>
                   </form>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <Dato label="Token" valor={ficha.token} mono />
-                    <Dato label="Nombre de fantasía" valor={ficha.nombre_fantasia} />
-                    <Dato label="CUIT" valor={ficha.cuit} />
-                    <Dato label="Condición IVA" valor={ficha.condicion_iva} />
-                    <Dato label="CIIU" valor={ficha.ciiu_codigo ? `${ficha.ciiu_codigo} - ${ficha.ciiu_descripcion || ''}` : null} />
-                    <Dato label="Empleados" valor={ficha.cantidad_empleados} />
-                    <Dato label="Facturación anual estimada" valor={ficha.facturacion_anual_estimada} />
-                    <Dato label="Domicilio fiscal" valor={[ficha.domicilio_fiscal_calle, ficha.domicilio_fiscal_numero, ficha.domicilio_fiscal_localidad, ficha.domicilio_fiscal_provincia].filter(Boolean).join(', ')} full />
-                    <Dato label="Teléfono" valor={ficha.telefono} />
-                    <Dato label="Email" valor={ficha.email} />
-                    <Dato label="Web" valor={ficha.web} />
-                    <Dato label="Origen" valor={ficha.origen} />
-                    <Dato label="Notas" valor={ficha.notas} full />
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <Dato label="Token" valor={ficha.token} mono />
+                      <Dato label="Nombre de fantasía" valor={ficha.nombre_fantasia} />
+                      <Dato label="CUIT" valor={ficha.cuit} />
+                      <Dato label="Condición IVA" valor={ficha.condicion_iva} />
+                      <Dato label="CIIU" valor={ficha.ciiu_codigo ? `${ficha.ciiu_codigo} - ${ficha.ciiu_descripcion || ''}` : null} />
+                      <Dato label="Empleados" valor={ficha.cantidad_empleados} />
+                      <Dato label="Facturación anual estimada" valor={ficha.facturacion_anual_estimada} />
+                      <Dato label="Domicilio fiscal" valor={[ficha.domicilio_fiscal_calle, ficha.domicilio_fiscal_numero, ficha.domicilio_fiscal_localidad, ficha.domicilio_fiscal_provincia].filter(Boolean).join(', ')} full />
+                      <Dato label="Teléfono" valor={ficha.telefono} />
+                      <Dato label="Email" valor={ficha.email} />
+                      <Dato label="Web" valor={ficha.web} />
+                      <Dato label="Origen" valor={ficha.origen} />
+                      <Dato label="Notas" valor={ficha.notas} full />
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">ART</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <ArtDatos ficha={ficha} />
+                      </div>
+                    </div>
+
+                    <ArtHistorial token={token} empresaId={ficha.id} />
                   </div>
                 )
               )}
