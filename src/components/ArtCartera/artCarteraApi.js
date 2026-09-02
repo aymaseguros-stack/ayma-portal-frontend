@@ -69,3 +69,44 @@ export const registrarEstadoArt = async (token, payload) => {
   if (!res.ok) throw new Error(await formatApiError(res));
   return res.json();
 };
+
+// GET /art/embudo?desde&hasta - tablero de gestión (Bloque 6a), embudo
+// comercial por aseguradora: 12 filas fijas (mismo ORDEN_ASEGURADORAS que
+// ASEGURADORAS_ART) incluso sin datos, más `referencia_historica` (el
+// umbral fijo de la planilla original: ganadora 5,96 / perdedora 8,02) -
+// ver app/schemas/art_dashboard.py::EmbudoARTResponse. `desde`/`hasta`
+// filtran por fecha_evento; se pasa normalizeList por las dudas (el
+// envelope siempre trae items+total, pero así no se rompe si algún día no
+// los trae) sin perder `referencia_historica`, que normalizeList no conoce.
+export const obtenerEmbudoArt = async (token, { desde, hasta } = {}) => {
+  const res = await fetch(`${API_URL}/api/v1/art/embudo${buildQuery({ desde, hasta })}`, { headers: artHeaders(token) });
+  if (!res.ok) throw new Error(await formatApiError(res));
+  const data = await res.json();
+  const { items, total } = normalizeList(data);
+  return { total, items, referencia_historica: data?.referencia_historica ?? null };
+};
+
+// GET /art/analisis - estadística agregada de toda la cartera: tarjetas de
+// dotación/masa salarial/LRTM/tarifa/comisión (total/promedio/mediana),
+// distribución por riesgo de suscripción y por estrategia, y "cartera a
+// defender" (empresas ACTUAL por aseguradora, ya ordenada por comisión
+// anual estimada descendente) - ver
+// app/schemas/art_dashboard.py::AnalisisARTResponse.
+export const obtenerAnalisisArt = async (token) => {
+  const res = await fetch(`${API_URL}/api/v1/art/analisis`, { headers: artHeaders(token) });
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.json();
+};
+
+// GET /art/mercado?periodo - cartera propia (mismo cálculo que "cartera a
+// defender") comparada contra el boletín SSN/SRT importado con
+// POST /art/mercado/importar. `mercado_sin_datos: true` si no hay ningún
+// período cargado (o el pedido no existe) - en ese caso los campos de
+// mercado/share de cada item vienen en null, NUNCA inventados. Si se omite
+// `periodo`, el backend usa el último importado - ver
+// app/schemas/art_dashboard.py::MercadoARTResponse.
+export const obtenerMercadoArt = async (token, { periodo } = {}) => {
+  const res = await fetch(`${API_URL}/api/v1/art/mercado${buildQuery({ periodo })}`, { headers: artHeaders(token) });
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.json();
+};
