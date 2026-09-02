@@ -1,3 +1,5 @@
+import { numeroSeguro } from '../../utils/api';
+
 // Dominio del módulo "Cartera ART" (Bloque 5) - ver
 // app/models/crm/empresa_art_estado.py del backend, fuente de verdad de
 // estos valores. NO reordenar ASEGURADORAS_ART: es el orden fijo de columna
@@ -64,3 +66,29 @@ const RIESGO_META = {
 };
 
 export const riesgoBadgeClass = (riesgo) => RIESGO_META[riesgo] || 'bg-slate-500/20 text-slate-400';
+
+// Formatters compartidos por el tablero de gestión (Bloque 6b: Embudo,
+// Análisis, Mercado - GET /art/embudo, /art/analisis, /art/mercado). Los
+// tres endpoints están tipados con Pydantic (a diferencia de /srt/estado),
+// pero eso no los hace "seguros de renderizar tal cual": campo Decimal ->
+// FastAPI lo serializa como STRING (nunca number) para no perder precisión
+// (ver alicuota/tarifa_pct_historica ya consumidos en ArtEmpresaFicha:
+// siempre pasan por Number(valor) antes de tocarlos), y ni null/undefined
+// ni un 500 real deberían tirar React error #31 (ver
+// CarteraArtPanel.test.jsx, el mismo bug que ya mordió en Bloque 4).
+//
+// numeroAr: para campos int del schema (conteos, dotación, empresas) -
+// numeroSeguro() SÍ aplica acá (cualquier cosa que no sea un number válido
+// se trata como sin dato).
+export const numeroAr = (valor, opciones) => {
+  const numero = numeroSeguro(valor);
+  return numero === null ? null : numero.toLocaleString('es-AR', opciones);
+};
+
+// decimalAr: para campos Decimal del schema (alícuotas, comisión, LRTM,
+// tarifa, shares) - llegan como string o null, nunca como number crudo.
+export const decimalAr = (valor, opciones = { maximumFractionDigits: 2 }) => {
+  if (valor === null || valor === undefined) return null;
+  const numero = Number(valor);
+  return Number.isFinite(numero) ? numero.toLocaleString('es-AR', opciones) : null;
+};
