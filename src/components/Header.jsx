@@ -8,6 +8,7 @@ const NAV_TABS = (admin) => [
   { id: 'polizas', label: 'Pólizas' },
   ...(admin ? [{ id: 'clientes', label: 'Clientes' }] : []),
   ...(admin ? [{ id: 'admin-siniestros', label: 'Siniestros' }] : []),
+  ...(admin ? [{ id: 'art-cartera', label: 'Cartera ART' }] : []),
 ];
 
 // Padding horizontal ajustado (no la fuente) para que todo entre en una sola
