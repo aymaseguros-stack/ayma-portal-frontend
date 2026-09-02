@@ -97,8 +97,16 @@ const CarteraArtPanel = ({ token, onAbrirFicha, encabezado }) => {
 
   const verificadas = srtEstado?.verificadas ?? empresas.filter(e => e.estrategia_art && e.estrategia_art !== 'SIN_DATO').length;
   const pendientes = srtEstado?.pendientes ?? (empresas.length - verificadas);
-  const totalSrt = srtEstado?.total ?? empresas.length;
+  // El denominador SIEMPRE sale de /srt/estado (COUNT reales), nunca del
+  // limit=500 de /crm/empresas. Hoy el backend devuelve solo
+  // {verificadas, pendientes}; cuando sume total_cola (COUNT real de la
+  // cola SRT) se usa directo, mientras tanto se estima como
+  // verificadas + pendientes para no mostrar un tope artificial (ej. "68/500").
+  const totalSrt = srtEstado
+    ? (typeof srtEstado.total_cola === 'number' ? srtEstado.total_cola : verificadas + pendientes)
+    : empresas.length;
   const pctVerificadas = totalSrt > 0 ? Math.round((verificadas / totalSrt) * 100) : 0;
+  const porPrioridad = srtEstado?.por_prioridad || null;
 
   const empresasFiltradas = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
@@ -138,6 +146,13 @@ const CarteraArtPanel = ({ token, onAbrirFicha, encabezado }) => {
           <div className="mt-2 h-2 rounded-full bg-slate-700 overflow-hidden">
             <div className="h-full bg-blue-500 transition-all" style={{ width: `${pctVerificadas}%` }} />
           </div>
+          {porPrioridad && (
+            <div className="mt-2 flex gap-3 text-xs text-slate-400">
+              <span>P1 <span className="text-white font-medium">{porPrioridad.P1 ?? 0}</span></span>
+              <span>P2 <span className="text-white font-medium">{porPrioridad.P2 ?? 0}</span></span>
+              <span>P3 <span className="text-white font-medium">{porPrioridad.P3 ?? 0}</span></span>
+            </div>
+          )}
         </div>
       </div>
 
