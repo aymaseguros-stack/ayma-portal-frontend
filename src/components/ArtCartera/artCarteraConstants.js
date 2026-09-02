@@ -17,7 +17,11 @@ export const ASEGURADORAS_ART = [
   { id: 'berkley', label: 'Berkley' },
 ];
 
-export const aseguradoraLabel = (id) => ASEGURADORAS_ART.find((a) => a.id === id)?.label || id;
+// Nunca devuelve el `id` crudo si no es un string (ej. si el backend manda
+// null o un objeto en vez del id esperado): eso terminaría renderizado tal
+// cual en JSX y rompería con React error #31.
+export const aseguradoraLabel = (id) => ASEGURADORAS_ART.find((a) => a.id === id)?.label
+  || (typeof id === 'string' && id ? id : '—');
 
 export const RIESGO_SUSCRIPCION_OPCIONES = ['NORMAL', 'MEDIO', 'ALTO', 'NO_COLOCABLE'];
 

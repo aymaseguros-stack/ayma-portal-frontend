@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from '../Icons';
 import { listarTecnicaVencida } from './artCarteraApi';
+import { aseguradoraLabel } from './artCarteraConstants';
 
 const LIMIT = 50;
 
@@ -98,7 +99,7 @@ const ArtTecnicaVencidaBoard = ({ token, onAbrirFicha }) => {
                     >
                       <td className="px-4 py-3 text-sm font-medium">{it.razon_social}</td>
                       <td className="px-4 py-3 text-sm text-slate-400">{it.cuit || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-slate-300 capitalize">{it.aseguradora.replaceAll('_', ' ')}</td>
+                      <td className="px-4 py-3 text-sm text-slate-300 capitalize">{aseguradoraLabel(it.aseguradora)}</td>
                       <td className="px-4 py-3 text-sm text-slate-400">
                         {fechaCorta(it.fecha_evento)}
                         <span className="text-slate-500"> · {it.dias_en_tecnica} días en técnica</span>

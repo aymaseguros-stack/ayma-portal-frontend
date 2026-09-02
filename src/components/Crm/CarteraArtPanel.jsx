@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../Icons';
-import { normalizeList, formatApiError, authHeader } from '../../utils/api';
+import { normalizeList, formatApiError, authHeader, numeroSeguro } from '../../utils/api';
 import { ESTRATEGIA_ART_INFO, ESTRATEGIA_ART_ORDEN, estrategiaArtInfo, estrategiaArtBadgeClass } from './artEstrategia';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
@@ -95,18 +95,34 @@ const CarteraArtPanel = ({ token, onAbrirFicha, encabezado }) => {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [empresas]);
 
-  const verificadas = srtEstado?.verificadas ?? empresas.filter(e => e.estrategia_art && e.estrategia_art !== 'SIN_DATO').length;
-  const pendientes = srtEstado?.pendientes ?? (empresas.length - verificadas);
+  // /srt/estado no tiene un schema Pydantic estricto (es un dict armado a
+  // mano en el backend) y puede devolver un envelope de error tipo
+  // {total, verificadas, pendientes, error} en vez de la forma esperada.
+  // Si viene con `error`, o directamente no es un objeto plano, se descarta
+  // entero: sus números no son de fiar y nunca se debe intentar renderizar
+  // el objeto (o un campo con forma inesperada) crudo en JSX (React #31).
+  const srtEstadoUtilizable = srtEstado && typeof srtEstado === 'object' && !Array.isArray(srtEstado) && !srtEstado.error
+    ? srtEstado
+    : null;
+  const srtVerificadas = numeroSeguro(srtEstadoUtilizable?.verificadas);
+  const srtPendientes = numeroSeguro(srtEstadoUtilizable?.pendientes);
+  const srtTotalCola = numeroSeguro(srtEstadoUtilizable?.total_cola);
+
+  const verificadas = srtVerificadas ?? empresas.filter(e => e.estrategia_art && e.estrategia_art !== 'SIN_DATO').length;
+  const pendientes = srtPendientes ?? (empresas.length - verificadas);
   // El denominador SIEMPRE sale de /srt/estado (COUNT reales), nunca del
   // limit=500 de /crm/empresas. Hoy el backend devuelve solo
   // {verificadas, pendientes}; cuando sume total_cola (COUNT real de la
   // cola SRT) se usa directo, mientras tanto se estima como
   // verificadas + pendientes para no mostrar un tope artificial (ej. "68/500").
-  const totalSrt = srtEstado
-    ? (typeof srtEstado.total_cola === 'number' ? srtEstado.total_cola : verificadas + pendientes)
+  const totalSrt = srtEstadoUtilizable
+    ? (srtTotalCola ?? verificadas + pendientes)
     : empresas.length;
   const pctVerificadas = totalSrt > 0 ? Math.round((verificadas / totalSrt) * 100) : 0;
-  const porPrioridad = srtEstado?.por_prioridad || null;
+  const porPrioridadRaw = srtEstadoUtilizable?.por_prioridad;
+  const porPrioridad = porPrioridadRaw && typeof porPrioridadRaw === 'object' && !Array.isArray(porPrioridadRaw)
+    ? { P1: numeroSeguro(porPrioridadRaw.P1), P2: numeroSeguro(porPrioridadRaw.P2), P3: numeroSeguro(porPrioridadRaw.P3) }
+    : null;
 
   const empresasFiltradas = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
@@ -148,9 +164,9 @@ const CarteraArtPanel = ({ token, onAbrirFicha, encabezado }) => {
           </div>
           {porPrioridad && (
             <div className="mt-2 flex gap-3 text-xs text-slate-400">
-              <span>P1 <span className="text-white font-medium">{porPrioridad.P1 ?? 0}</span></span>
-              <span>P2 <span className="text-white font-medium">{porPrioridad.P2 ?? 0}</span></span>
-              <span>P3 <span className="text-white font-medium">{porPrioridad.P3 ?? 0}</span></span>
+              <span>P1 <span className="text-white font-medium">{porPrioridad.P1 ?? '—'}</span></span>
+              <span>P2 <span className="text-white font-medium">{porPrioridad.P2 ?? '—'}</span></span>
+              <span>P3 <span className="text-white font-medium">{porPrioridad.P3 ?? '—'}</span></span>
             </div>
           )}
         </div>
