@@ -9,6 +9,7 @@ import MailPanel from './components/Mail/MailPanel';
 import PolizasView from './components/PolizasView';
 import PersonasPanel from './components/Crm/PersonasPanel';
 import EmpresasPanel from './components/Crm/EmpresasPanel';
+import ArtCarteraView from './components/ArtCartera/ArtCarteraView';
 import PipelineKanban from './components/Crm/PipelineKanban';
 import OportunidadesPanel from './components/Crm/OportunidadesPanel';
 import AgendaPanel from './components/Crm/AgendaPanel';
@@ -1889,6 +1890,11 @@ function App() {
         {/* MAIL (bandeja de correo del portal) */}
         {MAIL_TAB_IDS.includes(state.activeTab) && isAdmin() && (
           <MailPanel token={state.token} subTab={state.activeTab} />
+        )}
+
+        {/* CARTERA ART (Bloque 5) - listado + matriz 12 aseguradoras + leads */}
+        {state.activeTab === 'art-cartera' && isAdmin() && (
+          <ArtCarteraView token={state.token} />
         )}
 
         {/* PIPELINE (CRM Fase 2 - Kanban) */}
