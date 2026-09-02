@@ -9,6 +9,8 @@ const CLASIFICACION_COLOR = {
   optimo: 'bg-green-500',
 };
 
+const esNumeroFinito = (valor) => typeof valor === 'number' && Number.isFinite(valor);
+
 // Indicador compacto de scoring diario en el header ("Hoy 47/130"), con
 // barra de 60px coloreada por clasificación y tooltip con el acumulado semanal.
 const ScoringIndicator = ({ token }) => {
@@ -20,11 +22,21 @@ const ScoringIndicator = ({ token }) => {
     const cargar = async () => {
       try {
         const res = await fetch(`${API_URL}/api/v1/crm/scoring/resumen`, { headers: authHeader(token) });
-        if (!res.ok) return;
+        if (!res.ok) {
+          // authHeader ya manda Authorization si hay token: un 401 acá es
+          // sesión vencida / token inválido de verdad, no un header
+          // ausente. El interceptor global (utils/api.js, instalado en
+          // main.jsx) ya lo detecta y desloguea solo. Acá nos limitamos a
+          // no dejar datos viejos pisando la pantalla y seguimos: esta
+          // llamada secundaria nunca debe tumbar el resto del header.
+          if (!cancelado) setResumen(null);
+          return;
+        }
         const data = await res.json();
         if (!cancelado) setResumen(data);
       } catch (err) {
         console.error('Error cargando scoring:', err);
+        if (!cancelado) setResumen(null);
       }
     };
     cargar();
@@ -32,7 +44,18 @@ const ScoringIndicator = ({ token }) => {
     return () => { cancelado = true; clearInterval(interval); };
   }, [token]);
 
-  if (!resumen) return null;
+  // Mismo patrón que Cartera ART: /crm/scoring/resumen tampoco tiene un
+  // schema estricto. Si falta algún campo numérico que se usa en cálculos
+  // (.toFixed, Math.round, %), no se renderiza el indicador en vez de
+  // romper con un TypeError y tumbar todo el header.
+  const resumenValido = resumen
+    && esNumeroFinito(resumen.puntos_hoy)
+    && esNumeroFinito(resumen.objetivo_diario)
+    && esNumeroFinito(resumen.puntos_semana)
+    && esNumeroFinito(resumen.objetivo_semanal)
+    && esNumeroFinito(resumen.porcentaje_semanal);
+
+  if (!resumenValido) return null;
 
   const color = CLASIFICACION_COLOR[resumen.clasificacion] || 'bg-slate-500';
   const porcentaje = Math.min(100, Math.max(0, resumen.porcentaje_diario || 0));

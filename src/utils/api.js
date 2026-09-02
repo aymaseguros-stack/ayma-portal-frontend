@@ -45,6 +45,14 @@ export const normalizeList = (data) => {
   return { items, total };
 };
 
+// Extrae un número seguro de un campo de API que debería ser numérico pero
+// no tiene un schema Pydantic estricto detrás (ej. /srt/estado,
+// /crm/scoring/resumen: dicts armados a mano en el backend, a diferencia de
+// /art/* que sí están tipados). Cualquier otra cosa (string, object, array,
+// NaN, null/undefined) se trata como "sin dato": nunca se debe terminar
+// renderizando un objeto crudo en JSX (React error #31).
+export const numeroSeguro = (valor) => (typeof valor === 'number' && Number.isFinite(valor) ? valor : null);
+
 // Arma un mensaje de error legible con el status HTTP real y, si el backend
 // lo mandó, su detalle (FastAPI: {detail: "..."} o {detail: [{msg: "..."}]}).
 // Nunca dejar un texto genérico: sin el status/detalle no se puede diagnosticar.
