@@ -10,6 +10,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   listarEmpresasArt, obtenerEmpresaArt, listarDesbloqueos, listarTecnicaVencida, registrarEstadoArt,
+  obtenerReferencialTarifas, listarLeadsSinCobertura,
 } from './artCarteraApi';
 
 const TOKEN = 'token-de-prueba';
@@ -171,6 +172,64 @@ describe('listarTecnicaVencida - GET /art/tecnica-vencida', () => {
     const resultado = await listarTecnicaVencida(TOKEN);
     expect(resultado.total).toBe(2);
     expect(resultado.items[1].cuit).toBeNull();
+  });
+});
+
+describe('obtenerReferencialTarifas - GET /art/referencial-tarifas', () => {
+  it('arma el querystring con los filtros y devuelve {items, total, resumen_global}', async () => {
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse({
+      total: 1,
+      items: [{
+        ciiu: '3710', tramo_dotacion: '1-10', provincia: 'SANTA FE',
+        cantidad_observaciones: 4, alicuota_promedio: '5.500',
+      }],
+      resumen_global: { total_registros: 4, alicuota_promedio_global: '5.500', alicuota_mediana_global: '5.250' },
+    }));
+
+    const resultado = await obtenerReferencialTarifas(TOKEN, { ciiu: '37', tramo_dotacion: '1-10' });
+
+    const [url] = globalThis.fetch.mock.calls[0];
+    expect(url).toContain('/api/v1/art/referencial-tarifas?');
+    expect(url).toContain('ciiu=37');
+    expect(url).toContain('tramo_dotacion=1-10');
+    expect(resultado.total).toBe(1);
+    expect(resultado.items[0].provincia).toBe('SANTA FE');
+    expect(resultado.resumen_global.total_registros).toBe(4);
+  });
+
+  it('no manda filtros vacíos y trae resumen_global null si el backend no lo manda', async () => {
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse({ total: 0, items: [] }));
+    const resultado = await obtenerReferencialTarifas(TOKEN, { ciiu: '', provincia: undefined });
+    const [url] = globalThis.fetch.mock.calls[0];
+    expect(url).not.toContain('ciiu=');
+    expect(url).not.toContain('provincia=');
+    expect(resultado.resumen_global).toBeNull();
+  });
+
+  it('propaga el detail de FastAPI en el mensaje de error cuando el backend responde 422', async () => {
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse(
+      { detail: "tramo_dotacion inválido: 'no-existe'." }, false, 422,
+    ));
+    await expect(obtenerReferencialTarifas(TOKEN, { tramo_dotacion: 'no-existe' })).rejects.toThrow(/422/);
+  });
+});
+
+describe('listarLeadsSinCobertura - GET /art/leads-sin-cobertura', () => {
+  it('devuelve {items, total} del envelope Page y respeta motivo_fin', async () => {
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse({
+      total: 1,
+      limit: 50,
+      offset: 0,
+      items: [{
+        cuit: '30-1-9', razon_social: 'Acme SA', tiene_historial: true, ultima_art: 'PLUS ART S.A.',
+        fecha_baja: '2026-01-01', motivo_baja: 'FALTA_DE_PAGO', dias_desde_baja: 245, dotacion: 12, ciiu: '3710',
+      }],
+    }));
+    const resultado = await listarLeadsSinCobertura(TOKEN, { motivo_fin: 'falta de pago' });
+    const [url] = globalThis.fetch.mock.calls[0];
+    expect(url).toContain('motivo_fin=falta+de+pago');
+    expect(resultado.total).toBe(1);
+    expect(resultado.items[0].tiene_historial).toBe(true);
   });
 });
 
