@@ -275,7 +275,13 @@ const ArtEmpresaFicha = ({ token, cuit, onVolver }) => {
                 {historial.map((h) => (
                   <tr key={h.id} className={h.activo ? '' : 'opacity-50'}>
                     <td className="px-4 py-2 text-slate-400">{fechaCorta(h.fecha_evento)}</td>
-                    <td className="px-4 py-2">{ASEGURADORAS_ART.find((a) => a.id === h.aseguradora)?.label || h.aseguradora}</td>
+                    {/* aseguradora_externa (ACTUAL en una ART que AYMA no representa,
+                        ej. "ANDINA ART" - ver app/services/aseguradoras.py del backend)
+                        no está en ASEGURADORAS_ART a propósito: el nombre real viaja en
+                        aseguradora_raw, nunca se pierde detrás del sentinel interno. */}
+                    <td className="px-4 py-2">
+                      {h.aseguradora_raw || ASEGURADORAS_ART.find((a) => a.id === h.aseguradora)?.label || h.aseguradora}
+                    </td>
                     <td className="px-4 py-2">
                       <span className={`px-2 py-0.5 rounded text-xs font-medium ${estadoArtInfo(h.tipo).badge}`}>
                         {estadoArtInfo(h.tipo).label}
