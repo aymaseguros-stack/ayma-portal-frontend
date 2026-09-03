@@ -1892,7 +1892,7 @@ function App() {
           <MailPanel token={state.token} subTab={state.activeTab} />
         )}
 
-        {/* CARTERA ART (Bloque 5) - listado + matriz 12 aseguradoras + leads */}
+        {/* CARTERA ART (Bloque 5) - listado + matriz 13 aseguradoras + leads */}
         {state.activeTab === 'art-cartera' && isAdmin() && (
           <ArtCarteraView token={state.token} />
         )}

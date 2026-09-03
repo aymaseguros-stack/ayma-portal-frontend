@@ -3,7 +3,7 @@ import { numeroSeguro } from '../../utils/api';
 // Dominio del módulo "Cartera ART" (Bloque 5) - ver
 // app/models/crm/empresa_art_estado.py del backend, fuente de verdad de
 // estos valores. NO reordenar ASEGURADORAS_ART: es el orden fijo de columna
-// de la matriz empresa × 12 aseguradoras en toda la UI.
+// de la matriz empresa × 13 aseguradoras en toda la UI.
 export const ASEGURADORAS_ART = [
   { id: 'plus', label: 'Plus' },
   { id: 'asociart', label: 'Asociart' },
@@ -17,6 +17,7 @@ export const ASEGURADORAS_ART = [
   { id: 'federacion_patronal', label: 'Federación Patronal' },
   { id: 'la_segunda', label: 'La Segunda' },
   { id: 'berkley', label: 'Berkley' },
+  { id: 'andina', label: 'Andina' },
 ];
 
 // Nunca devuelve el `id` crudo si no es un string (ej. si el backend manda

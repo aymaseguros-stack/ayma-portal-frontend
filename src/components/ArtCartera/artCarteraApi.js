@@ -31,7 +31,7 @@ export const listarEmpresasArt = async (token, filtros = {}) => {
   return normalizeList(await res.json());
 };
 
-// GET /art/empresas/{cuit} - ficha + matriz de 12 aseguradoras + historial +
+// GET /art/empresas/{cuit} - ficha + matriz de 13 aseguradoras + historial +
 // cálculo del motor. Devuelve el objeto completo tal cual lo manda el
 // backend: {empresa, aseguradoras, historial, calculo, calculo_bloqueado_por}.
 export const obtenerEmpresaArt = async (token, cuit) => {

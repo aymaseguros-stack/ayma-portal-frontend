@@ -102,7 +102,7 @@ const ArtMercadoBoard = ({ token }) => {
             </thead>
             <tbody className="divide-y divide-slate-700">
               {loading ? (
-                Array.from({ length: 12 }).map((_, i) => <FilaSkeleton key={i} columnas={sinDatos ? 3 : 8} />)
+                Array.from({ length: ASEGURADORAS_ART.length }).map((_, i) => <FilaSkeleton key={i} columnas={sinDatos ? 3 : 8} />)
               ) : (
                 ASEGURADORAS_ART.map((a) => {
                   const item = porAseguradora.get(a.id) || {};
