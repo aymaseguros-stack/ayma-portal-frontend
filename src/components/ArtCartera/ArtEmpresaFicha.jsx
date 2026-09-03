@@ -95,7 +95,7 @@ const CalculoStat = ({ label, valor, resaltar }) => (
 );
 
 // Pantalla B - Ficha de empresa (/art/:cuit): cabecera + motor de cálculo +
-// matriz de 12 aseguradoras + historial append-only. GET /art/empresas/{cuit}
+// matriz de 13 aseguradoras + historial append-only. GET /art/empresas/{cuit}
 // (app/api/v1/art_consultas.py::obtener_empresa_art).
 const ArtEmpresaFicha = ({ token, cuit, onVolver }) => {
   const [data, setData] = useState(null);
@@ -218,7 +218,7 @@ const ArtEmpresaFicha = ({ token, cuit, onVolver }) => {
         )}
       </div>
 
-      {/* Matriz de 12 aseguradoras (orden fijo: ver ASEGURADORAS_ART) */}
+      {/* Matriz de 13 aseguradoras (orden fijo: ver ASEGURADORAS_ART) */}
       <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-700">
           <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide">Matriz de aseguradoras</h3>
@@ -276,7 +276,7 @@ const ArtEmpresaFicha = ({ token, cuit, onVolver }) => {
                   <tr key={h.id} className={h.activo ? '' : 'opacity-50'}>
                     <td className="px-4 py-2 text-slate-400">{fechaCorta(h.fecha_evento)}</td>
                     {/* aseguradora_externa (ACTUAL en una ART que AYMA no representa,
-                        ej. "ANDINA ART" - ver app/services/aseguradoras.py del backend)
+                        ej. "LIBERTY ART" - ver app/services/aseguradoras.py del backend)
                         no está en ASEGURADORAS_ART a propósito: el nombre real viaja en
                         aseguradora_raw, nunca se pierde detrás del sentinel interno. */}
                     <td className="px-4 py-2">

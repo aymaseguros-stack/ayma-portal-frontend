@@ -252,7 +252,7 @@ const ArtCarteraListado = ({ token, onAbrirFicha }) => {
                           </>
                         ) : '-'}
                       </td>
-                      <td className="px-4 py-3 text-sm text-center text-slate-300">{emp.cantidad_estados_vigentes} / 12</td>
+                      <td className="px-4 py-3 text-sm text-center text-slate-300">{emp.cantidad_estados_vigentes} / {ASEGURADORAS_ART.length}</td>
                     </tr>
                   );
                 })

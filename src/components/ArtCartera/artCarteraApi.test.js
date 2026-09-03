@@ -88,7 +88,7 @@ describe('listarEmpresasArt - GET /art/empresas', () => {
 });
 
 describe('obtenerEmpresaArt - GET /art/empresas/{cuit}', () => {
-  it('devuelve la ficha completa con la matriz de 12 aseguradoras y el historial', async () => {
+  it('devuelve la ficha completa con la matriz de 13 aseguradoras y el historial', async () => {
     const detalle = {
       empresa: {
         id: 'emp-1', token: 'tok-1', cuit: '30-12345678-9', razon_social: 'Acme SA',
