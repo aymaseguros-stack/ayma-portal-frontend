@@ -6,7 +6,7 @@ import { estrategiaArtInfo, estrategiaArtBadgeClass } from '../Crm/artEstrategia
 import { obtenerEmpresaArt } from './artCarteraApi';
 import ArtEstadoModal from './ArtEstadoModal';
 import {
-  ASEGURADORAS_ART, riesgoBadgeClass, estadoArtInfo, esAlicuotaNoCompetitiva,
+  ASEGURADORAS_ART, riesgoBadgeClass, estadoArtInfo, esAlicuotaNoCompetitiva, decimalAr,
 } from './artCarteraConstants';
 
 const fechaCorta = (valor) => {
@@ -196,6 +196,35 @@ const ArtEmpresaFicha = ({ token, cuit, onVolver }) => {
           <ArtDatos ficha={empresa} />
         </div>
       </div>
+
+      {/* Actividad + alícuota de referencia SRT (CIIU x año calendario vigente).
+          Se oculta por completo si alicuota_referencial es null: empresa sin
+          CIIU cargado o sin match vigente para el período actual - ver
+          descripcion_actividad/alicuota_referencial en
+          app/api/v1/art_consultas.py::obtener_empresa_art. */}
+      {empresa.alicuota_referencial && (
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
+          <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-4">
+            Alícuota de referencia SRT
+          </h3>
+          <div className="space-y-4">
+            <Dato label="Actividad" valor={empresa.descripcion_actividad} full />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Dato
+                label="Suma fija"
+                valor={`$ ${decimalAr(parseFloat(empresa.alicuota_referencial.suma_fija), { minimumFractionDigits: 2, maximumFractionDigits: 3 })}`}
+              />
+              <Dato
+                label="Cuota variable"
+                valor={`${decimalAr(parseFloat(empresa.alicuota_referencial.cuota_variable), { maximumFractionDigits: 3 })}%`}
+              />
+            </div>
+            <p className="text-xs text-slate-500">
+              Res. {empresa.alicuota_referencial.resolucion}, año calendario {empresa.alicuota_referencial.anio_calendario}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Motor de cálculo */}
       <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
