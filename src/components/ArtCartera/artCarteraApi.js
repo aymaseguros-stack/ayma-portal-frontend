@@ -70,20 +70,34 @@ export const registrarEstadoArt = async (token, payload) => {
   return res.json();
 };
 
-// GET /art/embudo?desde&hasta - tablero de gestión (Bloque 6a), embudo
-// comercial por aseguradora: 12 filas fijas (mismo ORDEN_ASEGURADORAS que
-// ASEGURADORAS_ART) incluso sin datos, más `referencia_historica` (el
-// umbral fijo de la planilla original: ganadora 5,96 / perdedora 8,02) -
-// ver app/schemas/art_dashboard.py::EmbudoARTResponse. `desde`/`hasta`
-// filtran por fecha_evento; se pasa normalizeList por las dudas (el
-// envelope siempre trae items+total, pero así no se rompe si algún día no
-// los trae) sin perder `referencia_historica`, que normalizeList no conoce.
-export const obtenerEmbudoArt = async (token, { desde, hasta } = {}) => {
-  const res = await fetch(`${API_URL}/api/v1/art/embudo${buildQuery({ desde, hasta })}`, { headers: artHeaders(token) });
+// GET /art/referencial-tarifas - referencial HISTÓRICO de mercado (BLOQUE
+// 7): únicamente fuente=PLANILLA_2025, agrupado SIEMPRE por CIIU x tramo
+// de dotación x provincia normalizada, más `resumen_global` (total de
+// registros y promedio/mediana sobre TODO el universo filtrado, no solo
+// por celda) - ver app/schemas/art_dashboard.py::ReferencialTarifasResponse.
+// `filtros` acepta: ciiu, provincia, tramo_dotacion, aseguradora. A
+// propósito NO trae "ganadora"/"perdedora": esa etiqueta describía el
+// resultado real de cada cotización en la planilla original y hoy no
+// existe como columna - ver docstring de
+// app/services/art_dashboard.py::referencial_tarifas.
+export const obtenerReferencialTarifas = async (token, filtros = {}) => {
+  const res = await fetch(`${API_URL}/api/v1/art/referencial-tarifas${buildQuery(filtros)}`, { headers: artHeaders(token) });
   if (!res.ok) throw new Error(await formatApiError(res));
   const data = await res.json();
   const { items, total } = normalizeList(data);
-  return { total, items, referencia_historica: data?.referencia_historica ?? null };
+  return { total, items, resumen_global: data?.resumen_global ?? null };
+};
+
+// GET /art/leads-sin-cobertura - empresas verificadas SIN ART vigente que
+// tuvieron cobertura antes (lead caliente: perdió cobertura, no "nunca
+// tuvo") - ver app/schemas/art_consultas.py::LeadSinCoberturaItem. El
+// backend ya ordena (con historial, más reciente primero; sin historial,
+// alfabético al final) - el cliente no reordena. `motivo_fin` es substring
+// case-insensitive contra el motivo de baja del último contrato.
+export const listarLeadsSinCobertura = async (token, { motivo_fin, limit = 50, offset = 0 } = {}) => {
+  const res = await fetch(`${API_URL}/api/v1/art/leads-sin-cobertura${buildQuery({ motivo_fin, limit, offset })}`, { headers: artHeaders(token) });
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return normalizeList(await res.json());
 };
 
 // GET /art/analisis - estadística agregada de toda la cartera: tarjetas de
