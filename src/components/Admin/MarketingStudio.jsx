@@ -444,20 +444,19 @@ export default function MarketingStudio() {
       body: JSON.stringify(payload),
     });
 
-    let token = `AYMA-MKT-${Date.now()}`;
+    let token = created?.token || `AYMA-MKT-${Date.now()}`;
 
-    if (created?.id) {
-      // 2. Aprobar inmediatamente
-      const approved = await fetchAPI(`/api/v1/marketing/contenido/${created.id}/aprobar`, {
+    if (created?.token) {
+      // 2. Aprobar inmediatamente (aprobado va por query string, no por body: así lo espera el backend)
+      const approved = await fetchAPI(`/api/v1/marketing/contenido/${created.token}/aprobar?aprobado=true`, {
         method: 'POST',
-        body: JSON.stringify({ notas_aprobacion: 'Aprobado desde Marketing Studio' }),
       });
-      token = approved?.token_marketing || created.token_marketing || token;
+      token = approved?.token || token;
     }
 
     // 3. Actualizar lista local
     const newContent = {
-      id: created?.id || Date.now(),
+      id: created?.token || Date.now(),
       titulo: editor.titulo,
       red: selectedRed,
       formato: selectedFormat,
