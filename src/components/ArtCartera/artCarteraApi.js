@@ -40,6 +40,51 @@ export const obtenerEmpresaArt = async (token, cuit) => {
   return res.json();
 };
 
+// GET /art/empresas/{cuit}/documentos?tipo= - checklist de documentos
+// adjuntos (FORM_931/POLIZA_ACTUAL/OTRO). APPEND-ONLY en el backend (cada
+// subida crea una fila nueva, nunca pisa la anterior): devuelve TODAS las
+// filas ordenadas created_at desc, así que la primera fila de cada `tipo`
+// es la vigente - ver app/models/crm/empresa_documento.py del backend. No
+// es un envelope Page: el backend devuelve el array directo.
+export const listarDocumentosArt = async (token, cuit, { tipo } = {}) => {
+  const res = await fetch(`${API_URL}/api/v1/art/empresas/${encodeURIComponent(cuit)}/documentos${buildQuery({ tipo })}`, { headers: artHeaders(token) });
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.json();
+};
+
+// POST /art/empresas/{cuit}/documentos - multipart/form-data (Form `tipo` +
+// File `archivo`). Subir el archivo marca conseguido=true automáticamente
+// en el backend - ver docstring de subir_documento_empresa_art en
+// app/api/v1/art_consultas.py. Ojo: NO se manda Content-Type a mano, el
+// browser arma el boundary del multipart solo si dejamos que fetch lo
+// infiera de un body FormData.
+export const subirDocumentoArt = async (token, cuit, { tipo, archivo }) => {
+  const body = new FormData();
+  body.set('tipo', tipo);
+  body.set('archivo', archivo);
+  const res = await fetch(`${API_URL}/api/v1/art/empresas/${encodeURIComponent(cuit)}/documentos`, {
+    method: 'POST',
+    headers: authHeader(token),
+    body,
+  });
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.json();
+};
+
+// PATCH /art/empresas/{cuit}/documentos/{tipo}/conseguido - sin archivo, para
+// cuando el cliente confirma verbalmente que ya tiene el documento antes de
+// mandar el PDF. Idempotente: el backend reusa la fila vigente de ese tipo
+// o crea una fila placeholder sin archivo - ver docstring de
+// marcar_documento_empresa_art_conseguido en app/api/v1/art_consultas.py.
+export const marcarDocumentoArtConseguido = async (token, cuit, tipo) => {
+  const res = await fetch(`${API_URL}/api/v1/art/empresas/${encodeURIComponent(cuit)}/documentos/${encodeURIComponent(tipo)}/conseguido`, {
+    method: 'PATCH',
+    headers: authHeader(token),
+  });
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.json();
+};
+
 // GET /art/desbloqueos?dias=N - leads calientes: bloqueos que caducan dentro
 // de los próximos N días.
 export const listarDesbloqueos = async (token, { dias = 7, limit = 50, offset = 0 } = {}) => {

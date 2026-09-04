@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   listarEmpresasArt, obtenerEmpresaArt, listarDesbloqueos, listarTecnicaVencida, registrarEstadoArt,
   obtenerReferencialTarifas, listarLeadsSinCobertura,
+  listarDocumentosArt, subirDocumentoArt, marcarDocumentoArtConseguido,
 } from './artCarteraApi';
 
 const TOKEN = 'token-de-prueba';
@@ -132,6 +133,143 @@ describe('obtenerEmpresaArt - GET /art/empresas/{cuit}', () => {
       { detail: 'No existe una empresa con CUIT 20-00000000-0' }, false, 404,
     ));
     await expect(obtenerEmpresaArt(TOKEN, '20-00000000-0')).rejects.toThrow(/404/);
+  });
+
+  it('pasa historial_contratos y contrato_actual tal cual los manda el backend', async () => {
+    const detalle = {
+      empresa: { id: 'emp-1', cuit: '30-12345678-9', razon_social: 'Acme SA' },
+      aseguradoras: [],
+      historial: [],
+      historial_contratos: [
+        {
+          aseguradora: 'BERKLEY INTERNATIONAL ART S.A.', aseguradora_normalizada: 'berkley',
+          numero_contrato: '123', fecha_inicio: '2024-03-01', fecha_fin: null, motivo_baja: null,
+        },
+      ],
+      contrato_actual: { aseguradora: 'BERKLEY INTERNATIONAL ART S.A.', fecha_inicio: '2024-03-01' },
+      calculo: null,
+      calculo_bloqueado_por: 'dotacion',
+    };
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse(detalle));
+
+    const resultado = await obtenerEmpresaArt(TOKEN, '30-12345678-9');
+
+    expect(resultado.historial_contratos).toHaveLength(1);
+    expect(resultado.historial_contratos[0].aseguradora_normalizada).toBe('berkley');
+    expect(resultado.contrato_actual).toEqual({ aseguradora: 'BERKLEY INTERNATIONAL ART S.A.', fecha_inicio: '2024-03-01' });
+  });
+
+  it('contrato_actual null (ninguno vigente): se devuelve tal cual, no se inventa un default', async () => {
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse({
+      empresa: { id: 'emp-1', cuit: '30-12345678-9', razon_social: 'Acme SA' },
+      aseguradoras: [],
+      historial: [],
+      historial_contratos: [],
+      contrato_actual: null,
+      calculo: null,
+      calculo_bloqueado_por: 'dotacion',
+    }));
+
+    const resultado = await obtenerEmpresaArt(TOKEN, '30-12345678-9');
+
+    expect(resultado.contrato_actual).toBeNull();
+    expect(resultado.historial_contratos).toEqual([]);
+  });
+});
+
+describe('listarDocumentosArt - GET /art/empresas/{cuit}/documentos', () => {
+  it('devuelve el array tal cual (no es un envelope Page)', async () => {
+    const documentos = [
+      {
+        id: 'doc-1', empresa_id: 'emp-1', tipo: 'FORM_931', archivo_drive_id: 'drive-1',
+        nombre_archivo: 'form931.pdf', mime_type: 'application/pdf', conseguido: true,
+        fecha_carga: '2026-01-01T00:00:00', subido_por: 'user-1',
+        created_at: '2026-01-01T00:00:00', updated_at: '2026-01-01T00:00:00',
+      },
+    ];
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse(documentos));
+
+    const resultado = await listarDocumentosArt(TOKEN, '30-12345678-9');
+
+    const [url, init] = globalThis.fetch.mock.calls[0];
+    expect(url).toBe('https://ayma-portal-backend.onrender.com/api/v1/art/empresas/30-12345678-9/documentos');
+    expect(init.headers.Authorization).toBe(`Bearer ${TOKEN}`);
+    expect(resultado).toEqual(documentos);
+  });
+
+  it('agrega el filtro `tipo` al querystring cuando se pasa', async () => {
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse([]));
+    await listarDocumentosArt(TOKEN, '30-12345678-9', { tipo: 'FORM_931' });
+    const [url] = globalThis.fetch.mock.calls[0];
+    expect(url).toContain('/documentos?tipo=FORM_931');
+  });
+
+  it('sin filtro: no manda querystring', async () => {
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse([]));
+    await listarDocumentosArt(TOKEN, '30-12345678-9');
+    const [url] = globalThis.fetch.mock.calls[0];
+    expect(url).not.toContain('?');
+  });
+});
+
+describe('subirDocumentoArt - POST /art/empresas/{cuit}/documentos (multipart)', () => {
+  it('manda un FormData con tipo + archivo, sin forzar Content-Type', async () => {
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse({
+      id: 'doc-1', empresa_id: 'emp-1', tipo: 'POLIZA_ACTUAL', archivo_drive_id: 'drive-1',
+      nombre_archivo: 'poliza.pdf', mime_type: 'application/pdf', conseguido: true,
+      fecha_carga: '2026-01-01T00:00:00', subido_por: 'user-1',
+      created_at: '2026-01-01T00:00:00', updated_at: '2026-01-01T00:00:00',
+    }, true, 201));
+
+    const archivo = new File(['contenido'], 'poliza.pdf', { type: 'application/pdf' });
+    const resultado = await subirDocumentoArt(TOKEN, '30-12345678-9', { tipo: 'POLIZA_ACTUAL', archivo });
+
+    const [url, init] = globalThis.fetch.mock.calls[0];
+    expect(url).toBe('https://ayma-portal-backend.onrender.com/api/v1/art/empresas/30-12345678-9/documentos');
+    expect(init.method).toBe('POST');
+    expect(init.headers.Authorization).toBe(`Bearer ${TOKEN}`);
+    // El browser arma el boundary del multipart solo si NO seteamos
+    // Content-Type a mano - forzarlo a JSON rompería el upload.
+    expect(init.headers['Content-Type']).toBeUndefined();
+    expect(init.body).toBeInstanceOf(FormData);
+    expect(init.body.get('tipo')).toBe('POLIZA_ACTUAL');
+    expect(init.body.get('archivo')).toBe(archivo);
+    expect(resultado.nombre_archivo).toBe('poliza.pdf');
+  });
+
+  it('propaga el detail de FastAPI cuando el tipo es inválido (422)', async () => {
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse(
+      { detail: "tipo inválido. Válidos: ['FORM_931', 'POLIZA_ACTUAL', 'OTRO']" }, false, 422,
+    ));
+    const archivo = new File(['x'], 'x.pdf', { type: 'application/pdf' });
+    await expect(subirDocumentoArt(TOKEN, '30-12345678-9', { tipo: 'NO_EXISTE', archivo })).rejects.toThrow(/tipo inválido/);
+  });
+});
+
+describe('marcarDocumentoArtConseguido - PATCH /art/empresas/{cuit}/documentos/{tipo}/conseguido', () => {
+  it('hace PATCH sin body al endpoint con el tipo en el path', async () => {
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse({
+      id: 'doc-2', empresa_id: 'emp-1', tipo: 'FORM_931', archivo_drive_id: null,
+      nombre_archivo: null, mime_type: null, conseguido: true, fecha_carga: null,
+      subido_por: 'user-1', created_at: '2026-01-01T00:00:00', updated_at: '2026-01-01T00:00:00',
+    }));
+
+    const resultado = await marcarDocumentoArtConseguido(TOKEN, '30-12345678-9', 'FORM_931');
+
+    const [url, init] = globalThis.fetch.mock.calls[0];
+    expect(url).toBe('https://ayma-portal-backend.onrender.com/api/v1/art/empresas/30-12345678-9/documentos/FORM_931/conseguido');
+    expect(init.method).toBe('PATCH');
+    expect(init.headers.Authorization).toBe(`Bearer ${TOKEN}`);
+    expect(init.body).toBeUndefined();
+    expect(resultado.conseguido).toBe(true);
+    expect(resultado.archivo_drive_id).toBeNull();
+  });
+
+  it('propaga el detail de FastAPI cuando el tipo es inválido (422)', async () => {
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse(
+      { detail: "tipo inválido. Válidos: ['FORM_931', 'POLIZA_ACTUAL', 'OTRO']" }, false, 422,
+    ));
+    await expect(marcarDocumentoArtConseguido(TOKEN, '30-12345678-9', 'NO_EXISTE')).rejects.toThrow(/tipo inválido/);
   });
 });
 

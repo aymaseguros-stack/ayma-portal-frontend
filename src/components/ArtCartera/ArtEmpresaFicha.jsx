@@ -5,8 +5,9 @@ import { ArtDatos } from '../Crm/EmpresaArtSection';
 import { estrategiaArtInfo, estrategiaArtBadgeClass } from '../Crm/artEstrategia';
 import { obtenerEmpresaArt } from './artCarteraApi';
 import ArtEstadoModal from './ArtEstadoModal';
+import ArtDocumentosChecklist from './ArtDocumentosChecklist';
 import {
-  ASEGURADORAS_ART, riesgoBadgeClass, estadoArtInfo, esAlicuotaNoCompetitiva, decimalAr,
+  ASEGURADORAS_ART, riesgoBadgeClass, estadoArtInfo, esAlicuotaNoCompetitiva, decimalAr, aseguradoraLabel,
 } from './artCarteraConstants';
 
 const fechaCorta = (valor) => {
@@ -14,6 +15,73 @@ const fechaCorta = (valor) => {
   const d = new Date(valor);
   if (Number.isNaN(d.getTime())) return valor;
   return d.toLocaleDateString('es-AR');
+};
+
+// ContratoHistoricoItem/ContratoActualBlock (contrato_art_historico) traen
+// `aseguradora` como texto crudo de la SRT y `aseguradora_normalizada` solo
+// cuando matchea una de las 13 aseguradoras de AYMA - ver
+// app/schemas/art_consultas.py del backend. Se prioriza la etiqueta linda
+// de ASEGURADORAS_ART cuando hay match; si es una ART externa (o no
+// matcheó), se muestra el texto crudo tal cual en vez de perderlo.
+const nombreAseguradoraContrato = (item) => (
+  item?.aseguradora_normalizada ? aseguradoraLabel(item.aseguradora_normalizada) : (item?.aseguradora || '—')
+);
+
+const CONTRATOS_VISIBLES_INICIAL = 5;
+
+// Tabla de historial de contratos SRT (contrato_art_historico) - colapsa a
+// las primeras `CONTRATOS_VISIBLES_INICIAL` filas cuando hay muchas, ya
+// vienen ordenadas fecha_inicio desc por el backend (no se reordena acá).
+const HistorialContratosTabla = ({ contratos }) => {
+  const [expandido, setExpandido] = useState(false);
+
+  if (contratos.length === 0) {
+    return <p className="text-slate-500 text-sm text-center py-8">Sin contratos registrados</p>;
+  }
+
+  const hayOcultos = contratos.length > CONTRATOS_VISIBLES_INICIAL;
+  const visibles = expandido ? contratos : contratos.slice(0, CONTRATOS_VISIBLES_INICIAL);
+
+  return (
+    <>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-700/50">
+            <tr>
+              <th className="px-4 py-2 text-left text-slate-300 font-medium">Aseguradora</th>
+              <th className="px-4 py-2 text-left text-slate-300 font-medium">Desde</th>
+              <th className="px-4 py-2 text-left text-slate-300 font-medium">Hasta</th>
+              <th className="px-4 py-2 text-left text-slate-300 font-medium">Motivo de baja</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-700">
+            {visibles.map((c, idx) => (
+              // Sin id propio en el schema (ContratoHistoricoItem) - se arma una key
+              // compuesta con la posición para no depender de fecha_inicio siendo única.
+              <tr key={`${c.fecha_inicio}-${idx}`}>
+                <td className="px-4 py-2">{nombreAseguradoraContrato(c)}</td>
+                <td className="px-4 py-2 text-slate-400">{fechaCorta(c.fecha_inicio) || '-'}</td>
+                <td className="px-4 py-2 text-slate-400">{fechaCorta(c.fecha_fin) || '-'}</td>
+                <td className="px-4 py-2 text-slate-400">{c.motivo_baja || '-'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {hayOcultos && (
+        <div className="px-4 py-3 border-t border-slate-700">
+          <button
+            type="button"
+            onClick={() => setExpandido((v) => !v)}
+            className="inline-flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition"
+          >
+            <Icon name="chevron-down" size={14} className={`transition-transform ${expandido ? 'rotate-180' : ''}`} />
+            {expandido ? 'Mostrar menos' : `Mostrar todos (${contratos.length})`}
+          </button>
+        </div>
+      )}
+    </>
+  );
 };
 
 const CAMPO_BLOQUEADO_LABEL = {
@@ -159,7 +227,10 @@ const ArtEmpresaFicha = ({ token, cuit, onVolver }) => {
     );
   }
 
-  const { empresa, aseguradoras, historial, calculo, calculo_bloqueado_por } = data;
+  const {
+    empresa, aseguradoras, historial, calculo, calculo_bloqueado_por,
+    historial_contratos: historialContratos = [], contrato_actual: contratoActual = null,
+  } = data;
   const info = estrategiaArtInfo(empresa.estrategia_art);
   const mapaAseguradoras = new Map(aseguradoras.map((a) => [a.aseguradora, a]));
 
@@ -226,6 +297,22 @@ const ArtEmpresaFicha = ({ token, cuit, onVolver }) => {
         </div>
       )}
 
+      {/* Contrato actual (contrato_art_historico sin fecha_fin o con fecha_fin
+          futura) - "qué ART tiene hoy y desde cuándo" según el historial de
+          la SRT. null si ningún contrato del historial sigue vigente - ver
+          ContratoActualBlock en app/schemas/art_consultas.py del backend. */}
+      <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
+        <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-4">Contrato actual</h3>
+        {contratoActual ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Dato label="Aseguradora" valor={nombreAseguradoraContrato(contratoActual)} />
+            <Dato label="Vigente desde" valor={fechaCorta(contratoActual.fecha_inicio) || '-'} />
+          </div>
+        ) : (
+          <p className="text-slate-500 text-sm">Sin cobertura vigente</p>
+        )}
+      </div>
+
       {/* Motor de cálculo */}
       <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
         <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-4">Motor de cálculo</h3>
@@ -278,6 +365,20 @@ const ArtEmpresaFicha = ({ token, cuit, onVolver }) => {
           </table>
         </div>
       </div>
+
+      {/* Historial de contratos SRT (contrato_art_historico), fecha_inicio
+          desc - distinto del historial de abajo, que es propio de AYMA
+          (cotizaciones/rechazos/bloqueos en empresa_art_estado). */}
+      <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-700">
+          <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide">Historial de contratos</h3>
+        </div>
+        <HistorialContratosTabla contratos={historialContratos} />
+      </div>
+
+      {/* Documentos ART (checklist FORM_931/POLIZA_ACTUAL) - fetch propio,
+          independiente del resto de la ficha. */}
+      <ArtDocumentosChecklist token={token} cuit={cuit} />
 
       {/* Historial append-only, orden cronológico inverso (ya lo trae el backend) */}
       <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
