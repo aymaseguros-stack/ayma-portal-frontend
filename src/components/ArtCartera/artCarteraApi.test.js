@@ -12,6 +12,7 @@ import {
   listarEmpresasArt, obtenerEmpresaArt, listarDesbloqueos, listarTecnicaVencida, registrarEstadoArt,
   obtenerReferencialTarifas, listarLeadsSinCobertura,
   listarDocumentosArt, subirDocumentoArt, marcarDocumentoArtConseguido,
+  obtenerColaAlicuotas, registrarCargaRapidaAlicuotas,
 } from './artCarteraApi';
 
 const TOKEN = 'token-de-prueba';
@@ -399,5 +400,67 @@ describe('registrarEstadoArt - POST /art/estado', () => {
     await expect(registrarEstadoArt(TOKEN, {
       cuit: '30-1-9', aseguradora: 'berkley', tipo: 'ALICUOTA', alicuota: 15,
     })).rejects.toThrow(/alicuota debe estar en el rango/);
+  });
+});
+
+describe('obtenerColaAlicuotas - GET /art/cola-alicuotas', () => {
+  it('manda el limit por querystring y devuelve la respuesta tal cual (no es un Page normalizable)', async () => {
+    const respuesta = {
+      total: 137,
+      items: [
+        {
+          empresa_id: 'emp-1', cuit: '30123456789', cuit_formateado: '30-12345678-9',
+          razon_social: 'Acme SA', art_actual: 'Asociart ART S.A.', ciiu: '3710',
+          dotacion: 42, dotacion_confianza: 'ALTA', ultima_alicuota_conocida: null,
+        },
+      ],
+    };
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse(respuesta));
+
+    const resultado = await obtenerColaAlicuotas(TOKEN, { limit: 20 });
+
+    const [url, init] = globalThis.fetch.mock.calls[0];
+    expect(url).toBe('https://ayma-portal-backend.onrender.com/api/v1/art/cola-alicuotas?limit=20');
+    expect(init.headers.Authorization).toBe(`Bearer ${TOKEN}`);
+    // total es el tamaño real del universo pendiente, SIN el recorte de limit.
+    expect(resultado.total).toBe(137);
+    expect(resultado.items).toHaveLength(1);
+    expect(resultado.items[0].cuit_formateado).toBe('30-12345678-9');
+  });
+
+  it('propaga un error de la API sin romper', async () => {
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse({ detail: 'Internal Server Error' }, false, 500));
+    await expect(obtenerColaAlicuotas(TOKEN, { limit: 20 })).rejects.toThrow(/Error 500/);
+  });
+});
+
+describe('registrarCargaRapidaAlicuotas - POST /art/alicuotas/carga-rapida', () => {
+  it('hace POST con {items} serializado y devuelve el resumen del lote', async () => {
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse({
+      total: 2, escritos: 1, sin_dato: 1, ya_registrados: 0, errores: 0,
+      items: [
+        { empresa_id: 'emp-1', escrito: true, ya_registrado_hoy: false, error: null },
+        { empresa_id: 'emp-2', escrito: true, ya_registrado_hoy: false, error: null },
+      ],
+    }, true, 201));
+
+    const items = [
+      { empresa_id: 'emp-1', alicuota_pct: 5.96, sin_dato: false },
+      { empresa_id: 'emp-2', sin_dato: true },
+    ];
+    const resultado = await registrarCargaRapidaAlicuotas(TOKEN, items);
+
+    const [url, init] = globalThis.fetch.mock.calls[0];
+    expect(url).toBe('https://ayma-portal-backend.onrender.com/api/v1/art/alicuotas/carga-rapida');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body)).toEqual({ items });
+    expect(resultado.escritos).toBe(1);
+    expect(resultado.sin_dato).toBe(1);
+  });
+
+  it('propaga un error de validación de la API', async () => {
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse({ detail: 'empresa_id inválido' }, false, 422));
+    await expect(registrarCargaRapidaAlicuotas(TOKEN, [{ empresa_id: 'x', sin_dato: true }]))
+      .rejects.toThrow(/empresa_id inválido/);
   });
 });

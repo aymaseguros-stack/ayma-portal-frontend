@@ -68,6 +68,20 @@ const RIESGO_META = {
 
 export const riesgoBadgeClass = (riesgo) => RIESGO_META[riesgo] || 'bg-slate-500/20 text-slate-400';
 
+// Confianza del dato de dotación (Empresa.dotacion_confianza -
+// DOTACION_CONFIANZAS_VALIDAS en app/models/crm/empresa.py del backend):
+// ALTA (declarada por el cliente) / MEDIA (padrón ARCA) / BAJA (planilla
+// histórica o rango MiPyME) / NULA (sin dato, no calificaría prioridad P2).
+const DOTACION_CONFIANZA_META = {
+  ALTA: { label: 'Alta', badge: 'bg-green-500/20 text-green-300' },
+  MEDIA: { label: 'Media', badge: 'bg-blue-500/20 text-blue-300' },
+  BAJA: { label: 'Baja', badge: 'bg-slate-500/20 text-slate-400' },
+  NULA: { label: 'Nula', badge: 'bg-red-500/20 text-red-300' },
+};
+
+export const dotacionConfianzaInfo = (confianza) =>
+  DOTACION_CONFIANZA_META[confianza] || { label: confianza || 'Sin dato', badge: 'bg-slate-500/20 text-slate-400' };
+
 // Formatters compartidos por el tablero de gestión (Bloque 6b: Embudo,
 // Análisis, Mercado - GET /art/embudo, /art/analisis, /art/mercado). Los
 // tres endpoints están tipados con Pydantic (a diferencia de /srt/estado),
