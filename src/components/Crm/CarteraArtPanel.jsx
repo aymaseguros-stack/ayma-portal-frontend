@@ -95,13 +95,24 @@ const CarteraArtPanel = ({ token, onAbrirFicha, encabezado }) => {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [empresas]);
 
-  // /srt/estado no tiene un schema Pydantic estricto (es un dict armado a
-  // mano en el backend) y puede devolver un envelope de error tipo
-  // {total, verificadas, pendientes, error} en vez de la forma esperada.
-  // Si viene con `error`, o directamente no es un objeto plano, se descarta
-  // entero: sus números no son de fiar y nunca se debe intentar renderizar
-  // el objeto (o un campo con forma inesperada) crudo en JSX (React #31).
-  const srtEstadoUtilizable = srtEstado && typeof srtEstado === 'object' && !Array.isArray(srtEstado) && !srtEstado.error
+  // BUG "0/500": desde TAREA 4.1 (ver EstadoSRTResponse en
+  // app/schemas/srt.py), `error` en la respuesta real de /srt/estado es un
+  // COUNT de verificaciones con resultado de error en la cola (ERROR_WEB/
+  // TIMEOUT/ERROR_CAPTCHA/etc.) - un backend sano casi siempre tiene
+  // error > 0, son normales en la cola SRT. El envelope de error que este
+  // guard fue escrito para descartar (bug real de producción, ver el test
+  // de este archivo) traía en cambio `error` como STRING (un mensaje).
+  // Chequear `typeof === 'string'` en vez de truthy distingue ambos casos:
+  // sigue descartando el envelope roto, pero ya no tira el objeto entero
+  // (verificadas/pendientes/total_cola reales) apenas hay algún error de
+  // cola - antes eso hacía caer siempre a empresas.length (acotado por el
+  // ?limit=500 de /crm/empresas) con verificadas en 0 (estrategia_art no
+  // viene poblado en ese endpoint), el mismo "68/500" que TAREA 4.1 había
+  // resuelto, reaparecido por este chequeo.
+  const srtEstadoUtilizable = srtEstado
+    && typeof srtEstado === 'object'
+    && !Array.isArray(srtEstado)
+    && typeof srtEstado.error !== 'string'
     ? srtEstado
     : null;
   const srtVerificadas = numeroSeguro(srtEstadoUtilizable?.verificadas);
