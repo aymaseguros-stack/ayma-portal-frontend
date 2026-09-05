@@ -169,3 +169,28 @@ export const obtenerMercadoArt = async (token, { periodo } = {}) => {
   if (!res.ok) throw new Error(await formatApiError(res));
   return res.json();
 };
+
+// GET /art/cola-alicuotas?limit=N - tanda de empresas para el "Modo
+// Relevamiento" (carga rápida de alícuotas por teléfono): empresas con ART
+// confirmada por SRT y sin evento ALICUOTA vigente. `total` es el tamaño
+// real del universo pendiente, SIN el recorte de `limit` - ver
+// app/schemas/art_consultas.py::ColaAlicuotasResponse.
+export const obtenerColaAlicuotas = async (token, { limit = 20 } = {}) => {
+  const res = await fetch(`${API_URL}/api/v1/art/cola-alicuotas${buildQuery({ limit })}`, { headers: artHeaders(token) });
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.json();
+};
+
+// POST /art/alicuotas/carga-rapida - registra en lote el resultado de una
+// tanda del Modo Relevamiento. `items`: [{empresa_id, alicuota_pct?,
+// art_declarada?, sin_dato}]. Append-only e idempotente por empresa_id +
+// fecha_evento (ver app/schemas/art_consultas.py::CargaRapidaAlicuotasResponse).
+export const registrarCargaRapidaAlicuotas = async (token, items) => {
+  const res = await fetch(`${API_URL}/api/v1/art/alicuotas/carga-rapida`, {
+    method: 'POST',
+    headers: artHeaders(token),
+    body: JSON.stringify({ items }),
+  });
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.json();
+};

@@ -7,6 +7,7 @@ import ArtReferencialTarifasBoard from './ArtReferencialTarifasBoard';
 import ArtLeadsCalientesBoard from './ArtLeadsCalientesBoard';
 import ArtAnalisisBoard from './ArtAnalisisBoard';
 import ArtMercadoBoard from './ArtMercadoBoard';
+import ArtRelevamientoAlicuotas from './ArtRelevamientoAlicuotas';
 
 const SUB_TABS = [
   { id: 'cartera', label: 'Cartera' },
@@ -14,6 +15,7 @@ const SUB_TABS = [
   { id: 'tecnica-vencida', label: 'Técnica vencida' },
   { id: 'referencial-tarifas', label: 'Referencial de Tarifas' },
   { id: 'leads-calientes', label: 'Leads Calientes' },
+  { id: 'relevamiento', label: 'Relevamiento' },
   { id: 'analisis', label: 'Análisis' },
   { id: 'mercado', label: 'Mercado' },
 ];
@@ -37,7 +39,9 @@ const subTabButtonClass = (active) =>
 // no tiene vista propia acá. La app no usa un router de URLs (todo el
 // resto del portal navega por estado de pestaña, ver App.jsx), así que la
 // ficha de empresa se abre/cierra con estado local en vez de una ruta
-// /art/:cuit real.
+// /art/:cuit real. "Relevamiento" (BLOQUE 8) es aparte: Modo Relevamiento
+// de carga rápida de alícuotas por teléfono (GET /art/cola-alicuotas, POST
+// /art/alicuotas/carga-rapida - ver ArtRelevamientoAlicuotas.jsx).
 const ArtCarteraView = ({ token }) => {
   const [subTab, setSubTab] = useState('cartera');
   const [cuitFicha, setCuitFicha] = useState(null);
@@ -69,6 +73,7 @@ const ArtCarteraView = ({ token }) => {
       {subTab === 'tecnica-vencida' && <ArtTecnicaVencidaBoard token={token} onAbrirFicha={abrirFicha} />}
       {subTab === 'referencial-tarifas' && <ArtReferencialTarifasBoard token={token} />}
       {subTab === 'leads-calientes' && <ArtLeadsCalientesBoard token={token} onAbrirFicha={abrirFicha} />}
+      {subTab === 'relevamiento' && <ArtRelevamientoAlicuotas token={token} />}
       {subTab === 'analisis' && <ArtAnalisisBoard token={token} />}
       {subTab === 'mercado' && <ArtMercadoBoard token={token} />}
     </div>
