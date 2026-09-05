@@ -122,4 +122,27 @@ describe('CarteraArtPanel - consumo de GET /srt/estado', () => {
     expect(container.textContent).toContain('2');
     expect(container.textContent).toContain('1');
   });
+
+  it('BUG "0/500": error real de la cola (int > 0, forma actual de EstadoSRTResponse) NO descarta el envelope', async () => {
+    // Desde TAREA 4.1, `error` en la respuesta real es un COUNT de
+    // verificaciones con resultado de error en la cola (int, casi siempre
+    // > 0 en un backend sano) - nada que ver con el envelope de error del
+    // test anterior, donde `error` es un STRING. Antes de este fix el
+    // guard trataba cualquier `error` truthy como el envelope roto y
+    // descartaba total_cola/verificadas/pendientes reales, cayendo a
+    // empresas.length (acotado por el ?limit=500 de /crm/empresas) - el
+    // "68/500" que TAREA 4.1 había resuelto, reaparecido por este chequeo.
+    mockFetch({
+      srtEstadoRespuesta: jsonResponse({
+        verificadas: 42, pendientes: 8, total_cola: 50, error: 5, por_prioridad: { P1: 5, P2: 20, P3: 25 },
+      }),
+    });
+
+    const { container } = render(<CarteraArtPanel token="tok" />);
+
+    await waitFor(() => expect(container.textContent).toContain('Verificadas'));
+    expect(container.textContent).toContain('42');
+    expect(container.textContent).toContain('50');
+    expect(container.textContent).toContain('8');
+  });
 });
