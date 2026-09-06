@@ -146,4 +146,85 @@ describe('ArtRelevamientoAlicuotas', () => {
     await waitFor(() => expect(container.textContent).toContain('Error 500'));
     expect(container.textContent).toContain('Reintentar');
   });
+
+  // --- Autoguardado incremental cada 5 CUITs (a prueba de interrupciones) ---
+
+  const tandaDe = (n) => Array.from({ length: n }, (_, i) => empresa(i + 1));
+
+  const responderCon = (input, valor) => {
+    fireEvent.change(input(), { target: { value: valor } });
+    fireEvent.keyDown(input(), { key: 'Enter' });
+  };
+
+  it('al completar el 5º CUIT se dispara el POST automático de autoguardado', async () => {
+    const items = tandaDe(20);
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ total: 20, items })) // GET cola-alicuotas
+      .mockResolvedValueOnce(jsonResponse({ // POST autoguardado del sub-lote 1-5
+        total: 5, escritos: 5, sin_dato: 0, ya_registrados: 0, errores: 0,
+        items: items.slice(0, 5).map((it) => ({ empresa_id: it.empresa_id, escrito: true, ya_registrado_hoy: false, error: null })),
+      }, true, 201));
+
+    const { container } = render(<ArtRelevamientoAlicuotas token="tok" />);
+    await waitFor(() => expect(container.textContent).toContain('Empresa 1 SA'));
+
+    const input = () => container.querySelector('input[type="text"]');
+    for (let i = 1; i <= 5; i += 1) responderCon(input, String(i));
+
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(2));
+    const [url, init] = globalThis.fetch.mock.calls[1];
+    expect(url).toBe('https://ayma-portal-backend.onrender.com/api/v1/art/alicuotas/carga-rapida');
+    const body = JSON.parse(init.body);
+    expect(body.items.map((it) => it.empresa_id)).toEqual(['emp-1', 'emp-2', 'emp-3', 'emp-4', 'emp-5']);
+    await waitFor(() => expect(container.textContent).toContain('5/20 confirmados'));
+  });
+
+  it('si el autoguardado del 5º falla, los datos se mantienen en estado y se reintentan en el 10º', async () => {
+    const items = tandaDe(20);
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ total: 20, items })) // GET cola-alicuotas
+      .mockResolvedValueOnce(jsonResponse({ detail: 'Internal Server Error' }, false, 500)) // autoguardado del 5º falla
+      .mockResolvedValueOnce(jsonResponse({ // reintento en el 10º: manda 1-10 completo
+        total: 10, escritos: 10, sin_dato: 0, ya_registrados: 0, errores: 0,
+        items: items.slice(0, 10).map((it) => ({ empresa_id: it.empresa_id, escrito: true, ya_registrado_hoy: false, error: null })),
+      }, true, 201));
+
+    const { container } = render(<ArtRelevamientoAlicuotas token="tok" />);
+    await waitFor(() => expect(container.textContent).toContain('Empresa 1 SA'));
+
+    const input = () => container.querySelector('input[type="text"]');
+    for (let i = 1; i <= 5; i += 1) responderCon(input, String(i));
+
+    await waitFor(() => expect(container.textContent).toContain('No se pudo autoguardar'));
+    expect(container.textContent).toContain('0/20 confirmados');
+
+    for (let i = 6; i <= 10; i += 1) responderCon(input, String(i));
+
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(3));
+    const [url, init] = globalThis.fetch.mock.calls[2];
+    expect(url).toBe('https://ayma-portal-backend.onrender.com/api/v1/art/alicuotas/carga-rapida');
+    const body = JSON.parse(init.body);
+    expect(body.items.map((it) => it.empresa_id)).toEqual(
+      ['emp-1', 'emp-2', 'emp-3', 'emp-4', 'emp-5', 'emp-6', 'emp-7', 'emp-8', 'emp-9', 'emp-10'],
+    );
+    await waitFor(() => expect(container.textContent).toContain('10/20 confirmados'));
+  });
+
+  it('un 401 en el autoguardado muestra el cartel de sesión vencida y no vacía el buffer', async () => {
+    const items = tandaDe(20);
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ total: 20, items })) // GET cola-alicuotas
+      .mockResolvedValueOnce(jsonResponse({ detail: 'Unauthorized' }, false, 401)); // autoguardado del 5º -> token vencido
+
+    const { container } = render(<ArtRelevamientoAlicuotas token="tok" />);
+    await waitFor(() => expect(container.textContent).toContain('Empresa 1 SA'));
+
+    const input = () => container.querySelector('input[type="text"]');
+    for (let i = 1; i <= 5; i += 1) responderCon(input, String(i));
+
+    await waitFor(() => expect(container.textContent).toContain('Sesión vencida'));
+    expect(container.textContent).toContain('Reintentar envío');
+    // el buffer de las 5 respuestas ya tipeadas sigue intacto en estado, listo para reintentar
+    expect(container.textContent).toContain('5 de 20');
+  });
 });

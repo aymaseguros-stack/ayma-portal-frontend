@@ -6,6 +6,25 @@ export const SESSION_EXPIRED_EVENT = 'ayma:session-expired';
 // "Bearer undefined" ni "Bearer " vacío.
 export const authHeader = (token) => (token ? { Authorization: `Bearer ${token}` } : {});
 
+// Contador de "suspensiones" activas del redirect global de sesión vencida.
+// Pantallas con un buffer de trabajo sin guardar (ej. Modo Relevamiento de
+// ART) llaman suspendSessionExpiredHandling() al montarse para que un 401
+// propio no dispare el reset global de App.jsx - eso desmonta TODO el árbol
+// y con él se pierde el buffer. El localStorage.removeItem sigue corriendo
+// igual (el token venció de verdad), solo se frena el aviso global; la
+// pantalla que suspende se encarga de mostrar su propio cartel y de releer
+// el token fresco de localStorage cuando el usuario reintenta.
+let suspensiones = 0;
+export const suspendSessionExpiredHandling = () => {
+  suspensiones += 1;
+  let activa = true;
+  return () => {
+    if (!activa) return;
+    activa = false;
+    suspensiones = Math.max(0, suspensiones - 1);
+  };
+};
+
 // Instala un interceptor global sobre window.fetch (una sola vez, al arrancar
 // la app) para no depender de que cada vista maneje el 401 por su cuenta.
 // Solo actúa sobre requests que ya llevaban Authorization: si ese request
@@ -28,7 +47,9 @@ export const installAuthInterceptor = () => {
       if (teniaAuth) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+        if (suspensiones === 0) {
+          window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+        }
       }
     }
     return response;
