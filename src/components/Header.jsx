@@ -63,8 +63,15 @@ const Header = ({
         {/* Fila 1: logo + toggle Dashboard / Mail / CRM + nav Pólizas /
             Clientes / Siniestros a la izquierda (separados por un divisor
             vertical sutil), y a la derecha Denuncia + Soporte + badge de rol
-            + Salir. */}
-        <div className="py-3 flex items-center justify-between gap-6">
+            + Salir. flex-wrap: si no entran las dos mitades en una sola
+            línea (~<1024px), el bloque de acciones de la derecha pasa a su
+            propia línea en vez de apretar el nav de la izquierda contra la
+            pared - antes eso dejaba "Cartera ART" apretado a un ancho casi
+            nulo dentro de un overflow-x-auto invisible (bug real a ~824px).
+            El nav en sí conserva overflow-x-auto + .nav-scroll (scrollbar
+            visible, no overlay auto-hide) como red de seguridad en
+            viewports angostos donde ni con la línea propia entra entero. */}
+        <div className="py-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
           <div className="flex items-center gap-3 min-w-0">
             <div className="shrink-0">
               <h1 className="text-xl font-bold text-white leading-tight">AYMA</h1>
@@ -100,7 +107,7 @@ const Header = ({
 
             <div className="w-px self-stretch bg-slate-700/60 shrink-0" />
 
-            <nav className="flex items-center gap-1 overflow-x-auto min-w-0">
+            <nav className="nav-scroll flex items-center gap-1 overflow-x-auto min-w-0">
               {NAV_TABS(isAdmin).map((tab) => (
                 <button
                   key={tab.id}
@@ -117,7 +124,7 @@ const Header = ({
             </nav>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-3 shrink-0 ml-auto">
             <button
               onClick={() => setActiveTab('siniestro')}
               className={tabButtonClass(activeTab === 'siniestro')}
@@ -166,7 +173,7 @@ const Header = ({
             la fila 1. Dashboard no tiene fila 2. */}
         {subTabs && (
           <div className="border-t border-slate-700/60 py-2">
-            <nav className="flex items-center gap-1 overflow-x-auto">
+            <nav className="nav-scroll flex items-center gap-1 overflow-x-auto">
               {subTabs.map((tab) => (
                 <button
                   key={tab.id}

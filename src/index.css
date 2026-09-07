@@ -14,3 +14,22 @@ body {
   min-width: 320px;
   min-height: 100vh;
 }
+
+/* Scrollbar delgada pero SIEMPRE visible (no overlay auto-hide) para las
+   barras de navegación que pueden quedar angostas en viewports chicos -
+   sin esto el usuario no se entera de que hay más tabs para el lado (ver
+   Header.jsx: nav de Pólizas/Clientes/Siniestros/Cartera ART). */
+.nav-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #475569 transparent;
+}
+.nav-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+.nav-scroll::-webkit-scrollbar-thumb {
+  background-color: #475569;
+  border-radius: 9999px;
+}
+.nav-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
