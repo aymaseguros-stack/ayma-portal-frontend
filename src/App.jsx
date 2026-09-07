@@ -756,7 +756,7 @@ function App() {
                     <p className="text-blue-200 text-sm">Mis Pólizas</p>
                     <p className="text-4xl font-bold mt-2">{state.dashboardData?.totalPolizas ?? state.polizas.length}</p>
                   </div>
-                  <span className="text-4xl">📄</span>
+                  <Icon name="document-text" size={36} className="text-blue-200 shrink-0" />
                 </div>
                 <p className="text-blue-200 text-sm mt-4">Pólizas vigentes</p>
               </div>
@@ -767,7 +767,7 @@ function App() {
                     <p className="text-green-200 text-sm">Mis Vehículos</p>
                     <p className="text-4xl font-bold mt-2">{state.dashboardData?.totalVehiculos ?? state.vehiculos.length}</p>
                   </div>
-                  <span className="text-4xl">🚗</span>
+                  <Icon name="truck" size={36} className="text-green-200 shrink-0" />
                 </div>
                 <p className="text-green-200 text-sm mt-4">Vehículos asegurados</p>
               </div>
@@ -779,7 +779,7 @@ function App() {
                       <p className="text-cyan-200 text-sm">Clientes</p>
                       <p className="text-4xl font-bold mt-2">{state.dashboardData?.totalClientes ?? state.clientes.length ?? 0}</p>
                     </div>
-                    <span className="text-4xl">👥</span>
+                    <Icon name="users" size={36} className="text-cyan-200 shrink-0" />
                   </div>
                   <p className="text-cyan-200 text-sm mt-4">Clientes activos</p>
                 </div>
@@ -791,7 +791,7 @@ function App() {
                     <p className="text-purple-200 text-sm">Tickets Abiertos</p>
                     <p className="text-4xl font-bold mt-2">{state.dashboardData?.ticketsAbiertos || 0}</p>
                   </div>
-                  <span className="text-4xl">📩</span>
+                  <Icon name="ticket" size={36} className="text-purple-200 shrink-0" />
                 </div>
                 <p className="text-purple-200 text-sm mt-4">En seguimiento</p>
               </div>
@@ -804,7 +804,7 @@ function App() {
                       ${state.polizas.reduce((sum, p) => sum + (Number(p.premio_total) || 0), 0).toLocaleString('es-AR')}
                     </p>
                   </div>
-                  <span className="text-4xl">💰</span>
+                  <Icon name="currency-dollar" size={36} className="text-orange-200 shrink-0" />
                 </div>
                 <p className="text-orange-200 text-sm mt-4">Prima total anual</p>
               </div>
@@ -898,7 +898,10 @@ function App() {
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 bg-slate-800/50 rounded-xl p-6 border border-slate-700">
-                  <h3 className="text-lg font-semibold mb-4">📋 Formulario de Denuncia</h3>
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <Icon name="clipboard" size={18} className="shrink-0" />
+                    Formulario de Denuncia
+                  </h3>
                   
                   <form onSubmit={handleEnviarSiniestro} className="space-y-6">
                     <div>
@@ -1973,17 +1976,29 @@ function App() {
             <div>
               <h4 className="font-semibold mb-4 text-slate-300">Contacto</h4>
               <ul className="space-y-2 text-sm text-slate-400">
-                <li><a href="tel:+5493416952259" className="hover:text-white transition">📞 341 695-2259</a></li>
-                <li><a href="mailto:aymaseguros@hotmail.com" className="hover:text-white transition">📧 aymaseguros@hotmail.com</a></li>
-                <li><a href="https://wa.me/5493416952259" target="_blank" rel="noopener noreferrer" className="hover:text-white transition">💬 WhatsApp</a></li>
+                <li>
+                  <a href="tel:+5493416952259" className="inline-flex items-center gap-1.5 hover:text-white transition">
+                    <Icon name="phone" size={14} className="shrink-0" /> 341 695-2259
+                  </a>
+                </li>
+                <li>
+                  <a href="mailto:aymaseguros@hotmail.com" className="inline-flex items-center gap-1.5 hover:text-white transition">
+                    <Icon name="envelope" size={14} className="shrink-0" /> aymaseguros@hotmail.com
+                  </a>
+                </li>
+                <li>
+                  <a href="https://wa.me/5493416952259" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 hover:text-white transition">
+                    <Icon name="chat-bubble" size={14} className="shrink-0" /> WhatsApp
+                  </a>
+                </li>
               </ul>
             </div>
 
             <div>
               <h4 className="font-semibold mb-4 text-slate-300">Oficinas</h4>
               <ul className="space-y-2 text-sm text-slate-400">
-                <li>📍 Rosario: Mariano Moreno 37, Piso 9 A</li>
-                <li>📍 CABA: Manzoni 112</li>
+                <li className="flex items-center gap-1.5"><Icon name="map-pin" size={14} className="shrink-0" /> Rosario: Mariano Moreno 37, Piso 9 A</li>
+                <li className="flex items-center gap-1.5"><Icon name="map-pin" size={14} className="shrink-0" /> CABA: Manzoni 112</li>
               </ul>
               <h4 className="font-semibold mb-3 mt-6 text-slate-300">Seguinos</h4>
               <div className="flex gap-4">
