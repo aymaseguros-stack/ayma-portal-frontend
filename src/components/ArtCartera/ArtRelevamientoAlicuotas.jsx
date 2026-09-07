@@ -6,7 +6,11 @@ import { numeroAr, decimalAr, dotacionConfianzaInfo } from './artCarteraConstant
 
 const LIMIT = 20;
 const AUTOSAVE_EVERY = 5;
-const URL_SRT = 'https://eservicios.srt.gob.ar/Consultas/Alicuotas/Default.aspx';
+// La SRT rechaza el acceso directo a este link con "ERROR DE VALIDACIÓN":
+// exige entrar desde el flujo de ARCA con Clave Fiscal. No hay URL que lleve
+// directo a la consulta - el botón lleva al portal de ARCA y el operador
+// navega desde ahí (ver tooltip de BotonAbrirARCA).
+const URL_ARCA = 'https://www.afip.gob.ar/';
 
 const parseAlicuota = (valor) => {
   const normalizado = (valor || '').trim().replace(',', '.');
@@ -55,15 +59,16 @@ const mergeResultados = (previo, nuevo) => {
   };
 };
 
-const BotonAbrirSRT = () => (
+const BotonAbrirARCA = () => (
   <a
-    href={URL_SRT}
+    href={URL_ARCA}
     target="_blank"
     rel="noopener noreferrer"
+    title="Ingresá con Clave Fiscal y entrá a e-Servicios SRT → Consulta de Alícuotas"
     className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-medium transition"
   >
     <Icon name="arrow-top-right-on-square" size={14} />
-    Abrir SRT
+    Abrir ARCA
   </a>
 );
 
@@ -440,7 +445,7 @@ const ArtRelevamientoAlicuotas = ({ token }) => {
       <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h2 className="text-2xl font-bold">Relevamiento</h2>
-          <BotonAbrirSRT />
+          <BotonAbrirARCA />
         </div>
         <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-12 text-center text-slate-500 animate-pulse">
           Cargando tanda de empresas...
@@ -460,7 +465,7 @@ const ArtRelevamientoAlicuotas = ({ token }) => {
       <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h2 className="text-2xl font-bold">Relevamiento</h2>
-          <BotonAbrirSRT />
+          <BotonAbrirARCA />
         </div>
         <div className="bg-red-500/15 border-2 border-red-500/60 rounded-xl p-6 space-y-4">
           <div className="flex items-start gap-3">
@@ -493,7 +498,7 @@ const ArtRelevamientoAlicuotas = ({ token }) => {
       <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h2 className="text-2xl font-bold">Relevamiento</h2>
-          <BotonAbrirSRT />
+          <BotonAbrirARCA />
         </div>
         <div className="bg-red-500/15 border border-red-500/50 rounded-lg p-4 flex items-start gap-3">
           <Icon name="exclamation-triangle" className="text-red-400 shrink-0 mt-0.5" />
@@ -518,7 +523,7 @@ const ArtRelevamientoAlicuotas = ({ token }) => {
       <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h2 className="text-2xl font-bold">Relevamiento</h2>
-          <BotonAbrirSRT />
+          <BotonAbrirARCA />
         </div>
         <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-12 text-center text-slate-500">
           No hay empresas pendientes de relevamiento en este momento. No es un error: la cola está vacía.
@@ -542,7 +547,7 @@ const ArtRelevamientoAlicuotas = ({ token }) => {
       <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h2 className="text-2xl font-bold">Relevamiento</h2>
-          <BotonAbrirSRT />
+          <BotonAbrirARCA />
         </div>
         <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6 space-y-5">
           <div className="flex items-center gap-3">
@@ -602,7 +607,7 @@ const ArtRelevamientoAlicuotas = ({ token }) => {
       <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h2 className="text-2xl font-bold">Relevamiento</h2>
-          <BotonAbrirSRT />
+          <BotonAbrirARCA />
         </div>
         <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-12 text-center space-y-4">
           {sendError ? (
@@ -653,7 +658,7 @@ const ArtRelevamientoAlicuotas = ({ token }) => {
           {totalPendientes > items.length && (
             <span className="text-slate-500 text-xs">{totalPendientes} en cola total</span>
           )}
-          <BotonAbrirSRT />
+          <BotonAbrirARCA />
         </div>
       </div>
 
