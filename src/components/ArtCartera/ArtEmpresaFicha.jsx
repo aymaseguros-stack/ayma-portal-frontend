@@ -19,7 +19,7 @@ const fechaCorta = (valor) => {
 
 // ContratoHistoricoItem/ContratoActualBlock (contrato_art_historico) traen
 // `aseguradora` como texto crudo de la SRT y `aseguradora_normalizada` solo
-// cuando matchea una de las 13 aseguradoras de AYMA - ver
+// cuando matchea una de las 15 aseguradoras de AYMA - ver
 // app/schemas/art_consultas.py del backend. Se prioriza la etiqueta linda
 // de ASEGURADORAS_ART cuando hay match; si es una ART externa (o no
 // matcheó), se muestra el texto crudo tal cual en vez de perderlo.
@@ -163,7 +163,7 @@ const CalculoStat = ({ label, valor, resaltar }) => (
 );
 
 // Pantalla B - Ficha de empresa (/art/:cuit): cabecera + motor de cálculo +
-// matriz de 13 aseguradoras + historial append-only. GET /art/empresas/{cuit}
+// matriz de 15 aseguradoras + historial append-only. GET /art/empresas/{cuit}
 // (app/api/v1/art_consultas.py::obtener_empresa_art).
 const ArtEmpresaFicha = ({ token, cuit, onVolver }) => {
   const [data, setData] = useState(null);
@@ -244,6 +244,17 @@ const ArtEmpresaFicha = ({ token, cuit, onVolver }) => {
           <div>
             <h2 className="text-2xl font-bold">{empresa.razon_social}</h2>
             {empresa.nombre_fantasia && <p className="text-slate-400 text-sm">{empresa.nombre_fantasia}</p>}
+            {/* razon_social_srt: nombre legal según el padrón de la SRT (GET
+                /art/empresas/{cuit}) - puede venir null o coincidir con
+                razon_social, en cuyo caso no aporta nada y se oculta. */}
+            {empresa.razon_social_srt && empresa.razon_social_srt !== empresa.razon_social && (
+              <p className="text-slate-400 text-sm mt-1">
+                <span className="text-slate-500">Razón social según SRT:</span> {empresa.razon_social_srt}
+                <span className="block text-xs text-slate-600 mt-0.5">
+                  Es el nombre legal con el que se emite la póliza.
+                </span>
+              </p>
+            )}
           </div>
           <div className="flex gap-2">
             {empresa.riesgo_suscripcion && (
@@ -334,7 +345,7 @@ const ArtEmpresaFicha = ({ token, cuit, onVolver }) => {
         )}
       </div>
 
-      {/* Matriz de 13 aseguradoras (orden fijo: ver ASEGURADORAS_ART) */}
+      {/* Matriz de 15 aseguradoras (orden fijo: ver ASEGURADORAS_ART) */}
       <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-700">
           <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide">Matriz de aseguradoras</h3>

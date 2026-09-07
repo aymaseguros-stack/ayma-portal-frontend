@@ -60,6 +60,84 @@ beforeEach(() => {
   vi.restoreAllMocks();
 });
 
+describe('ArtEmpresaFicha - razón social según SRT (razon_social_srt)', () => {
+  // Casos reales de empresas donde razon_social (nombre comercial cargado en
+  // AYMA) difiere de razon_social_srt (nombre legal informado por la SRT,
+  // GET /art/empresas/{cuit}) - la póliza se emite con el nombre de la SRT.
+  it('South Convention Center SA (Hilton): razon_social_srt difiere de razon_social y se muestra en línea aparte', async () => {
+    mockearFetchFicha({
+      ...detalleBase,
+      empresa: {
+        ...empresaBase,
+        razon_social: 'Hilton Rosario',
+        razon_social_srt: 'SOUTH CONVENTION CENTER SA',
+      },
+    });
+
+    const { container } = render(<ArtEmpresaFicha token="tok" cuit="30-12345678-9" onVolver={() => {}} />);
+
+    await waitFor(() => expect(container.textContent).toContain('Razón social según SRT'));
+    expect(container.textContent).toContain('SOUTH CONVENTION CENTER SA');
+    expect(container.textContent).toContain('Es el nombre legal con el que se emite la póliza.');
+  });
+
+  it('Berca Hotelera (El Conquistador): también se muestra cuando difiere', async () => {
+    mockearFetchFicha({
+      ...detalleBase,
+      empresa: {
+        ...empresaBase,
+        razon_social: 'El Conquistador',
+        razon_social_srt: 'BERCA HOTELERA',
+      },
+    });
+
+    const { container } = render(<ArtEmpresaFicha token="tok" cuit="30-12345678-9" onVolver={() => {}} />);
+
+    await waitFor(() => expect(container.textContent).toContain('Razón social según SRT'));
+    expect(container.textContent).toContain('BERCA HOTELERA');
+  });
+
+  it('Alpek Polyester (DAK Americas): también se muestra cuando difiere', async () => {
+    mockearFetchFicha({
+      ...detalleBase,
+      empresa: {
+        ...empresaBase,
+        razon_social: 'DAK Americas',
+        razon_social_srt: 'ALPEK POLYESTER',
+      },
+    });
+
+    const { container } = render(<ArtEmpresaFicha token="tok" cuit="30-12345678-9" onVolver={() => {}} />);
+
+    await waitFor(() => expect(container.textContent).toContain('Razón social según SRT'));
+    expect(container.textContent).toContain('ALPEK POLYESTER');
+  });
+
+  it('razon_social_srt null: no renderiza la línea', async () => {
+    mockearFetchFicha({
+      ...detalleBase,
+      empresa: { ...empresaBase, razon_social_srt: null },
+    });
+
+    const { container } = render(<ArtEmpresaFicha token="tok" cuit="30-12345678-9" onVolver={() => {}} />);
+
+    await waitFor(() => expect(container.textContent).toContain('Acme SA'));
+    expect(container.textContent).not.toContain('Razón social según SRT');
+  });
+
+  it('razon_social_srt igual a razon_social: no renderiza la línea (no aporta información nueva)', async () => {
+    mockearFetchFicha({
+      ...detalleBase,
+      empresa: { ...empresaBase, razon_social_srt: empresaBase.razon_social },
+    });
+
+    const { container } = render(<ArtEmpresaFicha token="tok" cuit="30-12345678-9" onVolver={() => {}} />);
+
+    await waitFor(() => expect(container.textContent).toContain('Acme SA'));
+    expect(container.textContent).not.toContain('Razón social según SRT');
+  });
+});
+
 describe('ArtEmpresaFicha - actividad y alícuota de referencia SRT', () => {
   it('con match vigente: muestra la actividad, suma fija + cuota variable parseadas y la leyenda de resolución', async () => {
     mockearFetchFicha({

@@ -3,14 +3,24 @@ import { numeroSeguro } from '../../utils/api';
 // Dominio del módulo "Cartera ART" (Bloque 5) - ver
 // app/models/crm/empresa_art_estado.py del backend, fuente de verdad de
 // estos valores. NO reordenar ASEGURADORAS_ART: es el orden fijo de columna
-// de la matriz empresa × 13 aseguradoras en toda la UI.
+// de la matriz empresa × 15 aseguradoras en toda la UI.
+//
+// omint: en 2025 Omint ART pasó a operar bajo el nombre comercial "Serena"
+// tras su compra por Grupo Lapachos (cambio de denominación aprobado por
+// SSN, misma persona jurídica) - el backend normaliza "Serena" como alias
+// de "omint" (no es una ART nueva/independiente), y el label acá lleva
+// "(SERENA)" para que el operador reconozca el nombre que informa la SRT.
+//
+// reconquista / parana: ART reales e independientes agregadas en sync con
+// el backend (PR #67), verificadas contra UART/SSN - Reconquista ART
+// (CUIT 30-63278185-3) y Paraná ART (CUIT 30-71856742-0).
 export const ASEGURADORAS_ART = [
   { id: 'plus', label: 'Plus' },
   { id: 'asociart', label: 'Asociart' },
   { id: 'provincia', label: 'Provincia' },
   { id: 'smg', label: 'SMG' },
   { id: 'galeno', label: 'Galeno' },
-  { id: 'omint', label: 'Omint' },
+  { id: 'omint', label: 'OMINT ART (SERENA)' },
   { id: 'experta', label: 'Experta' },
   { id: 'la_holando', label: 'La Holando' },
   { id: 'prevencion', label: 'Prevención' },
@@ -18,6 +28,8 @@ export const ASEGURADORAS_ART = [
   { id: 'la_segunda', label: 'La Segunda' },
   { id: 'berkley', label: 'Berkley' },
   { id: 'andina', label: 'Andina' },
+  { id: 'reconquista', label: 'Reconquista' },
+  { id: 'parana', label: 'Paraná ART' },
 ];
 
 // Nunca devuelve el `id` crudo si no es un string (ej. si el backend manda
