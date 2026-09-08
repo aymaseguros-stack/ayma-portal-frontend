@@ -3,7 +3,7 @@ import { numeroSeguro } from '../../utils/api';
 // Dominio del módulo "Cartera ART" (Bloque 5) - ver
 // app/models/crm/empresa_art_estado.py del backend, fuente de verdad de
 // estos valores. NO reordenar ASEGURADORAS_ART: es el orden fijo de columna
-// de la matriz empresa × 15 aseguradoras en toda la UI.
+// de la matriz empresa × 19 aseguradoras en toda la UI.
 //
 // omint: en 2025 Omint ART pasó a operar bajo el nombre comercial "Serena"
 // tras su compra por Grupo Lapachos (cambio de denominación aprobado por
@@ -14,6 +14,16 @@ import { numeroSeguro } from '../../utils/api';
 // reconquista / parana: ART reales e independientes agregadas en sync con
 // el backend (PR #67), verificadas contra UART/SSN - Reconquista ART
 // (CUIT 30-63278185-3) y Paraná ART (CUIT 30-71856742-0).
+//
+// victoria / latitud_sur / iapser / horizonte: ART reales e independientes
+// agregadas en sync con el backend (auditoría setiembre 2026, ver
+// app/services/aseguradoras.py del backend), verificadas contra UART/SSN -
+// Compañía Argentina de Seguros Victoria S.A. (CUIT 30-50003226-6),
+// Compañía Argentina de Seguros Latitud Sur S.A. (CUIT 30-50006638-1),
+// Instituto Autárquico Provincial del Seguro de Entre Ríos (CUIT
+// 30-50005550-9 - label "IAPSER (Entre Ríos)" para que el operador lo
+// distinga de otros institutos autárquicos provinciales) y Horizonte
+// Compañía Argentina de Seguros Generales S.A. (CUIT 30-50005208-9).
 export const ASEGURADORAS_ART = [
   { id: 'plus', label: 'Plus' },
   { id: 'asociart', label: 'Asociart' },
@@ -30,6 +40,10 @@ export const ASEGURADORAS_ART = [
   { id: 'andina', label: 'Andina' },
   { id: 'reconquista', label: 'Reconquista' },
   { id: 'parana', label: 'Paraná ART' },
+  { id: 'victoria', label: 'Victoria' },
+  { id: 'latitud_sur', label: 'Latitud Sur' },
+  { id: 'iapser', label: 'IAPSER (Entre Ríos)' },
+  { id: 'horizonte', label: 'Horizonte' },
 ];
 
 // Nunca devuelve el `id` crudo si no es un string (ej. si el backend manda
