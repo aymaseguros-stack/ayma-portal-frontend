@@ -165,7 +165,7 @@ const CalculoStat = ({ label, valor, resaltar }) => (
 // Pantalla B - Ficha de empresa (/art/:cuit): cabecera + motor de cálculo +
 // matriz de 19 aseguradoras + historial append-only. GET /art/empresas/{cuit}
 // (app/api/v1/art_consultas.py::obtener_empresa_art).
-const ArtEmpresaFicha = ({ token, cuit, onVolver }) => {
+const ArtEmpresaFicha = ({ token, cuit, onVolver, onAbrirGrilla }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -256,7 +256,7 @@ const ArtEmpresaFicha = ({ token, cuit, onVolver }) => {
               </p>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {empresa.riesgo_suscripcion && (
               <span className={`px-2.5 py-1 rounded text-xs font-medium ${riesgoBadgeClass(empresa.riesgo_suscripcion)}`}>
                 Riesgo {empresa.riesgo_suscripcion}
@@ -265,6 +265,22 @@ const ArtEmpresaFicha = ({ token, cuit, onVolver }) => {
             <span className={`px-2.5 py-1 rounded text-xs font-medium ${estrategiaArtBadgeClass(empresa.estrategia_art)}`}>
               {info.label}
             </span>
+            {/* Entrada a la grilla de cotización (BLOQUE 1.2). Va acá y no
+                en el listado porque la grilla se pide por `id` de empresa
+                y la ficha es la única pantalla que lo tiene: GET
+                /art/empresas devuelve CUIT pero no id (ver
+                EmpresaARTListItem en app/schemas/art_consultas.py del
+                backend). */}
+            {onAbrirGrilla && (
+              <button
+                type="button"
+                onClick={() => onAbrirGrilla(empresa.id)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition"
+              >
+                <Icon name="chart-bar" size={14} />
+                Grilla de cotización
+              </button>
+            )}
           </div>
         </div>
 

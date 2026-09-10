@@ -133,3 +133,60 @@ export const decimalAr = (valor, opciones = { maximumFractionDigits: 2 }) => {
   const numero = Number(valor);
   return Number.isFinite(numero) ? numero.toLocaleString('es-AR', opciones) : null;
 };
+
+// Confianza de la MASA SALARIAL de la grilla de cotización (BLOQUE 1.2 -
+// app/services/masa_salarial.py del backend). Distinta de
+// dotacionConfianzaInfo de arriba, que califica sólo la dotación: ésta
+// califica la masa completa, que es el factor del que cuelgan todos los
+// importes de la grilla.
+//
+// CONFIRMADA es la única que NO es una estimación: significa que la
+// empresa presentó su F.931 (declaración jurada ante ARCA). Por eso es la
+// única en verde y con un ícono propio - la diferencia entre un número
+// declarado y uno estimado tiene que verse de un vistazo, no leerse en
+// letra chica.
+const CONFIANZA_MASA_META = {
+  CONFIRMADA: { label: 'Confirmada (F.931)', badge: 'bg-green-500/20 text-green-300' },
+  ALTA: { label: 'Estimada · confianza alta', badge: 'bg-blue-500/20 text-blue-300' },
+  MEDIA: { label: 'Estimada · confianza media', badge: 'bg-yellow-500/20 text-yellow-300' },
+  BAJA: { label: 'Estimada · confianza baja', badge: 'bg-orange-500/20 text-orange-300' },
+};
+
+export const confianzaMasaInfo = (confianza) =>
+  CONFIANZA_MASA_META[confianza] || { label: confianza || 'Sin dato', badge: 'bg-slate-500/20 text-slate-400' };
+
+// Origen de la alícuota de referencia de una fila de la grilla (la cascada
+// propia vigente > propia caducada > benchmark de mercado). La leyenda
+// tiene que estar SIEMPRE al lado del número: una alícuota que nos pasó la
+// aseguradora para esta empresa y una mediana de mercado se cotizan muy
+// distinto, y sin la etiqueta se ven igual.
+const ORIGEN_ALICUOTA_META = {
+  PROPIA_VIGENTE: { label: 'Cotizada', ayuda: 'Alícuota que la aseguradora pasó para esta empresa y sigue vigente' },
+  PROPIA_CADUCADA: { label: 'Cotizada (vencida)', ayuda: 'Última alícuota pasada para esta empresa, ya caducada' },
+  BENCHMARK: { label: 'Referencia de mercado', ayuda: 'Mediana de lo que esta aseguradora cotiza en empresas similares' },
+};
+
+export const origenAlicuotaInfo = (origen) =>
+  ORIGEN_ALICUOTA_META[origen] || { label: origen || 'Sin dato', ayuda: '' };
+
+// Importe en pesos. Devuelve null (no "$ 0") cuando el backend mandó null:
+// sin masa salarial estimada los importes de la grilla NO se calculan, y
+// mostrar un 0 ahí sería afirmar que no hay ahorro cuando lo que pasa es
+// que no se sabe.
+export const pesosAr = (valor) => {
+  if (valor === null || valor === undefined) return null;
+  const numero = Number(valor);
+  if (!Number.isFinite(numero)) return null;
+  return `$ ${numero.toLocaleString('es-AR', { maximumFractionDigits: 0 })}`;
+};
+
+// Porcentaje de variación (delta_vs_actual llega como fracción: -0.42 =
+// 42% más barata). Se muestra con signo explícito para que "más barata" y
+// "más cara" no dependan de leer el color.
+export const variacionPct = (valor) => {
+  if (valor === null || valor === undefined) return null;
+  const numero = Number(valor);
+  if (!Number.isFinite(numero)) return null;
+  const pct = numero * 100;
+  return `${pct > 0 ? '+' : ''}${pct.toLocaleString('es-AR', { maximumFractionDigits: 1 })}%`;
+};

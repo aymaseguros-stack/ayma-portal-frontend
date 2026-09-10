@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import ArtCarteraListado from './ArtCarteraListado';
 import ArtEmpresaFicha from './ArtEmpresaFicha';
+import ArtGrillaCotizacion from './ArtGrillaCotizacion';
 import ArtDesbloqueosBoard from './ArtDesbloqueosBoard';
 import ArtTecnicaVencidaBoard from './ArtTecnicaVencidaBoard';
 import ArtReferencialTarifasBoard from './ArtReferencialTarifasBoard';
@@ -45,12 +46,33 @@ const subTabButtonClass = (active) =>
 const ArtCarteraView = ({ token }) => {
   const [subTab, setSubTab] = useState('cartera');
   const [cuitFicha, setCuitFicha] = useState(null);
+  // Grilla de cotización (BLOQUE 1.2): un nivel MÁS ADENTRO de la ficha,
+  // no un sub-tab. Se abre con el `id` de la empresa (la grilla va por id,
+  // no por CUIT) y al volver se cae a la ficha que quedó abierta detrás,
+  // sin perderla. Mismo mecanismo de estado local que la ficha: la app no
+  // usa router de URLs (ver el comentario de arriba).
+  const [empresaIdGrilla, setEmpresaIdGrilla] = useState(null);
 
   const abrirFicha = (cuit) => setCuitFicha(cuit);
   const volverACartera = () => setCuitFicha(null);
+  const abrirGrilla = (empresaId) => setEmpresaIdGrilla(empresaId);
+  const volverALaFicha = () => setEmpresaIdGrilla(null);
+
+  if (empresaIdGrilla) {
+    return (
+      <ArtGrillaCotizacion token={token} empresaId={empresaIdGrilla} onVolver={volverALaFicha} />
+    );
+  }
 
   if (cuitFicha) {
-    return <ArtEmpresaFicha token={token} cuit={cuitFicha} onVolver={volverACartera} />;
+    return (
+      <ArtEmpresaFicha
+        token={token}
+        cuit={cuitFicha}
+        onVolver={volverACartera}
+        onAbrirGrilla={abrirGrilla}
+      />
+    );
   }
 
   return (
