@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from '../Icons';
 import { obtenerEmail, marcarEmailComoRuido, ESTADOS_VINCULACION_BADGE } from './mailApi';
+import { fechaHora } from '../../utils/fechas';
 
 // Panel lateral con el cuerpo de un correo, cargado a demanda (GET
 // /api/v1/email/{id}) al hacer clic en una fila de la Bandeja o de Enviados.
@@ -68,7 +69,7 @@ const EmailDetailPanel = ({ token, emailId, onClose, onResponder, onVincular, on
             <div className="text-sm space-y-1">
               <p><span className="text-slate-500">De:</span> {detalle.remitente_nombre ? `${detalle.remitente_nombre} <${detalle.remitente_email}>` : detalle.remitente_email}</p>
               {detalle.destinatario_email && <p><span className="text-slate-500">Para:</span> {detalle.destinatario_email}</p>}
-              <p><span className="text-slate-500">Fecha:</span> {detalle.fecha ? new Date(detalle.fecha).toLocaleString('es-AR') : '-'}</p>
+              <p><span className="text-slate-500">Fecha:</span> {fechaHora(detalle.fecha) || '-'}</p>
             </div>
 
             <div className="flex gap-2 flex-wrap">

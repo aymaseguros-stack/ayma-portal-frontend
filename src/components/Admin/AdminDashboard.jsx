@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import DashboardEjecutivo from './DashboardEjecutivo';
 import { Search, Filter, ChevronUp, ChevronDown, Eye, Edit, Phone, Mail, FileText, TrendingUp, Users, DollarSign, Calendar } from 'lucide-react';
+import { fechaCorta, fechaHora, hoyISO } from '../../utils/fechas';
 
 const AdminPanel = () => {
   const [clientes, setClientes] = useState([]);
@@ -173,7 +174,7 @@ const AdminPanel = () => {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `clientes_ayma_${new Date().toISOString().split('T')[0]}.csv`;
+        a.download = `clientes_ayma_${hoyISO()}.csv`;
         a.click();
       }
     } catch (error) {
@@ -268,7 +269,7 @@ const AdminPanel = () => {
                   {item.poliza.compania}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {new Date(item.poliza.fecha_vencimiento).toLocaleDateString()}
+                  {fechaCorta(item.poliza.fecha_vencimiento)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`px-2 py-1 text-xs rounded-full ${
@@ -365,7 +366,7 @@ const AdminPanel = () => {
             {leads.filter(l => (!filtroEstado || l.estado === filtroEstado) && (!filtroTipo || l.tipo_seguro === filtroTipo)).map((lead) => (
               <tr key={lead.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {new Date(lead.created_at).toLocaleString('es-AR')}
+                  {fechaHora(lead.created_at)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                   {lead.nombre}
@@ -521,7 +522,7 @@ const AdminPanel = () => {
                     <div>
                       <div className="text-sm text-gray-900">{cliente.tipo_ultima_actividad}</div>
                       <div className="text-xs text-gray-500">
-                        {new Date(cliente.ultima_actividad).toLocaleDateString()}
+                        {fechaCorta(cliente.ultima_actividad)}
                       </div>
                     </div>
                   ) : (
@@ -616,7 +617,7 @@ const AdminPanel = () => {
                     <td className="px-4 py-2 text-sm">{poliza.numero}</td>
                     <td className="px-4 py-2 text-sm">{poliza.compania}</td>
                     <td className="px-4 py-2 text-sm">{poliza.ramo}</td>
-                    <td className="px-4 py-2 text-sm">{new Date(poliza.fecha_vencimiento).toLocaleDateString()}</td>
+                    <td className="px-4 py-2 text-sm">{fechaCorta(poliza.fecha_vencimiento)}</td>
                     <td className="px-4 py-2 text-sm">${poliza.premio_total.toLocaleString()}</td>
                     <td className="px-4 py-2 text-sm">
                       <span className={`px-2 py-1 text-xs rounded-full ${

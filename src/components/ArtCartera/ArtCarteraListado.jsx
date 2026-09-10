@@ -3,7 +3,7 @@ import { Icon } from '../Icons';
 import { listarEmpresasArt } from './artCarteraApi';
 import { RIESGO_SUSCRIPCION_OPCIONES, ESTADOS_EFECTIVOS, ASEGURADORAS_ART, riesgoBadgeClass } from './artCarteraConstants';
 import { ESTRATEGIA_ART_ORDEN, estrategiaArtInfo, estrategiaArtBadgeClass } from '../Crm/artEstrategia';
-import { fechaCorta } from './artFechas';
+import { fechaCorta } from '../../utils/fechas';
 
 const LIMIT = 50;
 

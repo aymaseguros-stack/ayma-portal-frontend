@@ -2,16 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { Icon } from '../Icons';
 import Modal from '../Modal';
 import { authHeader, formatApiError } from '../../utils/api';
+import { fechaCorta, fechaHora, hoyISO, diaISO } from '../../utils/fechas';
 import { TIPOS_TAREA_VALIDOS, PRIORIDADES_VALIDAS } from './oportunidadConstants';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
+// Los días del backend son 'YYYY-MM-DD'. "Hoy" y "Mañana" se comparan contra
+// el día LOCAL (hoyISO/diaISO): con el UTC de `toISOString`, el encabezado
+// saltaba a "Mañana" a las 21:00 hora argentina.
 const formatDia = (fechaISO) => {
-  const hoy = new Date().toISOString().slice(0, 10);
-  const manana = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-  if (fechaISO === hoy) return 'Hoy';
-  if (fechaISO === manana) return 'Mañana';
-  return new Date(fechaISO + 'T00:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+  if (fechaISO === hoyISO()) return 'Hoy';
+  if (fechaISO === diaISO(1)) return 'Mañana';
+  return fechaCorta(fechaISO, { weekday: 'long', day: 'numeric', month: 'long' });
 };
 
 const TareaRow = ({ t, onCompletar, vencida }) => (
@@ -26,7 +28,7 @@ const TareaRow = ({ t, onCompletar, vencida }) => (
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <span className={`font-medium ${t.estado === 'COMPLETADA' ? 'line-through text-slate-500' : ''}`}>{t.titulo}</span>
         <span className={`text-xs shrink-0 ${vencida ? 'text-red-400' : 'text-slate-500'}`}>
-          {new Date(t.fecha_programada).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+          {fechaHora(t.fecha_programada, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
         </span>
       </div>
       <div className="flex items-center gap-2 mt-1">

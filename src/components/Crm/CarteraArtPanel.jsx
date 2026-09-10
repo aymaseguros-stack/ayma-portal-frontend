@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../Icons';
 import { normalizeList, formatApiError, authHeader, numeroSeguro } from '../../utils/api';
+import { fechaCorta } from '../../utils/fechas';
 import { ESTRATEGIA_ART_INFO, ESTRATEGIA_ART_ORDEN, estrategiaArtInfo, estrategiaArtBadgeClass } from './artEstrategia';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
@@ -17,13 +18,6 @@ const CARD_COLOR_ACTIVE = {
   green: 'bg-green-500/10 border-green-400',
   orange: 'bg-orange-500/10 border-orange-400',
   gray: 'bg-slate-500/10 border-slate-400',
-};
-
-const fechaCorta = (valor) => {
-  if (!valor) return null;
-  const d = new Date(valor);
-  if (Number.isNaN(d.getTime())) return valor;
-  return d.toLocaleDateString('es-AR');
 };
 
 const AVISO_SIN_COBERTURA = 'Sin cobertura no es lead limpio. Si la baja fue por falta de pago (Ley '

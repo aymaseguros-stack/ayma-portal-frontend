@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from '../Icons';
 import { listarEmails, remitentesFrecuentes, ignorarRemitente } from './mailApi';
+import { fechaHora } from '../../utils/fechas';
 
 // Herramienta de limpieza masiva: arriba, el ranking de remitentes frecuentes
 // dentro del ruido (GET /remitentes-frecuentes) con "Ignorar remitente"
@@ -139,7 +140,7 @@ const RuidoTab = ({ token }) => {
                     <td className="px-4 py-3 text-sm max-w-[200px] truncate">{m.remitente_nombre || m.remitente_email}</td>
                     <td className="px-4 py-3 text-sm">{m.asunto || '(sin asunto)'}</td>
                     <td className="px-4 py-3 text-sm text-slate-400 whitespace-nowrap">
-                      {m.fecha ? new Date(m.fecha).toLocaleString('es-AR') : '-'}
+                      {fechaHora(m.fecha) || '-'}
                     </td>
                   </tr>
                 ))}

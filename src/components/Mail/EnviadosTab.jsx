@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { listarEmails } from './mailApi';
+import { fechaHora } from '../../utils/fechas';
 
 // Correos enviados desde el portal (GET /api/v1/email?direccion=OUT).
 const EnviadosTab = ({ token, onAbrirEmail }) => {
@@ -53,7 +54,7 @@ const EnviadosTab = ({ token, onAbrirEmail }) => {
                   <td className="px-4 py-3 text-sm max-w-[200px] truncate">{m.destinatario_email || m.destinatario_nombre}</td>
                   <td className="px-4 py-3 text-sm">{m.asunto || '(sin asunto)'}</td>
                   <td className="px-4 py-3 text-sm text-slate-400 whitespace-nowrap">
-                    {m.fecha ? new Date(m.fecha).toLocaleString('es-AR') : '-'}
+                    {fechaHora(m.fecha) || '-'}
                   </td>
                 </tr>
               ))}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, X, Bell, Phone, MessageCircle, ChevronRight, Clock } from 'lucide-react';
+import { fechaCorta } from '../../utils/fechas';
 
 // Sin props: el único caller (DashboardEjecutivo) lo monta como
 // <AlertasVencimientos /> y el panel no se cierra - se expande y se
@@ -38,7 +39,7 @@ const AlertasVencimientos = () => {
   const abrirWhatsApp = (venc) => {
     const telefono = venc.cliente?.whatsapp?.replace(/\D/g, '') || venc.cliente?.telefono?.replace(/\D/g, '');
     const mensaje = encodeURIComponent(
-      `Hola ${venc.cliente?.nombre}! Te escribimos de AYMA Advisors. Tu póliza ${venc.poliza?.numero_poliza} vence el ${new Date(venc.poliza?.fecha_vencimiento).toLocaleDateString('es-AR')}. ¿Coordinamos la renovación?`
+      `Hola ${venc.cliente?.nombre}! Te escribimos de AYMA Advisors. Tu póliza ${venc.poliza?.numero_poliza} vence el ${fechaCorta(venc.poliza?.fecha_vencimiento)}. ¿Coordinamos la renovación?`
     );
     window.open(`https://wa.me/54${telefono}?text=${mensaje}`, '_blank');
   };
@@ -185,7 +186,7 @@ const AlertaItem = ({ venc, tipo, onWhatsApp, onLlamar }) => {
             Póliza: {venc.poliza?.numero_poliza} • {venc.poliza?.compania}
           </div>
           <div className="text-xs text-gray-500">
-            Vence: {new Date(venc.poliza?.fecha_vencimiento).toLocaleDateString('es-AR')} • 
+            Vence: {fechaCorta(venc.poliza?.fecha_vencimiento)} • 
             Prima: ${venc.poliza?.premio_total?.toLocaleString('es-AR')}
           </div>
         </div>

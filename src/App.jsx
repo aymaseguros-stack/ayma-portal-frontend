@@ -19,6 +19,7 @@ import { Icon } from './components/Icons';
 import TwoFactorLoginStep from './components/Auth/TwoFactorLoginStep';
 import SecurityPanel from './components/Security/SecurityPanel';
 import { normalizeList, formatApiError, authHeader, SESSION_EXPIRED_EVENT } from './utils/api';
+import { fechaCorta } from './utils/fechas';
 
 // API Configuration
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
@@ -1339,7 +1340,7 @@ function App() {
                       {state.leads.map((lead, idx) => (
                         <tr key={lead.id || idx} className="hover:bg-slate-700/30">
                           <td className="px-4 py-3 text-sm text-slate-400">
-                            {new Date(lead.created_at).toLocaleDateString('es-AR')}
+                            {fechaCorta(lead.created_at)}
                           </td>
                           <td className="px-4 py-3 text-sm font-medium">{lead.nombre}</td>
                           <td className="px-4 py-3 text-sm">
@@ -1693,7 +1694,7 @@ function App() {
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-slate-400">Fecha:</span>
-                        <span>{new Date(siniestroSeleccionado.fecha_siniestro).toLocaleDateString('es-AR')}</span>
+                        <span>{fechaCorta(siniestroSeleccionado.fecha_siniestro)}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-slate-400">Cliente:</span>
@@ -1843,7 +1844,7 @@ function App() {
                             {sin.cliente_nombre || <span className="text-slate-500">N/A</span>}
                           </td>
                           <td className="px-4 py-3 text-sm text-slate-400">
-                            {new Date(sin.fecha_siniestro).toLocaleDateString('es-AR')}
+                            {fechaCorta(sin.fecha_siniestro)}
                           </td>
                           <td className="px-4 py-3">
                             <span className={`px-2 py-1 rounded text-xs font-medium ${

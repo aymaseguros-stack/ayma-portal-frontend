@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Icon } from '../Icons';
 import { listarLeadsSinCobertura } from './artCarteraApi';
 import { numeroAr } from './artCarteraConstants';
-import { fechaCorta } from './artFechas';
+import { fechaCorta } from '../../utils/fechas';
 
 const LIMIT = 50;
 

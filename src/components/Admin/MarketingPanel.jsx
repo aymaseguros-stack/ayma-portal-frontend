@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { fechaHora } from '../../utils/fechas';
 
 const API_URL = 'https://ayma-portal-backend.onrender.com/api/v1';
 
@@ -161,7 +162,7 @@ function MarketingPanel({ token }) {
                         <strong className="text-white">Canal:</strong> <span className="capitalize">{contenido.channel}</span>
                       </div>
                       <div className="mt-1 text-sm text-slate-300">
-                        <strong className="text-white">Fecha:</strong> {new Date(contenido.created_at).toLocaleString('es-AR')}
+                        <strong className="text-white">Fecha:</strong> {fechaHora(contenido.created_at)}
                       </div>
                     </div>
                   </div>

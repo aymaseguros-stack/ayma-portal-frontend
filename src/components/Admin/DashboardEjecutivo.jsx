@@ -3,6 +3,7 @@ import GraficosHistoricos from './GraficosHistoricos';
 import AlertasVencimientos from './AlertasVencimientos';
 import ExportarPDF from './ExportarPDF';
 import { TrendingUp, Users, FileText, DollarSign, AlertTriangle, Target, Phone, Calendar, ArrowUp, ArrowDown, MessageCircle, CheckCircle, XCircle } from 'lucide-react';
+import { fechaHora } from '../../utils/fechas';
 
 const DashboardEjecutivo = () => {
   const [data, setData] = useState(null);
@@ -75,7 +76,7 @@ const DashboardEjecutivo = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard Ejecutivo</h1>
-          <p className="text-gray-500 text-sm">Actualizado: {new Date().toLocaleString('es-AR')}</p>
+          <p className="text-gray-500 text-sm">Actualizado: {fechaHora(new Date())}</p>
         </div>
         <div className="flex items-center gap-3">
           <ExportarPDF targetId="dashboard-content" nombreArchivo="dashboard-ayma" />

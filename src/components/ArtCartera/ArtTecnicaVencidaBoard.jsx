@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Icon } from '../Icons';
 import { listarTecnicaVencida } from './artCarteraApi';
 import { aseguradoraLabel } from './artCarteraConstants';
-import { fechaCorta } from './artFechas';
+import { fechaCorta } from '../../utils/fechas';
 
 const LIMIT = 50;
 

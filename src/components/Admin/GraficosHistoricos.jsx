@@ -4,6 +4,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import { TrendingUp, Calendar, RefreshCw } from 'lucide-react';
+import { fechaCorta, diaISO } from '../../utils/fechas';
 
 const GraficosHistoricos = () => {
   const [data, setData] = useState(null);
@@ -42,9 +43,10 @@ const GraficosHistoricos = () => {
     
     // Inicializar con todos los días del periodo
     for (let i = periodo; i >= 0; i--) {
-      const fecha = new Date();
-      fecha.setDate(fecha.getDate() - i);
-      const key = fecha.toISOString().split('T')[0];
+      // diaISO y no toISOString: el eje se arma con días LOCALES, que son
+      // los que trae el backend. Con UTC, después de las 21:00 hora argentina
+      // el periodo entero se corría un día y los datos no encajaban en el mapa.
+      const key = diaISO(-i);
       mapa.set(key, { fecha: key, leads: 0, conversiones: 0 });
     }
     
@@ -62,7 +64,7 @@ const GraficosHistoricos = () => {
     
     return Array.from(mapa.values()).map(item => ({
       ...item,
-      fechaCorta: new Date(item.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })
+      fechaCorta: fechaCorta(item.fecha, { day: '2-digit', month: '2-digit' })
     }));
   };
 
@@ -73,9 +75,10 @@ const GraficosHistoricos = () => {
     const objetivo = 130; // Objetivo diario
     
     for (let i = periodo; i >= 0; i--) {
-      const fecha = new Date();
-      fecha.setDate(fecha.getDate() - i);
-      const key = fecha.toISOString().split('T')[0];
+      // diaISO y no toISOString: el eje se arma con días LOCALES, que son
+      // los que trae el backend. Con UTC, después de las 21:00 hora argentina
+      // el periodo entero se corría un día y los datos no encajaban en el mapa.
+      const key = diaISO(-i);
       mapa.set(key, { fecha: key, puntos: 0, objetivo });
     }
     
@@ -87,7 +90,7 @@ const GraficosHistoricos = () => {
     
     return Array.from(mapa.values()).map(item => ({
       ...item,
-      fechaCorta: new Date(item.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' }),
+      fechaCorta: fechaCorta(item.fecha, { day: '2-digit', month: '2-digit' }),
       cumplimiento: Math.round((item.puntos / objetivo) * 100)
     }));
   };
@@ -97,7 +100,7 @@ const GraficosHistoricos = () => {
     
     return data.polizas.map(item => ({
       ...item,
-      fechaCorta: new Date(item.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' }),
+      fechaCorta: fechaCorta(item.fecha, { day: '2-digit', month: '2-digit' }),
       primasK: Math.round(item.primas / 1000)
     }));
   };

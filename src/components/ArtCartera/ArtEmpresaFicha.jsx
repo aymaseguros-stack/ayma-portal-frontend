@@ -11,7 +11,7 @@ import {
   ASEGURADORAS_ART, riesgoBadgeClass, estadoArtInfo, esAlicuotaNoCompetitiva, decimalAr,
   aseguradoraLabel, confianzaMasaInfo, pesosAr,
 } from './artCarteraConstants';
-import { fechaCorta } from './artFechas';
+import { fechaCorta } from '../../utils/fechas';
 
 // ContratoHistoricoItem/ContratoActualBlock (contrato_art_historico) traen
 // `aseguradora` como texto crudo de la SRT y `aseguradora_normalizada` solo

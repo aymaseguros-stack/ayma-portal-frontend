@@ -1,5 +1,6 @@
 import React from 'react';
 import { Icon } from './Icons';
+import { fechaCorta } from '../utils/fechas';
 
 // Grilla de pólizas reutilizada por "Pólizas", "ART" e "Integral Comercio"
 // (estas últimas dos son la misma vista con un filtro de ramo fijo).
@@ -85,14 +86,14 @@ const PolizasGrid = ({ titulo, polizas, emptyText, error, loading, headerExtra }
                   </div>
                   <div>
                     <p className="text-slate-500">Vencimiento</p>
-                    <p className="font-medium">{new Date(poliza.fecha_vencimiento).toLocaleDateString('es-AR')}</p>
+                    <p className="font-medium">{fechaCorta(poliza.fecha_vencimiento)}</p>
                   </div>
                 </div>
               </div>
 
               <div className="px-6 py-3 bg-slate-700/30 flex justify-between items-center">
                 <span className="text-xs text-slate-500">
-                  Vigencia: {new Date(poliza.fecha_inicio).toLocaleDateString('es-AR')} - {new Date(poliza.fecha_vencimiento).toLocaleDateString('es-AR')}
+                  Vigencia: {fechaCorta(poliza.fecha_inicio)} - {fechaCorta(poliza.fecha_vencimiento)}
                 </span>
                 <button className="text-blue-400 hover:text-blue-300 text-sm font-medium">
                   Ver PDF
