@@ -194,7 +194,7 @@ describe('ArtPropuestaDetalle', () => {
     expect(JSON.parse(opciones.body)).toEqual({ estado: 'ENTREGADA' });
   });
 
-  it('el 409 "cargar F.931 primero" se muestra tal cual', async () => {
+  it('el 409 "cargar F.931 primero" se muestra tal cual, dentro del modal', async () => {
     globalThis.fetch = vi.fn()
       .mockResolvedValueOnce(jsonResponse(propuesta({
         estado: 'ENTREGADA', estado_efectivo: 'ENTREGADA',
@@ -207,8 +207,15 @@ describe('ArtPropuestaDetalle', () => {
     renderDetalle();
     await waitFor(() => expect(screen.getByText('Aceptada')).toBeTruthy());
     fireEvent.click(screen.getByText('Aceptada'));
+    fireEvent.change(screen.getByPlaceholderText('Por qué la aceptó'), {
+      target: { value: 'Firmó la propuesta' },
+    });
+    fireEvent.click(screen.getByText('Marcar aceptada'));
 
     await waitFor(() => expect(screen.getByText(/cargar F\.931 primero/)).toBeTruthy());
+    // El 409 hace rollback: el movimiento NO pasó, así que el modal sigue
+    // abierto con el motivo escrito para reintentar sin volver a tipearlo.
+    expect(screen.getByPlaceholderText('Por qué la aceptó').value).toBe('Firmó la propuesta');
   });
 
   it('la advertencia del vault caído se muestra sin romper la entrega', async () => {
@@ -409,5 +416,223 @@ describe('ArtPropuestaDetalle - confianza de la alícuota', () => {
     // distintas al mismo tiempo.
     await waitFor(() => expect(screen.getByText('Masa confirmada (F.931)')).toBeTruthy());
     expect(screen.getByText('Referencia de mercado')).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T17 - Motivo obligatorio en los dos desenlaces + bitácora visible
+// ---------------------------------------------------------------------------
+//
+// LO QUE PROTEGEN:
+//
+// 1. Que no se pueda marcar ACEPTADA ni RECHAZADA sin decir por qué. Un
+//    desenlace sin motivo no se puede trabajar: "rechazada", tres meses
+//    después, no dice si se fue por precio, por servicio o porque nunca
+//    contestó - y eso es justo lo que hay que saber para volver a llamar.
+// 2. Que el motivo viaje como `nota` a POST /estado (BLOQUE 1.5 del
+//    backend) y no se pierda en el camino: el backend lo asienta en la
+//    bitácora con el estado NUEVO y sólo si la transición se acepta.
+// 3. Que "Marcar entregada" NO pida motivo: entregar es un trámite, y
+//    pedir una explicación para un paso obligatorio del circuito sólo
+//    entrena a escribir "ok" para sacarse el modal de encima.
+// 4. Que la bitácora se vea en el detalle, con el estado de CADA entrada al
+//    momento de escribirla. Los números de una propuesta entregada no se
+//    tocan nunca: la bitácora es lo único que cuenta qué pasó después.
+describe('ArtPropuestaDetalle - motivo obligatorio en el desenlace (T17)', () => {
+  const entregada = (extra = {}) => propuesta({
+    estado: 'ENTREGADA', estado_efectivo: 'ENTREGADA', fecha_entrega: '2026-09-11',
+    confianza_masa: 'CONFIRMADA', sujeta_a_f931: false, ...extra,
+  });
+
+  it('"Aceptada" abre el modal en vez de mandar el movimiento', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(jsonResponse(entregada()));
+    renderDetalle();
+
+    await waitFor(() => expect(screen.getByText('Aceptada')).toBeTruthy());
+    fireEvent.click(screen.getByText('Aceptada'));
+
+    expect(screen.getByText('Marcar como aceptada · v2')).toBeTruthy();
+    // Un solo fetch: el de la carga. Nada salió hacia el backend todavía.
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('el confirmar arranca deshabilitado y los espacios no alcanzan', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(jsonResponse(entregada()));
+    renderDetalle();
+    await waitFor(() => expect(screen.getByText('Rechazada')).toBeTruthy());
+    fireEvent.click(screen.getByText('Rechazada'));
+
+    expect(screen.getByText('Marcar rechazada').disabled).toBe(true);
+
+    fireEvent.change(screen.getByPlaceholderText('Por qué la rechazó'), {
+      target: { value: '   ' },
+    });
+    expect(screen.getByText('Marcar rechazada').disabled).toBe(true);
+
+    fireEvent.change(screen.getByPlaceholderText('Por qué la rechazó'), {
+      target: { value: 'Se fue con Galeno por precio' },
+    });
+    expect(screen.getByText('Marcar rechazada').disabled).toBe(false);
+  });
+
+  it('confirmar manda {estado, nota} y deja la nota asentada a la vista', async () => {
+    const rechazada = entregada({
+      estado: 'RECHAZADA',
+      estado_efectivo: 'RECHAZADA',
+      notas: [{
+        fecha: '2026-09-12',
+        estado: 'RECHAZADA',
+        nota: 'Se fue con Galeno por precio',
+        usuario: 'user-1',
+      }],
+    });
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(entregada()))
+      .mockResolvedValueOnce(jsonResponse({ propuesta: rechazada, advertencias: [] }));
+
+    renderDetalle();
+    await waitFor(() => expect(screen.getByText('Rechazada')).toBeTruthy());
+    fireEvent.click(screen.getByText('Rechazada'));
+    fireEvent.change(screen.getByPlaceholderText('Por qué la rechazó'), {
+      target: { value: 'Se fue con Galeno por precio' },
+    });
+    fireEvent.click(screen.getByText('Marcar rechazada'));
+
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(2));
+    const [url, opciones] = globalThis.fetch.mock.calls[1];
+    expect(url).toContain('/art/propuestas/prop-1/estado');
+    expect(opciones.method).toBe('POST');
+    expect(JSON.parse(opciones.body)).toEqual({
+      estado: 'RECHAZADA', nota: 'Se fue con Galeno por precio',
+    });
+
+    // El modal se cierra y la nota queda en la bitácora de la pantalla.
+    await waitFor(() => expect(screen.queryByPlaceholderText('Por qué la rechazó')).toBeNull());
+    expect(screen.getByText('Se fue con Galeno por precio')).toBeTruthy();
+  });
+
+  it('cancelar el modal no manda nada', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(jsonResponse(entregada()));
+    renderDetalle();
+    await waitFor(() => expect(screen.getByText('Aceptada')).toBeTruthy());
+    fireEvent.click(screen.getByText('Aceptada'));
+    fireEvent.change(screen.getByPlaceholderText('Por qué la aceptó'), {
+      target: { value: 'Firmó' },
+    });
+    fireEvent.click(screen.getByText('Cancelar'));
+
+    expect(screen.queryByPlaceholderText('Por qué la aceptó')).toBeNull();
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('"Marcar entregada" NO pide motivo: entregar es un trámite', async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(propuesta()))
+      .mockResolvedValueOnce(jsonResponse({
+        propuesta: propuesta({ estado: 'ENTREGADA', estado_efectivo: 'ENTREGADA' }),
+        advertencias: [],
+      }));
+
+    renderDetalle();
+    await waitFor(() => expect(screen.getByText('Marcar entregada')).toBeTruthy());
+    fireEvent.click(screen.getByText('Marcar entregada'));
+
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(globalThis.fetch.mock.calls[1][1].body)).toEqual({ estado: 'ENTREGADA' });
+  });
+});
+
+describe('ArtPropuestaDetalle - bitácora (T17)', () => {
+  it('muestra el historial con el estado de cada entrada, en orden', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(jsonResponse(propuesta({
+      estado: 'RECHAZADA',
+      estado_efectivo: 'RECHAZADA',
+      confianza_masa: 'CONFIRMADA',
+      sujeta_a_f931: false,
+      notas: [
+        { fecha: '2026-09-10', estado: 'BORRADOR', nota: 'Pidió sin GNC', usuario: 'user-1' },
+        { fecha: '2026-09-14', estado: 'RECHAZADA', nota: 'Se fue por precio', usuario: 'user-1' },
+      ],
+    })));
+    renderDetalle();
+
+    await waitFor(() => expect(screen.getByText('Bitácora de seguimiento')).toBeTruthy());
+
+    const entradas = screen.getAllByRole('listitem');
+    expect(entradas).toHaveLength(2);
+    // Orden en que se escribieron: es una línea de tiempo, y leída al
+    // revés una conversación no se entiende.
+    expect(entradas[0].textContent).toContain('Pidió sin GNC');
+    expect(entradas[1].textContent).toContain('Se fue por precio');
+    // El estado de CADA entrada es el que tenía la propuesta al escribirla,
+    // no el de hoy: eso es lo que hace que la lista cuente algo.
+    expect(entradas[0].textContent).toContain('Borrador');
+    expect(entradas[1].textContent).toContain('Rechazada');
+    // El id de usuario (un UUID) no se muestra: en pantalla no dice nada.
+    expect(screen.queryByText(/user-1/)).toBeNull();
+  });
+
+  it('sin notas lo dice, en vez de mostrar una lista vacía', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(jsonResponse(propuesta({ notas: [] })));
+    renderDetalle();
+    await waitFor(() => expect(screen.getByText(/Todavía no hay notas/)).toBeTruthy());
+  });
+
+  it('agregar una nota va por PATCH /nota y limpia el campo', async () => {
+    const conNota = propuesta({
+      estado: 'ACEPTADA', estado_efectivo: 'ACEPTADA',
+      confianza_masa: 'CONFIRMADA', sujeta_a_f931: false,
+      notas: [{ fecha: '2026-09-20', estado: 'ACEPTADA', nota: 'Pasó el endoso', usuario: 'user-1' }],
+    });
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(propuesta({
+        estado: 'ACEPTADA', estado_efectivo: 'ACEPTADA',
+        confianza_masa: 'CONFIRMADA', sujeta_a_f931: false, notas: [],
+      })))
+      .mockResolvedValueOnce(jsonResponse(conNota));
+
+    renderDetalle();
+    await waitFor(() => expect(screen.getByText('Agregar nota')).toBeTruthy());
+
+    const campo = screen.getByPlaceholderText('Agregar una nota de seguimiento');
+    fireEvent.change(campo, { target: { value: 'Pasó el endoso' } });
+    fireEvent.click(screen.getByText('Agregar nota'));
+
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(2));
+    const [url, opciones] = globalThis.fetch.mock.calls[1];
+    expect(url).toContain('/art/propuestas/prop-1/nota');
+    expect(opciones.method).toBe('PATCH');
+    expect(JSON.parse(opciones.body)).toEqual({ nota: 'Pasó el endoso' });
+
+    // Aceptada y todo, la nota entra: es la única escritura que acepta una
+    // propuesta que ya salió de la oficina.
+    await waitFor(() => expect(
+      screen.getByPlaceholderText('Agregar una nota de seguimiento').value,
+    ).toBe(''));
+    expect(screen.getAllByRole('listitem')).toHaveLength(1);
+  });
+
+  it('un error al agregar no borra lo escrito', async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(propuesta({ notas: [] })))
+      .mockResolvedValueOnce(errorResponse('nota no puede ser sólo espacios', 422));
+
+    renderDetalle();
+    await waitFor(() => expect(screen.getByText('Agregar nota')).toBeTruthy());
+    fireEvent.change(screen.getByPlaceholderText('Agregar una nota de seguimiento'), {
+      target: { value: 'Llamar el lunes' },
+    });
+    fireEvent.click(screen.getByText('Agregar nota'));
+
+    await waitFor(() => expect(screen.getByText(/sólo espacios/)).toBeTruthy());
+    expect(screen.getByPlaceholderText('Agregar una nota de seguimiento').value)
+      .toBe('Llamar el lunes');
+  });
+
+  it('el botón de agregar está deshabilitado sin texto', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(jsonResponse(propuesta({ notas: [] })));
+    renderDetalle();
+    await waitFor(() => expect(screen.getByText('Agregar nota')).toBeTruthy());
+    expect(screen.getByText('Agregar nota').disabled).toBe(true);
   });
 });
