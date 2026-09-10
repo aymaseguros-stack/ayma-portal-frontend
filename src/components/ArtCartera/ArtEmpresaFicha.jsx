@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Icon } from '../Icons';
+import ArtPropuestasEmpresa from './ArtPropuestasEmpresa';
 import { Dato } from '../Crm/FichaHelpers';
 import { ArtDatos } from '../Crm/EmpresaArtSection';
 import { estrategiaArtInfo, estrategiaArtBadgeClass } from '../Crm/artEstrategia';
@@ -165,7 +166,7 @@ const CalculoStat = ({ label, valor, resaltar }) => (
 // Pantalla B - Ficha de empresa (/art/:cuit): cabecera + motor de cálculo +
 // matriz de 19 aseguradoras + historial append-only. GET /art/empresas/{cuit}
 // (app/api/v1/art_consultas.py::obtener_empresa_art).
-const ArtEmpresaFicha = ({ token, cuit, onVolver, onAbrirGrilla }) => {
+const ArtEmpresaFicha = ({ token, cuit, onVolver, onAbrirGrilla, onAbrirPropuesta }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -339,6 +340,18 @@ const ArtEmpresaFicha = ({ token, cuit, onVolver, onAbrirGrilla }) => {
           <p className="text-slate-500 text-sm">Sin cobertura vigente</p>
         )}
       </div>
+
+      {/* Propuestas emitidas (BLOQUE 1.3) - GET
+          /art/empresas/{id}/propuestas. Va acá y no en un tab propio
+          porque la pregunta que contesta ("¿qué le ofrecimos a esta
+          empresa y cómo quedó?") es la que uno se hace mirando la ficha,
+          justo antes de volver a llamarla. Se arma desde la grilla; acá
+          sólo se consulta. */}
+      <ArtPropuestasEmpresa
+        token={token}
+        empresaId={empresa.id}
+        onAbrirPropuesta={onAbrirPropuesta}
+      />
 
       {/* Motor de cálculo */}
       <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">

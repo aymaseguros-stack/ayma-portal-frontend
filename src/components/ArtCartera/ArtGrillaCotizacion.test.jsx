@@ -105,9 +105,53 @@ const GRILLA_COMPLETA = {
 };
 GRILLA_COMPLETA.mejor_oferta = GRILLA_COMPLETA.aseguradoras[0];
 
+// Lo que devuelve GET /art/propuestas/{id} después de armarla desde la
+// grilla. Sólo los campos que la pantalla de detalle lee.
+const PROPUESTA_CREADA = {
+  id: 'prop-7',
+  empresa_id: 'emp-1',
+  version: 1,
+  aseguradora: 'plus',
+  aseguradora_display: 'Plus ART',
+  alicuota_ofertada: '2.000',
+  origen_alicuota: 'COTIZACION_REAL',
+  masa_salarial: '40000.00',
+  dotacion: 40,
+  origen_masa: 'ESTIMADA',
+  confianza_masa: 'ALTA',
+  sujeta_a_f931: true,
+  art_actual: 'galeno',
+  art_actual_display: 'Galeno ART',
+  tarifa_actual: '3.500',
+  lrt_mensual: '800.00',
+  lrt_anual: '10400.00',
+  ahorro_anual: '7800.00',
+  costo_x_trabajador_mensual: '20.00',
+  comision_bruta: '40.00',
+  comision_neta: '32.00',
+  win: '24.00',
+  w_x_trbj: '0.60',
+  bajo_umbral: false,
+  parametros_snapshot: { cuotas_anuales: '13' },
+  estado: 'BORRADOR',
+  estado_efectivo: 'BORRADOR',
+  dias_restantes: 30,
+  fecha_emision: '2026-09-10',
+  valida_hasta: '2026-10-10',
+  fecha_entrega: null,
+  tiene_pdf: false,
+  hash_sha256: null,
+  vault_token: null,
+  observaciones: null,
+  creada_por: 'user-1',
+  creada_en: '2026-09-10T12:00:00',
+};
+
 beforeEach(() => {
   vi.restoreAllMocks();
 });
+
+const botonesArmar = () => screen.getAllByRole('button', { name: 'Armar propuesta' });
 
 const renderGrilla = () => render(
   <ArtGrillaCotizacion token="tok" empresaId="emp-1" onVolver={() => {}} />,
@@ -277,5 +321,74 @@ describe('ArtGrillaCotizacion - carga de F.931', () => {
 
     await waitFor(() => expect(screen.getByText(/formato 'AAAA-MM'/)).toBeTruthy());
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+  // -------------------------------------------------------------------------
+  // Armar propuesta (BLOQUE 1.3): el drill-down desde la fila cotizable.
+  // -------------------------------------------------------------------------
+
+  it('sólo las filas cotizables CON alícuota ofrecen "Armar propuesta"', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(jsonResponse(GRILLA_COMPLETA));
+    renderGrilla();
+
+    await waitFor(() => expect(screen.getByText('COMERCIAL SANTAFESINA SA')).toBeTruthy());
+    // El fixture tiene tres filas: plus (cotizable con alícuota), galeno
+    // (ACTUAL, sin alícuota) y smg (BLOQUEADA, con alícuota). Sólo la
+    // primera se puede proponer: sobre una bloqueada el botón prometería
+    // una gestión que hoy no se puede hacer.
+    expect(screen.getAllByText('Armar propuesta').length).toBe(1);
+  });
+
+  it('armar una propuesta abre su detalle sin salir de la grilla', async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(GRILLA_COMPLETA))
+      .mockResolvedValueOnce(jsonResponse({
+        propuesta: { id: 'prop-7' }, advertencias: [],
+      }))
+      .mockResolvedValueOnce(jsonResponse(PROPUESTA_CREADA));
+
+    renderGrilla();
+    await waitFor(() => expect(screen.getByText('COMERCIAL SANTAFESINA SA')).toBeTruthy());
+
+    fireEvent.click(screen.getByText('Armar propuesta'));
+    // El formulario viene prellenado con la fila: no hay que re-tipear el
+    // precio que la grilla ya resolvió.
+    expect(screen.getByLabelText('Alícuota ofertada (%)').value).toBe('2.000');
+    // Y como esa alícuota es PROPIA_VIGENTE, el origen arranca en
+    // cotización real.
+    expect(screen.getByLabelText('Origen de la alícuota').value).toBe('COTIZACION_REAL');
+
+    // Con el modal abierto hay dos botones "Armar propuesta": el de la
+    // fila (que quedó atrás) y el submit del formulario. El del formulario
+    // es el último en montarse.
+    fireEvent.click(botonesArmar().at(-1));
+
+    await waitFor(() => expect(screen.getByText(/Propuesta v1/)).toBeTruthy());
+    expect(globalThis.fetch.mock.calls[1][0]).toContain('/art/empresas/emp-1/propuestas');
+    expect(globalThis.fetch.mock.calls[2][0]).toContain('/art/propuestas/prop-7');
+  });
+
+  it('al volver de la propuesta se recarga la grilla', async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(GRILLA_COMPLETA))
+      .mockResolvedValueOnce(jsonResponse({ propuesta: { id: 'prop-7' }, advertencias: [] }))
+      .mockResolvedValueOnce(jsonResponse(PROPUESTA_CREADA))
+      .mockResolvedValueOnce(jsonResponse(GRILLA_COMPLETA));
+
+    renderGrilla();
+    await waitFor(() => expect(screen.getByText('COMERCIAL SANTAFESINA SA')).toBeTruthy());
+    fireEvent.click(screen.getByText('Armar propuesta'));
+    // Con el modal abierto hay dos botones "Armar propuesta": el de la
+    // fila (que quedó atrás) y el submit del formulario. El del formulario
+    // es el último en montarse.
+    fireEvent.click(botonesArmar().at(-1));
+    await waitFor(() => expect(screen.getByText('Volver a la grilla')).toBeTruthy());
+
+    fireEvent.click(screen.getByText('Volver a la grilla'));
+
+    // Entregar una propuesta con origen COTIZACION_REAL asienta esa
+    // alícuota como propia de la empresa: la grilla de atrás ya no dice lo
+    // mismo, así que se vuelve a pedir.
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(4));
+    expect(globalThis.fetch.mock.calls[3][0]).toContain('/art/empresas/emp-1/grilla');
   });
 });

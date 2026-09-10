@@ -13,6 +13,8 @@ import {
   obtenerReferencialTarifas, listarLeadsSinCobertura,
   listarDocumentosArt, subirDocumentoArt, marcarDocumentoArtConseguido,
   obtenerColaAlicuotas, registrarCargaRapidaAlicuotas,
+  crearPropuestaArt, listarPropuestasArt, obtenerPropuestaArt,
+  cambiarEstadoPropuestaArt, descargarPdfPropuestaArt,
 } from './artCarteraApi';
 
 const TOKEN = 'token-de-prueba';
@@ -462,5 +464,96 @@ describe('registrarCargaRapidaAlicuotas - POST /art/alicuotas/carga-rapida', () 
     globalThis.fetch.mockResolvedValueOnce(jsonResponse({ detail: 'empresa_id inválido' }, false, 422));
     await expect(registrarCargaRapidaAlicuotas(TOKEN, [{ empresa_id: 'x', sin_dato: true }]))
       .rejects.toThrow(/empresa_id inválido/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Propuestas ART (BLOQUE 1.3) - app/api/v1/art_propuestas.py.
+//
+// Las cuatro rutas van por `id` de empresa/propuesta (UUID), nunca por
+// CUIT: el resto de este módulo va por CUIT y confundirlos es un 404 que
+// se descubre recién en pantalla.
+// ---------------------------------------------------------------------------
+
+describe('propuestas ART', () => {
+  it('crearPropuestaArt postea a /art/empresas/{id}/propuestas', async () => {
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse({
+      propuesta: { id: 'prop-1', version: 1 }, advertencias: ['sujeta a F.931'],
+    }, true, 201));
+
+    const resultado = await crearPropuestaArt(TOKEN, 'emp-1', {
+      aseguradora: 'plus', alicuota_ofertada: 2.5,
+      origen_alicuota: 'BENCHMARK', observaciones: null,
+    });
+
+    const [url, init] = globalThis.fetch.mock.calls[0];
+    expect(url).toBe('https://ayma-portal-backend.onrender.com/api/v1/art/empresas/emp-1/propuestas');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body).origen_alicuota).toBe('BENCHMARK');
+    expect(resultado.propuesta.id).toBe('prop-1');
+    expect(resultado.advertencias).toHaveLength(1);
+  });
+
+  it('crearPropuestaArt propaga el 409 de la empresa sin masa salarial', async () => {
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse(
+      { detail: 'No se puede armar una propuesta sin masa salarial' }, false, 409,
+    ));
+    await expect(crearPropuestaArt(TOKEN, 'emp-1', {}))
+      .rejects.toThrow(/sin masa salarial/);
+  });
+
+  it('listarPropuestasArt devuelve {total, items} sin normalizar a Page', async () => {
+    // El backend NO pagina este listado (son unidades por empresa): manda
+    // {total, items} y no un Page con limit/offset.
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse({
+      total: 1, items: [{ id: 'prop-1', version: 1, estado_efectivo: 'VENCIDA' }],
+    }));
+    const resultado = await listarPropuestasArt(TOKEN, 'emp-1');
+    expect(globalThis.fetch.mock.calls[0][0]).toContain('/art/empresas/emp-1/propuestas');
+    expect(resultado.total).toBe(1);
+    expect(resultado.items[0].estado_efectivo).toBe('VENCIDA');
+  });
+
+  it('obtenerPropuestaArt trae estado_efectivo y dias_restantes calculados', async () => {
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse({
+      id: 'prop-1', estado: 'ENTREGADA', estado_efectivo: 'VENCIDA', dias_restantes: -2,
+    }));
+    const propuesta = await obtenerPropuestaArt(TOKEN, 'prop-1');
+    expect(globalThis.fetch.mock.calls[0][0]).toContain('/art/propuestas/prop-1');
+    // `estado` y `estado_efectivo` pueden diferir: la vencida la calcula el
+    // backend al leer, no la escribe ningún proceso.
+    expect(propuesta.estado).toBe('ENTREGADA');
+    expect(propuesta.estado_efectivo).toBe('VENCIDA');
+    expect(propuesta.dias_restantes).toBe(-2);
+  });
+
+  it('cambiarEstadoPropuestaArt manda {estado} y propaga el 409 de transición', async () => {
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse({
+      propuesta: { id: 'prop-1', estado: 'ENTREGADA' }, advertencias: [],
+    }));
+    await cambiarEstadoPropuestaArt(TOKEN, 'prop-1', 'ENTREGADA');
+    const [url, init] = globalThis.fetch.mock.calls[0];
+    expect(url).toContain('/art/propuestas/prop-1/estado');
+    expect(JSON.parse(init.body)).toEqual({ estado: 'ENTREGADA' });
+
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse(
+      { detail: 'Transición inválida: BORRADOR -> ACEPTADA' }, false, 409,
+    ));
+    await expect(cambiarEstadoPropuestaArt(TOKEN, 'prop-1', 'ACEPTADA'))
+      .rejects.toThrow(/Transición inválida/);
+  });
+
+  it('descargarPdfPropuestaArt pide el blob con Authorization', async () => {
+    const blob = { size: 8, type: 'application/pdf' };
+    globalThis.fetch.mockResolvedValueOnce({ ok: true, status: 200, blob: async () => blob });
+
+    const resultado = await descargarPdfPropuestaArt(TOKEN, 'prop-1');
+
+    const [url, init] = globalThis.fetch.mock.calls[0];
+    expect(url).toContain('/art/propuestas/prop-1/pdf');
+    // Va por fetch y no como <a href>: la ruta es admin-only con JWT y un
+    // link plano del browser no manda el token.
+    expect(init.headers.Authorization).toBe(`Bearer ${TOKEN}`);
+    expect(resultado).toBe(blob);
   });
 });
