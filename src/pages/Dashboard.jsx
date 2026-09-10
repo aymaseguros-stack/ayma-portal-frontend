@@ -117,7 +117,7 @@ function Dashboard({ token, user, onLogout }) {
             {activeTab === 'personal' && <PersonalView user={user} />}
             {activeTab === 'polizas' && <PolizasView data={data} />}
             {activeTab === 'vehiculos' && <VehiculosView data={data} />}
-            {activeTab === 'soporte' && <SoporteView user={user} />}
+            {activeTab === 'soporte' && <SoporteView />}
           </>
         )}
       </div>
@@ -296,7 +296,10 @@ function VehiculosView({ data }) {
 }
 
 // Vista Soporte
-function SoporteView({ user }) {
+//
+// Sin props: es una tarjeta de contacto fija (teléfono, mail, horarios) y
+// no muestra nada del usuario. Recibía `user` sin leerlo.
+function SoporteView() {
   return (
     <div style={styles.card}>
       <h2 style={styles.sectionTitle}>💬 Soporte</h2>

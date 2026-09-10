@@ -2,18 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { Icon } from '../Icons';
 import { listarLeadsSinCobertura } from './artCarteraApi';
 import { numeroAr } from './artCarteraConstants';
+import { fechaCorta } from './artFechas';
 
 const LIMIT = 50;
 
 const labelClass = 'block text-slate-400 text-xs mb-1';
 const inputClass = 'px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm placeholder-slate-500';
-
-const fechaCorta = (valor) => {
-  if (!valor) return null;
-  const d = new Date(valor);
-  if (Number.isNaN(d.getTime())) return valor;
-  return d.toLocaleDateString('es-AR');
-};
 
 const FilaSkeleton = () => (
   <tr className="animate-pulse">

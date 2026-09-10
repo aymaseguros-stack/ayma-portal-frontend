@@ -32,7 +32,7 @@ const DashboardEjecutivo = () => {
       } else {
         setError('Error cargando datos');
       }
-    } catch (err) {
+    } catch {
       setError('Error de conexión');
     } finally {
       setLoading(false);
@@ -98,38 +98,32 @@ const DashboardEjecutivo = () => {
           titulo="Clientes" 
           valor={kpis.total_clientes} 
           icono={<Users className="text-blue-600" />}
-          color="blue"
         />
         <KpiCard 
           titulo="Leads Total" 
           valor={kpis.total_leads} 
           icono={<Phone className="text-purple-600" />}
-          color="purple"
         />
         <KpiCard 
           titulo="Leads Hoy" 
           valor={kpis.leads_hoy} 
           icono={<ArrowUp className="text-green-600" />}
-          color="green"
           destacado
         />
         <KpiCard 
           titulo="Leads Semana" 
           valor={kpis.leads_semana} 
           icono={<Calendar className="text-indigo-600" />}
-          color="indigo"
         />
         <KpiCard 
           titulo="Pólizas Vigentes" 
           valor={kpis.polizas_vigentes} 
           icono={<FileText className="text-teal-600" />}
-          color="teal"
         />
         <KpiCard 
           titulo="Conversión" 
           valor={`${kpis.tasa_conversion}%`} 
           icono={<Target className="text-orange-600" />}
-          color="orange"
         />
       </div>
 
@@ -376,7 +370,11 @@ const DashboardEjecutivo = () => {
 };
 
 // Componente KPI Card
-const KpiCard = ({ titulo, valor, icono, color, destacado }) => (
+//
+// Sin prop `color`: la tarjeta nunca la usó (el número siempre salió en
+// text-gray-900) y los seis call sites la venían pasando. El color vive
+// donde se ve, en el ícono que cada uno arma.
+const KpiCard = ({ titulo, valor, icono, destacado }) => (
   <div className={`bg-white rounded-xl shadow-sm border p-4 ${destacado ? 'ring-2 ring-green-400' : ''}`}>
     <div className="flex items-center justify-between mb-2">
       <span className="text-gray-500 text-sm">{titulo}</span>

@@ -6,6 +6,7 @@ import ArtPropuestaForm from './ArtPropuestaForm';
 import ArtPropuestaDetalle from './ArtPropuestaDetalle';
 import {
   aseguradoraLabel,
+  confianzaAlicuotaInfo,
   confianzaMasaInfo,
   decimalAr,
   estadoArtInfo,
@@ -14,13 +15,7 @@ import {
   riesgoBadgeClass,
   variacionPct,
 } from './artCarteraConstants';
-
-const fechaCorta = (valor) => {
-  if (!valor) return null;
-  const d = new Date(valor);
-  if (Number.isNaN(d.getTime())) return valor;
-  return d.toLocaleDateString('es-AR');
-};
+import { fechaCorta } from './artFechas';
 
 // El guion medio para "no hay dato". Se usa uno solo en todo el archivo a
 // propósito: mezclar '-', '—' y '' hace que la tabla se lea como si
@@ -97,7 +92,7 @@ const Dato = ({ label, children }) => (
 const FilaAseguradora = ({ fila, esMejor, onArmarPropuesta }) => {
   const cotizable = fila.estado_efectivo === 'COTIZABLE';
   const info = estadoArtInfo(fila.estado_efectivo);
-  const origen = fila.origen_alicuota ? origenAlicuotaInfo(fila.origen_alicuota) : null;
+  const origen = fila.origen_alicuota ? confianzaAlicuotaInfo(fila.origen_alicuota) : null;
   const benchmark = fila.alicuota_benchmark;
   const delta = fila.delta_vs_actual;
   const deltaNumero = delta === null || delta === undefined ? null : Number(delta);
@@ -142,12 +137,22 @@ const FilaAseguradora = ({ fila, esMejor, onArmarPropuesta }) => {
             <span className="text-slate-100 font-semibold">
               {decimalAr(fila.alicuota_ref, { maximumFractionDigits: 3 })}%
             </span>
+            {/* Badge y no letra chica: la confianza de la alícuota decide
+                si el número se puede ofrecer por teléfono o hay que
+                pedirle el precio a la aseguradora primero. Es contorno,
+                no pastilla llena, para no confundirse con el badge de la
+                masa de la cabecera - son dos ejes distintos. */}
             {origen && (
-              <p className="text-[11px] text-slate-500 mt-0.5" title={origen.ayuda}>
-                {origen.label}
-                {fila.origen_alicuota === 'BENCHMARK' && benchmark
-                  ? ` · ${benchmark.nivel === 'SECCION' ? 'sector' : 'global'} (n=${benchmark.n_muestras})`
-                  : ''}
+              <p className="mt-1">
+                <span
+                  className={`inline-block px-2 py-0.5 rounded text-[11px] font-medium ${origen.badge}`}
+                  title={origen.ayuda}
+                >
+                  {origen.label}
+                  {fila.origen_alicuota === 'BENCHMARK' && benchmark
+                    ? ` · ${benchmark.nivel === 'SECCION' ? 'sector' : 'global'} (n=${benchmark.n_muestras})`
+                    : ''}
+                </span>
               </p>
             )}
           </>

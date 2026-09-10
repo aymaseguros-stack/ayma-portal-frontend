@@ -15,6 +15,7 @@ import {
   obtenerColaAlicuotas, registrarCargaRapidaAlicuotas,
   crearPropuestaArt, listarPropuestasArt, obtenerPropuestaArt,
   cambiarEstadoPropuestaArt, descargarPdfPropuestaArt,
+  anularPropuestaArt, quitarF931Art,
   normalizarBusqueda,
 } from './artCarteraApi';
 
@@ -628,5 +629,47 @@ describe('listarEmpresasArt - normalizacion del termino de busqueda', () => {
     await listarEmpresasArt(TOKEN, { q: '' });
 
     expect(globalThis.fetch.mock.calls[0][0]).not.toContain('q=');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Anular propuesta y quitar F.931 (BLOQUE 1.4)
+// ---------------------------------------------------------------------------
+describe('anularPropuestaArt', () => {
+  it('POSTea a /anular con el motivo en el body', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(jsonResponse({ id: 'p1', estado: 'ANULADA' }));
+    await anularPropuestaArt('tok', 'p1', 'alícuota mal cargada');
+
+    const [url, opciones] = globalThis.fetch.mock.calls[0];
+    // Endpoint propio y no POST /estado: aquel no recibe motivo, y anular
+    // sin decir por qué deja una propuesta indistinguible de un dato
+    // perdido.
+    expect(url).toContain('/api/v1/art/propuestas/p1/anular');
+    expect(opciones.method).toBe('POST');
+    expect(JSON.parse(opciones.body)).toEqual({ motivo: 'alícuota mal cargada' });
+  });
+
+  it('propaga el mensaje del backend en el error', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: async () => ({ detail: 'No se puede anular una propuesta en estado ACEPTADA.' }),
+      text: async () => '{"detail":"No se puede anular una propuesta en estado ACEPTADA."}',
+    });
+    await expect(anularPropuestaArt('tok', 'p1', 'x')).rejects.toThrow(/ACEPTADA/);
+  });
+});
+
+describe('quitarF931Art', () => {
+  it('manda DELETE con dry_run=false explícito', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(jsonResponse({ escritura: true }));
+    await quitarF931Art('tok', 'emp-1');
+
+    const [url, opciones] = globalThis.fetch.mock.calls[0];
+    expect(opciones.method).toBe('DELETE');
+    expect(url).toContain('/api/v1/art/empresas/emp-1/f931');
+    // Sin el flag explícito el backend corre en seco y devuelve 200 sin
+    // haber borrado nada: el default de dry_run es true.
+    expect(url).toContain('dry_run=false');
   });
 });

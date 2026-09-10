@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Icon } from '../Icons';
 import { obtenerReferencialTarifas } from './artCarteraApi';
 import { ASEGURADORAS_ART, numeroAr, decimalAr } from './artCarteraConstants';
+import { anioDeFecha } from './artFechas';
 
 const TRAMOS_DOTACION = ['1-10', '11-25', '26-50', '51-100', '100+', 'sin_dato'];
 
@@ -13,20 +14,14 @@ const th = 'px-3 py-3 text-left text-sm font-medium text-slate-300 whitespace-no
 const thNum = 'px-3 py-3 text-right text-sm font-medium text-slate-300 whitespace-nowrap';
 const tdNum = 'px-3 py-3 text-sm text-right text-slate-300 whitespace-nowrap';
 
-const anio = (fecha) => {
-  if (!fecha) return null;
-  const d = new Date(fecha);
-  return Number.isNaN(d.getTime()) ? null : d.getFullYear();
-};
-
 // Badge de antigüedad (pedido explícito, ej. "dato 2020-2025, no vigente")
 // para que ninguna celda de este referencial histórico se confunda con una
 // alícuota actual - se muestra SIEMPRE, nunca condicional, porque TODA fila
 // de esta tabla es histórico (fuente=PLANILLA_2025, ver
 // app/services/art_dashboard.py::referencial_tarifas).
 const BadgeAntiguedad = ({ item }) => {
-  const anioMin = anio(item.fecha_dato_mas_antiguo);
-  const anioMax = anio(item.fecha_dato_mas_nuevo);
+  const anioMin = anioDeFecha(item.fecha_dato_mas_antiguo);
+  const anioMax = anioDeFecha(item.fecha_dato_mas_nuevo);
   const rango = anioMin && anioMax ? (anioMin === anioMax ? `${anioMin}` : `${anioMin}-${anioMax}`) : '—';
   return (
     <span

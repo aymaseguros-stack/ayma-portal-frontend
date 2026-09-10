@@ -187,10 +187,13 @@ describe('ArtGrillaCotizacion - GET /art/empresas/{id}/grilla', () => {
   it('muestra el badge de confianza de la masa', async () => {
     globalThis.fetch = vi.fn().mockResolvedValueOnce(jsonResponse(GRILLA_COMPLETA));
     renderGrilla();
-    await waitFor(() => expect(screen.getByText(/confianza alta/i)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/Masa estimada · confianza alta/i)).toBeTruthy());
   });
 
-  it('el badge dice CONFIRMADA (F.931) cuando la masa fue declarada', async () => {
+  // El badge dice "MASA confirmada" y no "Confirmada" a secas: al lado hay
+  // otro badge, el de la alícuota, y un "Confirmada (F.931)" suelto entre
+  // los dos se lee como si toda la fila estuviera validada.
+  it('el badge de la masa dice MASA confirmada (F.931) cuando fue declarada', async () => {
     const confirmada = {
       ...GRILLA_COMPLETA,
       confianza_masa: 'CONFIRMADA',
@@ -198,7 +201,7 @@ describe('ArtGrillaCotizacion - GET /art/empresas/{id}/grilla', () => {
     };
     globalThis.fetch = vi.fn().mockResolvedValueOnce(jsonResponse(confirmada));
     renderGrilla();
-    await waitFor(() => expect(screen.getByText(/Confirmada \(F\.931\)/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/Masa confirmada \(F\.931\)/)).toBeTruthy());
   });
 
   it('una fila no cotizable muestra su motivo y su vencimiento', async () => {
@@ -390,5 +393,45 @@ describe('ArtGrillaCotizacion - carga de F.931', () => {
     // mismo, así que se vuelve a pedir.
     await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(4));
     expect(globalThis.fetch.mock.calls[3][0]).toContain('/art/empresas/emp-1/grilla');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Badge de confianza de la ALÍCUOTA
+// ---------------------------------------------------------------------------
+//
+// Por qué es un badge y no letra chica: de dónde salió la alícuota decide
+// si el número se puede ofrecer por teléfono o si primero hay que pedirle
+// el precio a la aseguradora. Y por qué tiene forma distinta a la del badge
+// de la masa: son dos ejes independientes. Con la misma forma se leían como
+// una sola escala de "confianza de la fila", que no existe - se puede tener
+// la masa declarada por F.931 y la alícuota sacada de una mediana.
+describe('ArtGrillaCotizacion - confianza de la alícuota', () => {
+  it('cada fila muestra el origen de su alícuota como badge', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(jsonResponse(GRILLA_COMPLETA));
+    renderGrilla();
+
+    await waitFor(() => expect(screen.getAllByText(/Cotizada|Referencia de mercado/).length)
+      .toBeGreaterThan(0));
+    const badge = screen.getAllByText(/Cotizada|Referencia de mercado/)[0];
+    expect(badge.className).toContain('rounded');
+    // Contorno (border), no pastilla llena como el de la masa.
+    expect(badge.className).toContain('border');
+  });
+
+  it('el badge de la alícuota y el de la masa se leen distinto', async () => {
+    const confirmada = {
+      ...GRILLA_COMPLETA,
+      confianza_masa: 'CONFIRMADA',
+      masa: { ...GRILLA_COMPLETA.masa, confianza: 'CONFIRMADA', origen: 'F931' },
+    };
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(jsonResponse(confirmada));
+    renderGrilla();
+
+    await waitFor(() => expect(screen.getByText(/Masa confirmada \(F\.931\)/)).toBeTruthy());
+    // Masa confirmada Y alícuota de benchmark conviven: el F.931 no dice
+    // nada sobre el origen del precio.
+    const masa = screen.getByText(/Masa confirmada \(F\.931\)/);
+    expect(masa.className).not.toContain('border');
   });
 });

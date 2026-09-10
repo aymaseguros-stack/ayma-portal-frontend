@@ -329,3 +329,110 @@ describe('ArtEmpresaFicha - checklist de documentos (ArtDocumentosChecklist)', (
     expect(container.textContent).not.toContain('Pendiente');
   });
 });
+
+// ---------------------------------------------------------------------------
+// F.931 declarado y su baja (DELETE /art/empresas/{id}/f931)
+// ---------------------------------------------------------------------------
+//
+// Por qué se puede quitar: el F.931 se carga a mano desde la grilla y a
+// mano se equivoca (período viejo, masa de otra empresa, un dígito de más).
+// Un dato declarado equivocado es PEOR que ninguno - deja la masa en
+// confianza CONFIRMADA y con eso el backend habilita a ACEPTAR propuestas
+// sobre un número inventado.
+//
+// La confirmación no es ceremonia: es la única acción destructiva de la
+// ficha y el dato no está en ninguna otra pantalla para recuperarlo.
+describe('ArtEmpresaFicha - F.931', () => {
+  const conF931 = {
+    ...detalleBase,
+    empresa: {
+      ...empresaBase,
+      id: 'emp-1',
+      masa_salarial_f931: '52000000.00',
+      dotacion_f931: 45,
+      f931_periodo: '2026-08',
+      f931_cargado_en: '2026-09-01T12:00:00',
+    },
+  };
+
+  it('sin F.931 cargado no ofrece quitarlo', async () => {
+    mockearFetchFicha({ ...detalleBase, empresa: { ...empresaBase, id: 'emp-1' } });
+    const { queryByText, findByText } = render(<ArtEmpresaFicha token="tok" cuit="30-12345678-9" />);
+
+    await findByText('F.931 declarado');
+    expect(queryByText('Quitar F.931')).toBeNull();
+    expect(queryByText(/Sin F.931 cargado/)).toBeTruthy();
+  });
+
+  it('muestra el F.931 declarado con su período', async () => {
+    mockearFetchFicha(conF931);
+    const { findByText, getByText } = render(<ArtEmpresaFicha token="tok" cuit="30-12345678-9" />);
+
+    await findByText('F.931 declarado');
+    expect(getByText('$ 52.000.000')).toBeTruthy();
+    expect(getByText('2026-08')).toBeTruthy();
+    expect(getByText('Quitar F.931')).toBeTruthy();
+  });
+
+  it('pide confirmación ANTES de borrar y no llama al backend si se cancela', async () => {
+    mockearFetchFicha(conF931);
+    const { findByText, getByText, queryByText } = render(
+      <ArtEmpresaFicha token="tok" cuit="30-12345678-9" />,
+    );
+
+    await findByText('Quitar F.931');
+    const llamadasAntes = globalThis.fetch.mock.calls.length;
+    fireEvent.click(getByText('Quitar F.931'));
+
+    expect(getByText('¿Quitar el F.931 de esta empresa?')).toBeTruthy();
+    fireEvent.click(getByText('Cancelar'));
+
+    expect(queryByText('¿Quitar el F.931 de esta empresa?')).toBeNull();
+    expect(globalThis.fetch.mock.calls.length).toBe(llamadasAntes);
+  });
+
+  it('confirmar manda DELETE con dry_run=false y recarga la ficha', async () => {
+    mockearFetchFicha(conF931);
+    const { findByText, getByText } = render(<ArtEmpresaFicha token="tok" cuit="30-12345678-9" />);
+
+    await findByText('Quitar F.931');
+    fireEvent.click(getByText('Quitar F.931'));
+    fireEvent.click(getByText('Sí, quitar F.931'));
+
+    await waitFor(() => {
+      const baja = globalThis.fetch.mock.calls.find(([, opciones]) => opciones?.method === 'DELETE');
+      expect(baja).toBeTruthy();
+      // Va por `id` de empresa (no por CUIT) y con dry_run explícito en
+      // false: el default del backend es la corrida en seco, así que
+      // omitirlo devolvería 200 sin haber borrado nada.
+      expect(String(baja[0])).toContain('/art/empresas/emp-1/f931');
+      expect(String(baja[0])).toContain('dry_run=false');
+    });
+  });
+
+  it('un 409 del backend se muestra y NO cierra el modal', async () => {
+    globalThis.fetch = vi.fn((url, opciones) => {
+      if (opciones?.method === 'DELETE') {
+        return Promise.resolve({
+          ok: false,
+          status: 409,
+          json: async () => ({ detail: 'La empresa no tiene F.931 cargado' }),
+          text: async () => JSON.stringify({ detail: 'La empresa no tiene F.931 cargado' }),
+        });
+      }
+      if (String(url).includes('/documentos')) return Promise.resolve(jsonResponse([]));
+      if (String(url).includes('/propuestas')) {
+        return Promise.resolve(jsonResponse({ total: 0, items: [] }));
+      }
+      return Promise.resolve(jsonResponse(conF931));
+    });
+
+    const { findByText, getByText } = render(<ArtEmpresaFicha token="tok" cuit="30-12345678-9" />);
+    await findByText('Quitar F.931');
+    fireEvent.click(getByText('Quitar F.931'));
+    fireEvent.click(getByText('Sí, quitar F.931'));
+
+    await waitFor(() => expect(getByText(/no tiene F.931 cargado/)).toBeTruthy());
+    expect(getByText('¿Quitar el F.931 de esta empresa?')).toBeTruthy();
+  });
+});

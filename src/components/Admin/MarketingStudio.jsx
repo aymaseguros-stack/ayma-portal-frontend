@@ -13,7 +13,7 @@
  * Endpoints: POST /contenido, POST /generar, POST /{id}/aprobar, GET /dashboard
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 // ============================================
 // API CONFIGURATION
@@ -313,7 +313,6 @@ const PRODUCTOS_SEGUROS = [
 export default function MarketingStudio() {
   const [view, setView] = useState('dashboard');
   const [contenidos, setContenidos] = useState([]);
-  const [editingContent, setEditingContent] = useState(null);
   const [selectedRed, setSelectedRed] = useState('instagram');
   const [selectedFormat, setSelectedFormat] = useState('post');
   const [selectedTemplate, setSelectedTemplate] = useState(TEMPLATES[0]);
@@ -1055,7 +1054,11 @@ export default function MarketingStudio() {
 // ============================================
 // CANVAS PREVIEW COMPONENT
 // ============================================
-const CanvasPreview = React.forwardRef(({ editor, template, red, format, brand }, ref) => {
+// Sin `red`: el caller la pasa (es la red seleccionada) pero el lienzo no
+// la mira - lo que cambia entre redes son las medidas, y esas llegan por
+// `format`. Se saca del destructuring, no del call site: el día que el
+// canvas necesite diferenciar por red, la prop ya está ahí.
+const CanvasPreview = React.forwardRef(({ editor, template, format, brand }, ref) => {
   const scale = Math.min(480 / format.w, 600 / format.h);
   const w = format.w * scale;
   const h = format.h * scale;

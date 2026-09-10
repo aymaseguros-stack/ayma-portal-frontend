@@ -145,11 +145,18 @@ export const decimalAr = (valor, opciones = { maximumFractionDigits: 2 }) => {
 // única en verde y con un ícono propio - la diferencia entre un número
 // declarado y uno estimado tiene que verse de un vistazo, no leerse en
 // letra chica.
+//
+// LOS LABELS DICEN "MASA" ADELANTE. Al lado de este badge ahora hay otro,
+// el de la alícuota (`confianzaAlicuotaInfo`), y un "Confirmada (F.931)"
+// suelto entre los dos se lee como si TODA la fila estuviera confirmada -
+// cuando lo único confirmado es la masa. El F.931 no dice nada sobre de
+// dónde salió la alícuota: se puede tener la masa declarada por ARCA y una
+// alícuota que es una mediana de mercado.
 const CONFIANZA_MASA_META = {
-  CONFIRMADA: { label: 'Confirmada (F.931)', badge: 'bg-green-500/20 text-green-300' },
-  ALTA: { label: 'Estimada · confianza alta', badge: 'bg-blue-500/20 text-blue-300' },
-  MEDIA: { label: 'Estimada · confianza media', badge: 'bg-yellow-500/20 text-yellow-300' },
-  BAJA: { label: 'Estimada · confianza baja', badge: 'bg-orange-500/20 text-orange-300' },
+  CONFIRMADA: { label: 'Masa confirmada (F.931)', badge: 'bg-green-500/20 text-green-300' },
+  ALTA: { label: 'Masa estimada · confianza alta', badge: 'bg-blue-500/20 text-blue-300' },
+  MEDIA: { label: 'Masa estimada · confianza media', badge: 'bg-yellow-500/20 text-yellow-300' },
+  BAJA: { label: 'Masa estimada · confianza baja', badge: 'bg-orange-500/20 text-orange-300' },
 };
 
 export const confianzaMasaInfo = (confianza) =>
@@ -160,14 +167,47 @@ export const confianzaMasaInfo = (confianza) =>
 // tiene que estar SIEMPRE al lado del número: una alícuota que nos pasó la
 // aseguradora para esta empresa y una mediana de mercado se cotizan muy
 // distinto, y sin la etiqueta se ven igual.
-const ORIGEN_ALICUOTA_META = {
-  PROPIA_VIGENTE: { label: 'Cotizada', ayuda: 'Alícuota que la aseguradora pasó para esta empresa y sigue vigente' },
-  PROPIA_CADUCADA: { label: 'Cotizada (vencida)', ayuda: 'Última alícuota pasada para esta empresa, ya caducada' },
-  BENCHMARK: { label: 'Referencia de mercado', ayuda: 'Mediana de lo que esta aseguradora cotiza en empresas similares' },
+//
+// SE MUESTRA COMO BADGE, y con un estilo DISTINTO del de la masa: los de
+// masa son pastilla llena (`bg-*/20`), éstos son contorno. Son dos ejes
+// independientes - qué tan firme es el número de la masa y qué tan firme
+// es el de la alícuota - y con la misma forma se leían como una sola
+// escala de "confianza de la fila", que no existe. La diferencia se tiene
+// que ver antes de leer el texto.
+const CONFIANZA_ALICUOTA_META = {
+  PROPIA_VIGENTE: {
+    label: 'Cotizada',
+    badge: 'border border-green-500/50 text-green-300',
+    ayuda: 'Alícuota que la aseguradora pasó para esta empresa y sigue vigente',
+  },
+  PROPIA_CADUCADA: {
+    label: 'Cotizada (vencida)',
+    badge: 'border border-amber-500/50 text-amber-300',
+    ayuda: 'Última alícuota pasada para esta empresa, ya caducada',
+  },
+  BENCHMARK: {
+    label: 'Referencia de mercado',
+    badge: 'border border-slate-500 text-slate-300',
+    ayuda: 'Mediana de lo que esta aseguradora cotiza en empresas similares',
+  },
+  // El origen que guarda la PROPUESTA cuando la alícuota es un precio que
+  // la aseguradora efectivamente pasó (ORIGENES_ALICUOTA_PROPUESTA). Vive
+  // en el mismo mapa que los de la grilla para que "cotizada" se vea igual
+  // en las dos pantallas: son la misma afirmación.
+  COTIZACION_REAL: {
+    label: 'Cotización real',
+    badge: 'border border-green-500/50 text-green-300',
+    ayuda: 'La aseguradora pasó este precio para esta empresa',
+  },
 };
 
-export const origenAlicuotaInfo = (origen) =>
-  ORIGEN_ALICUOTA_META[origen] || { label: origen || 'Sin dato', ayuda: '' };
+export const confianzaAlicuotaInfo = (origen) =>
+  CONFIANZA_ALICUOTA_META[origen]
+  || { label: origen || 'Sin dato', badge: 'border border-slate-600 text-slate-400', ayuda: '' };
+
+// Alias histórico: mismo dato, sin el badge. Se mantiene porque el CSV de
+// la grilla sólo necesita la etiqueta.
+export const origenAlicuotaInfo = confianzaAlicuotaInfo;
 
 // Importe en pesos. Devuelve null (no "$ 0") cuando el backend mandó null:
 // sin masa salarial estimada los importes de la grilla NO se calculan, y
@@ -205,6 +245,11 @@ const ESTADO_PROPUESTA_META = {
   ACEPTADA: { label: 'Aceptada', badge: 'bg-green-500/20 text-green-300' },
   RECHAZADA: { label: 'Rechazada', badge: 'bg-red-500/20 text-red-300' },
   VENCIDA: { label: 'Vencida', badge: 'bg-amber-500/20 text-amber-300' },
+  // ANULADA no es RECHAZADA: rechazar es la respuesta del CLIENTE (y es la
+  // métrica de si el precio sirve), anular es "esta propuesta no debió
+  // existir". Por eso el color no es el rojo del rechazo - ver
+  // ESTADO_ANULADA en app/models/crm/propuesta_art.py del backend.
+  ANULADA: { label: 'Anulada', badge: 'bg-slate-600/40 text-slate-300 line-through' },
 };
 
 export const estadoPropuestaInfo = (estado) =>
@@ -215,15 +260,20 @@ export const estadoPropuestaInfo = (estado) =>
 // alícuota propia de la empresa en el backend. Marcar como "cotización
 // real" un número que en realidad es la mediana de mercado contamina el
 // benchmark del mes siguiente con nuestro propio número.
+//
+// El `label` sale de CONFIANZA_ALICUOTA_META para que el radio del
+// formulario y el badge de la propuesta digan LA MISMA palabra; la `ayuda`
+// es propia porque acá describe el efecto de ELEGIRLO (qué se asienta al
+// entregar), no de dónde salió el número.
 export const ORIGENES_ALICUOTA_PROPUESTA = [
   {
     id: 'BENCHMARK',
-    label: 'Referencia de mercado',
+    label: CONFIANZA_ALICUOTA_META.BENCHMARK.label,
     ayuda: 'La alícuota sale de la mediana de lo que esta aseguradora cotiza en empresas similares. No se asienta como cotización de la empresa.',
   },
   {
     id: 'COTIZACION_REAL',
-    label: 'Cotización real',
+    label: CONFIANZA_ALICUOTA_META.COTIZACION_REAL.label,
     ayuda: 'La aseguradora pasó este precio para esta empresa. Al entregar la propuesta queda asentado como su alícuota.',
   },
 ];
