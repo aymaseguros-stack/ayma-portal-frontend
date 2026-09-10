@@ -1,28 +1,23 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Icon } from '../Icons';
 import {
+  anularPropuestaArt,
   cambiarEstadoPropuestaArt,
   descargarPdfPropuestaArt,
   obtenerPropuestaArt,
 } from './artCarteraApi';
 import {
-  ORIGENES_ALICUOTA_PROPUESTA,
   aseguradoraLabel,
+  confianzaAlicuotaInfo,
   confianzaMasaInfo,
   decimalAr,
   diasRestantesTexto,
   estadoPropuestaInfo,
   pesosAr,
 } from './artCarteraConstants';
+import { fechaCorta } from './artFechas';
 
 const VACIO = '—';
-
-const fechaCorta = (valor) => {
-  if (!valor) return null;
-  const d = new Date(valor);
-  if (Number.isNaN(d.getTime())) return valor;
-  return d.toLocaleDateString('es-AR');
-};
 
 // Los botones de estado que corresponden a CADA estado, calcados de las
 // transiciones que acepta el backend (BORRADOR->ENTREGADA,
@@ -42,6 +37,85 @@ const ACCIONES_POR_ESTADO = {
   ],
   ACEPTADA: [],
   RECHAZADA: [],
+  ANULADA: [],
+};
+
+// Los dos estados desde los que el backend deja anular (ESTADOS_ANULABLES
+// en app/services/propuesta_art.py). Una ACEPTADA o una RECHAZADA ya
+// tuvieron su desenlace; una ANULADA no se re-anula. Igual que con los
+// botones de estado: mostrar un botón que va a volver con 409 se lee como
+// que la acción existe.
+const ESTADOS_ANULABLES = ['BORRADOR', 'ENTREGADA'];
+
+// Modal de anulación. El botón de confirmar arranca DESHABILITADO y sólo
+// se habilita con un motivo no vacío: el motivo es lo único que después
+// distingue "se cargó mal la alícuota" de "la aseguradora dio de baja la
+// cotización", y una propuesta que desaparece de la vista sin decir por
+// qué es indistinguible de un dato perdido. La misma regla la vuelve a
+// aplicar el backend (422), esto es sólo para no hacer el viaje.
+const AnularModal = ({ version, enviando, error, onCancelar, onConfirmar }) => {
+  const [motivo, setMotivo] = useState('');
+  const vacio = !motivo.trim();
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+      <div className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-md p-6 space-y-4">
+        <div>
+          <h3 className="text-lg font-semibold">Anular propuesta v{version}</h3>
+          <p className="text-slate-400 text-sm mt-1">
+            Anular no es lo mismo que rechazar: "rechazada" es la respuesta del cliente.
+            Se anula una propuesta que no debió existir (alícuota mal cargada, empresa
+            equivocada, precio que la aseguradora dio de baja).
+          </p>
+        </div>
+
+        <label className="block">
+          <span className="block text-slate-300 text-sm mb-1">
+            Motivo <span className="text-red-400">*</span>
+          </span>
+          <textarea
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            rows={3}
+            autoFocus
+            maxLength={500}
+            placeholder="Por qué se anula"
+            className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm placeholder-slate-500"
+          />
+        </label>
+
+        {error && (
+          <div className="bg-red-500/15 border border-red-500/50 rounded-lg p-3">
+            <p className="text-red-200 text-sm">{error}</p>
+          </div>
+        )}
+
+        <p className="text-[11px] text-slate-500">
+          Si la propuesta ya se entregó, el PDF que tiene el cliente y su constancia no
+          se tocan.
+        </p>
+
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancelar}
+            disabled={enviando}
+            className="px-3 py-2 rounded-lg text-sm text-slate-300 hover:text-white transition disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => onConfirmar(motivo)}
+            disabled={vacio || enviando}
+            className="px-3 py-2 rounded-lg text-sm font-medium bg-red-600 hover:bg-red-500 text-white transition disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {enviando ? 'Anulando...' : 'Anular propuesta'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 const Importe = ({ valor, className = '' }) => {
@@ -79,6 +153,8 @@ const ArtPropuestaDetalle = ({ token, propuestaId, onVolver, volverLabel = 'Volv
   const [enviando, setEnviando] = useState(null);
   const [internoAbierto, setInternoAbierto] = useState(false);
   const [advertencias, setAdvertencias] = useState([]);
+  const [anularAbierto, setAnularAbierto] = useState(false);
+  const [anularError, setAnularError] = useState(null);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -105,6 +181,26 @@ const ArtPropuestaDetalle = ({ token, propuestaId, onVolver, volverLabel = 'Volv
       // El 409 del backend trae la instrucción de qué hacer ("cargar F.931
       // primero"), así que se muestra tal cual en vez de un "no se pudo".
       setAccionError(err.message);
+    } finally {
+      setEnviando(null);
+    }
+  };
+
+  const anularPropuesta = async (motivo) => {
+    setEnviando('ANULAR');
+    setAnularError(null);
+    try {
+      const propuesta = await anularPropuestaArt(token, propuestaId, motivo);
+      setData(propuesta);
+      // Las advertencias que hubiera (masa estimada, vault caído) eran del
+      // armado o de la entrega: ya no describen a esta propuesta.
+      setAdvertencias([]);
+      setAccionError(null);
+      setAnularAbierto(false);
+    } catch (err) {
+      // El error se muestra DENTRO del modal, con el motivo todavía
+      // escrito: si se cerrara, habría que volver a tipearlo.
+      setAnularError(err.message);
     } finally {
       setEnviando(null);
     }
@@ -173,7 +269,12 @@ const ArtPropuestaDetalle = ({ token, propuestaId, onVolver, volverLabel = 'Volv
   const estado = estadoPropuestaInfo(data.estado_efectivo);
   const confianza = confianzaMasaInfo(data.confianza_masa);
   const acciones = ACCIONES_POR_ESTADO[data.estado] || [];
-  const validez = diasRestantesTexto(data.dias_restantes);
+  const puedeAnular = ESTADOS_ANULABLES.includes(data.estado);
+  const anulada = data.estado === 'ANULADA';
+  const origenAlicuota = confianzaAlicuotaInfo(data.origen_alicuota);
+  // Una propuesta anulada no "vence": ya tuvo su desenlace. Mostrarle
+  // "venció hace 3 días" al lado sugeriría que sigue en el circuito.
+  const validez = anulada ? null : diasRestantesTexto(data.dias_restantes);
 
   return (
     <div className="space-y-6">
@@ -190,6 +291,14 @@ const ArtPropuestaDetalle = ({ token, propuestaId, onVolver, volverLabel = 'Volv
               Emitida el {fechaCorta(data.fecha_emision) || VACIO}
               {data.fecha_entrega ? ` · entregada el ${fechaCorta(data.fecha_entrega)}` : ''}
             </p>
+            {/* El motivo va acá arriba, no escondido: es lo que explica por
+                qué esta propuesta está fuera del circuito. */}
+            {anulada && (
+              <p className="text-amber-300/90 text-sm mt-2">
+                Anulada{data.fecha_anulacion ? ` el ${fechaCorta(data.fecha_anulacion)}` : ''}
+                {data.motivo_anulacion ? `: ${data.motivo_anulacion}` : ''}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <span className={`px-2.5 py-1 rounded text-xs font-medium ${estado.badge}`}>
@@ -227,6 +336,22 @@ const ArtPropuestaDetalle = ({ token, propuestaId, onVolver, volverLabel = 'Volv
               {enviando === accion.estado ? 'Guardando...' : accion.label}
             </button>
           ))}
+          {/* Anular va separado y al final, con borde en vez de relleno: no
+              es un paso más del circuito comercial (entregar, aceptar,
+              rechazar) sino la salida para una propuesta que se armó mal.
+              Se indexa por `estado` guardado y no por `estado_efectivo`,
+              igual que las otras acciones: una VENCIDA sigue siendo un
+              BORRADOR o una ENTREGADA por debajo, y esas se anulan. */}
+          {puedeAnular && (
+            <button
+              type="button"
+              onClick={() => { setAnularError(null); setAnularAbierto(true); }}
+              disabled={enviando !== null}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-red-500/50 text-red-300 hover:bg-red-500/10 transition disabled:opacity-50"
+            >
+              Anular
+            </button>
+          )}
         </div>
 
         {accionError && (
@@ -255,9 +380,16 @@ const ArtPropuestaDetalle = ({ token, propuestaId, onVolver, volverLabel = 'Volv
             <span className="text-lg font-semibold text-slate-100">
               {decimalAr(data.alicuota_ofertada, { maximumFractionDigits: 3 })}%
             </span>
-            <span className="block text-[11px] text-slate-500">
-              {ORIGENES_ALICUOTA_PROPUESTA.find((o) => o.id === data.origen_alicuota)?.label
-                || data.origen_alicuota}
+            {/* De dónde salió el número, como badge y con el MISMO estilo
+                de contorno que en la grilla. Distinto del badge de la masa
+                (pastilla llena, más abajo) a propósito: una masa
+                confirmada por F.931 no dice nada sobre si la alícuota es
+                una cotización real o una mediana de mercado. */}
+            <span
+              className={`inline-block w-fit mt-1 px-2 py-0.5 rounded text-[11px] font-medium ${origenAlicuota.badge}`}
+              title={origenAlicuota.ayuda}
+            >
+              {origenAlicuota.label}
             </span>
           </Dato>
 
@@ -360,6 +492,16 @@ const ArtPropuestaDetalle = ({ token, propuestaId, onVolver, volverLabel = 'Volv
           </div>
         )}
       </div>
+
+      {anularAbierto && (
+        <AnularModal
+          version={data.version}
+          enviando={enviando === 'ANULAR'}
+          error={anularError}
+          onCancelar={() => setAnularAbierto(false)}
+          onConfirmar={anularPropuesta}
+        />
+      )}
     </div>
   );
 };

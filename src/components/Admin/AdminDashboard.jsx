@@ -303,26 +303,6 @@ const AdminPanel = () => {
     </div>
   );
 
-  // Cambiar estado de lead
-  const cambiarEstadoLead = async (leadId, nuevoEstado) => {
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API_URL}/api/v1/leads/${leadId}`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ estado: nuevoEstado })
-      });
-      if (res.ok) {
-        cargarDatos(); // Recargar lista
-      }
-    } catch (error) {
-      console.error('Error cambiando estado:', error);
-    }
-  };
-
   // Estados CRM AYMA
   const ESTADOS_LEAD = [
     { value: 'dato', label: 'Dato', color: 'bg-gray-100 text-gray-800' },
@@ -331,11 +311,6 @@ const AdminPanel = () => {
     { value: 'cliente', label: 'Cliente', color: 'bg-green-100 text-green-800' },
     { value: 'perdido', label: 'Perdido', color: 'bg-red-100 text-red-800' }
   ];
-
-  const getEstadoColor = (estado) => {
-    const e = ESTADOS_LEAD.find(x => x.value === estado);
-    return e ? e.color : 'bg-gray-100 text-gray-800';
-  };
 
   // Vista de Leads
   const VistaLeads = () => (

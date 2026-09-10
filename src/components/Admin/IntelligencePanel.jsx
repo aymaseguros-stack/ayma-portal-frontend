@@ -53,7 +53,7 @@ const IntelligencePanel = ({ token }) => {
         setScrapeForm({ target_type: 'competitor', target_name: '', platform: 'linkedin' });
         setTimeout(cargarDatos, 2000);
       }
-    } catch (error) {
+    } catch {
       alert('Error al iniciar scraping');
     }
   };

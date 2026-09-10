@@ -263,3 +263,151 @@ describe('ArtPropuestaDetalle', () => {
     expect(screen.getByText('Reintentar')).toBeTruthy();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Anulación (con motivo obligatorio)
+// ---------------------------------------------------------------------------
+//
+// Lo que protegen: que no se pueda anular sin decir por qué. El motivo es
+// lo único que después distingue "se cargó mal la alícuota" de "la
+// aseguradora dio de baja la cotización"; sin él, una propuesta anulada es
+// indistinguible de un dato perdido. La regla la vuelve a aplicar el
+// backend (422), pero el botón deshabilitado ahorra el viaje y, sobre
+// todo, explica la exigencia ANTES de escribir.
+describe('ArtPropuestaDetalle - anular', () => {
+  const abrirModal = async () => {
+    await waitFor(() => expect(screen.getByText('Anular')).toBeTruthy());
+    fireEvent.click(screen.getByText('Anular'));
+  };
+
+  it('el botón de confirmar arranca deshabilitado y se habilita con motivo', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(jsonResponse(propuesta()));
+    renderDetalle();
+    await abrirModal();
+
+    const confirmar = screen.getByText('Anular propuesta');
+    expect(confirmar.disabled).toBe(true);
+
+    // Espacios NO alcanzan: un motivo en blanco es lo mismo que ninguno.
+    fireEvent.change(screen.getByPlaceholderText('Por qué se anula'), {
+      target: { value: '   ' },
+    });
+    expect(screen.getByText('Anular propuesta').disabled).toBe(true);
+
+    fireEvent.change(screen.getByPlaceholderText('Por qué se anula'), {
+      target: { value: 'Alícuota mal cargada' },
+    });
+    expect(screen.getByText('Anular propuesta').disabled).toBe(false);
+  });
+
+  it('anula por el endpoint propio y manda el motivo', async () => {
+    const anulada = propuesta({
+      estado: 'ANULADA',
+      estado_efectivo: 'ANULADA',
+      motivo_anulacion: 'Alícuota mal cargada',
+      fecha_anulacion: '2026-09-12',
+    });
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(propuesta()))
+      .mockResolvedValueOnce(jsonResponse(anulada));
+    renderDetalle();
+    await abrirModal();
+
+    fireEvent.change(screen.getByPlaceholderText('Por qué se anula'), {
+      target: { value: 'Alícuota mal cargada' },
+    });
+    fireEvent.click(screen.getByText('Anular propuesta'));
+
+    await waitFor(() => expect(globalThis.fetch.mock.calls.length).toBe(2));
+    const [url, opciones] = globalThis.fetch.mock.calls[1];
+    // Endpoint propio, NO POST /estado: aquel no recibe motivo.
+    expect(url).toContain('/art/propuestas/prop-1/anular');
+    expect(opciones.method).toBe('POST');
+    expect(JSON.parse(opciones.body)).toEqual({ motivo: 'Alícuota mal cargada' });
+
+    // La pantalla queda mostrando el desenlace, con el motivo a la vista.
+    await waitFor(() => expect(screen.getByText('Anulada')).toBeTruthy());
+    expect(screen.getByText(/Alícuota mal cargada/)).toBeTruthy();
+  });
+
+  it('un error del backend se muestra DENTRO del modal, sin perder el motivo', async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(propuesta()))
+      .mockResolvedValueOnce(errorResponse('No se puede anular una propuesta en estado ACEPTADA.'));
+    renderDetalle();
+    await abrirModal();
+
+    fireEvent.change(screen.getByPlaceholderText('Por qué se anula'), {
+      target: { value: 'se emitió mal' },
+    });
+    fireEvent.click(screen.getByText('Anular propuesta'));
+
+    await waitFor(() => expect(screen.getByText(/en estado ACEPTADA/)).toBeTruthy());
+    // El modal sigue abierto y el motivo escrito: si se cerrara habría que
+    // volver a tipearlo.
+    expect(screen.getByPlaceholderText('Por qué se anula').value).toBe('se emitió mal');
+  });
+
+  it('no ofrece anular una ACEPTADA ni una ya ANULADA', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(
+      jsonResponse(propuesta({ estado: 'ACEPTADA', estado_efectivo: 'ACEPTADA' })),
+    );
+    renderDetalle();
+    await waitFor(() => expect(screen.getByText('Aceptada')).toBeTruthy());
+    expect(screen.queryByText('Anular')).toBeNull();
+
+    cleanup();
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(
+      jsonResponse(propuesta({
+        estado: 'ANULADA', estado_efectivo: 'ANULADA', motivo_anulacion: 'duplicada',
+      })),
+    );
+    renderDetalle();
+    await waitFor(() => expect(screen.getByText('Anulada')).toBeTruthy());
+    expect(screen.queryByText('Anular')).toBeNull();
+  });
+
+  it('una anulada no muestra la validez: ya tuvo su desenlace', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(jsonResponse(propuesta({
+      estado: 'ANULADA',
+      estado_efectivo: 'ANULADA',
+      motivo_anulacion: 'duplicada',
+      dias_restantes: -4,
+    })));
+    renderDetalle();
+
+    await waitFor(() => expect(screen.getByText('Anulada')).toBeTruthy());
+    expect(screen.queryByText(/venció hace 4 días/)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Badge de confianza de la ALÍCUOTA (distinto del de la masa)
+// ---------------------------------------------------------------------------
+describe('ArtPropuestaDetalle - confianza de la alícuota', () => {
+  it('el origen de la alícuota se muestra como badge propio', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(
+      jsonResponse(propuesta({ origen_alicuota: 'COTIZACION_REAL' })),
+    );
+    renderDetalle();
+
+    await waitFor(() => expect(screen.getByText('Cotización real')).toBeTruthy());
+    // Contorno, no pastilla llena: es el rasgo que lo separa del badge de
+    // la masa, que está en la misma grilla de datos.
+    expect(screen.getByText('Cotización real').className).toContain('border');
+  });
+
+  it('los dos badges son distinguibles: la masa dice "Masa"', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(
+      jsonResponse(propuesta({ origen_alicuota: 'BENCHMARK', confianza_masa: 'CONFIRMADA' })),
+    );
+    renderDetalle();
+
+    // Una masa confirmada por F.931 no dice NADA sobre de dónde salió la
+    // alícuota: se puede tener la masa declarada y el precio sacado de una
+    // mediana de mercado. Los dos badges tienen que poder decir cosas
+    // distintas al mismo tiempo.
+    await waitFor(() => expect(screen.getByText('Masa confirmada (F.931)')).toBeTruthy());
+    expect(screen.getByText('Referencia de mercado')).toBeTruthy();
+  });
+});

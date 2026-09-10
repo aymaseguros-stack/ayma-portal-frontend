@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, X, Bell, Phone, MessageCircle, ChevronRight, Clock } from 'lucide-react';
 
-const AlertasVencimientos = ({ onCerrar }) => {
+// Sin props: el único caller (DashboardEjecutivo) lo monta como
+// <AlertasVencimientos /> y el panel no se cierra - se expande y se
+// contrae solo. Tenía un `onCerrar` declarado que nadie pasaba ni usaba.
+const AlertasVencimientos = () => {
   const [alertas, setAlertas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandido, setExpandido] = useState(false);

@@ -3,19 +3,13 @@ import { Icon } from '../Icons';
 import { listarEmpresasArt } from './artCarteraApi';
 import { RIESGO_SUSCRIPCION_OPCIONES, ESTADOS_EFECTIVOS, ASEGURADORAS_ART, riesgoBadgeClass } from './artCarteraConstants';
 import { ESTRATEGIA_ART_ORDEN, estrategiaArtInfo, estrategiaArtBadgeClass } from '../Crm/artEstrategia';
+import { fechaCorta } from './artFechas';
 
 const LIMIT = 50;
 
 const FILTROS_INICIALES = {
   q: '', ciiu: '', provincia: '', dotacion_min: '',
   riesgo_suscripcion: '', estado_efectivo: '', aseguradora: '', estrategia_art: '',
-};
-
-const fechaCorta = (valor) => {
-  if (!valor) return null;
-  const d = new Date(valor);
-  if (Number.isNaN(d.getTime())) return valor;
-  return d.toLocaleDateString('es-AR');
 };
 
 const labelClass = 'block text-slate-400 text-xs mb-1';
