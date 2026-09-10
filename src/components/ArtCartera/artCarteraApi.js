@@ -361,10 +361,45 @@ export const actualizarPropuestaArt = async (token, propuestaId, payload) => {
 // ENTREGADA->ACEPTADA|RECHAZADA. Cualquier otro par es 409, igual que
 // ACEPTADA sin F.931 cargado ("cargar F.931 primero"): esos mensajes se
 // muestran tal cual llegan, son la instrucción de qué hacer.
-export const cambiarEstadoPropuestaArt = async (token, propuestaId, estado) => {
+//
+// `nota` es el motivo del movimiento (BLOQUE 1.5): el backend lo asienta en
+// la bitácora `notas` con el estado NUEVO y el usuario, y SÓLO si la
+// transición se acepta - un 409 hace rollback y no anota nada. Para el
+// backend es opcional; la pantalla lo exige en ACEPTADA y RECHAZADA (ver
+// ArtPropuestaDetalle.jsx), que son los dos desenlaces que después hay que
+// poder explicar.
+//
+// Si no viene nota, el body sale con `estado` solo y no con `nota: null`:
+// una nota vacía y una nota ausente son lo mismo para el backend, y mandar
+// la clave de más sólo hace ruido en el log.
+export const cambiarEstadoPropuestaArt = async (token, propuestaId, estado, nota) => {
+  const limpia = (nota ?? '').trim();
+  const body = limpia ? { estado, nota: limpia } : { estado };
   const res = await fetch(
     `${API_URL}/api/v1/art/propuestas/${encodeURIComponent(propuestaId)}/estado`,
-    { method: 'POST', headers: artHeaders(token), body: JSON.stringify({ estado }) },
+    { method: 'POST', headers: artHeaders(token), body: JSON.stringify(body) },
+  );
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.json();
+};
+
+// PATCH /art/propuestas/{id}/nota - agrega UNA entrada a la bitácora
+// `notas`, en cualquier estado (incluidas ENTREGADA, ACEPTADA, RECHAZADA y
+// ANULADA). Devuelve la propuesta, no el envelope {propuesta,
+// advertencias}: una nota no genera advertencias porque no recalcula nada.
+//
+// Es la única escritura que acepta una propuesta que ya salió de la
+// oficina y NO rompe la inmutabilidad: no toca un número, ni una fecha, ni
+// el estado, ni el PDF archivado ni su hash. Lo que se ofreció sigue
+// siendo lo que dice el papel que tiene el cliente; la bitácora cuenta lo
+// que pasó DESPUÉS.
+//
+// Append-only: no hay endpoint para editar ni borrar una entrada. 422 con
+// la nota vacía o sólo espacios.
+export const agregarNotaPropuestaArt = async (token, propuestaId, nota) => {
+  const res = await fetch(
+    `${API_URL}/api/v1/art/propuestas/${encodeURIComponent(propuestaId)}/nota`,
+    { method: 'PATCH', headers: artHeaders(token), body: JSON.stringify({ nota }) },
   );
   if (!res.ok) throw new Error(await formatApiError(res));
   return res.json();

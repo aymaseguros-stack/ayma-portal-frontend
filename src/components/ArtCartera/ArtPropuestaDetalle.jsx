@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Icon } from '../Icons';
 import {
+  agregarNotaPropuestaArt,
   anularPropuestaArt,
   cambiarEstadoPropuestaArt,
   descargarPdfPropuestaArt,
@@ -29,11 +30,42 @@ const VACIO = '—';
 // propuesta VENCIDA sigue siendo una ENTREGADA que se puede aceptar o
 // rechazar - el cliente puede contestar tarde, y esa respuesta hay que
 // poder registrarla.
+//
+// `motivo: true` abre el modal antes de mandar el movimiento y lo manda
+// como `nota` (POST /estado acepta `nota` desde el BLOQUE 1.5). Lo llevan
+// ACEPTADA y RECHAZADA y no "Marcar entregada": entregar es un trámite -
+// el papel salió - mientras aceptada y rechazada son los DESENLACES, y un
+// desenlace sin explicación no se puede trabajar después. "Rechazada" a
+// secas, tres meses más tarde, no dice si se fue por precio, por servicio
+// o porque nunca contestó; y eso es justo lo que hay que saber para volver
+// a llamar.
 const ACCIONES_POR_ESTADO = {
   BORRADOR: [{ estado: 'ENTREGADA', label: 'Marcar entregada', clase: 'bg-blue-600 hover:bg-blue-500 text-white' }],
   ENTREGADA: [
-    { estado: 'ACEPTADA', label: 'Aceptada', clase: 'bg-green-600 hover:bg-green-500 text-white' },
-    { estado: 'RECHAZADA', label: 'Rechazada', clase: 'bg-slate-700 hover:bg-slate-600 text-slate-200' },
+    {
+      estado: 'ACEPTADA',
+      label: 'Aceptada',
+      clase: 'bg-green-600 hover:bg-green-500 text-white',
+      motivo: true,
+      titulo: 'Marcar como aceptada',
+      descripcion: 'Queda asentado en la bitácora con la fecha y el estado nuevo. Sirve para saber después por qué se cerró: con qué argumento, contra qué aseguradora, a qué precio.',
+      placeholder: 'Por qué la aceptó',
+      confirmar: 'Marcar aceptada',
+      enviandoLabel: 'Guardando...',
+      claseConfirmar: 'bg-green-600 hover:bg-green-500 text-white',
+    },
+    {
+      estado: 'RECHAZADA',
+      label: 'Rechazada',
+      clase: 'bg-slate-700 hover:bg-slate-600 text-slate-200',
+      motivo: true,
+      titulo: 'Marcar como rechazada',
+      descripcion: 'Queda asentado en la bitácora con la fecha y el estado nuevo. Un rechazo sin motivo no se puede trabajar: no dice si se fue por precio, por servicio o porque no contestó.',
+      placeholder: 'Por qué la rechazó',
+      confirmar: 'Marcar rechazada',
+      enviandoLabel: 'Guardando...',
+      claseConfirmar: 'bg-slate-600 hover:bg-slate-500 text-white',
+    },
   ],
   ACEPTADA: [],
   RECHAZADA: [],
@@ -47,13 +79,36 @@ const ACCIONES_POR_ESTADO = {
 // que la acción existe.
 const ESTADOS_ANULABLES = ['BORRADOR', 'ENTREGADA'];
 
-// Modal de anulación. El botón de confirmar arranca DESHABILITADO y sólo
-// se habilita con un motivo no vacío: el motivo es lo único que después
+// Modal de un solo campo obligatorio: el MOTIVO. Lo usan la anulación
+// (manda `motivo` a POST /anular) y los dos desenlaces - aceptada y
+// rechazada - (mandan `nota` a POST /estado). Es el mismo gesto y la misma
+// regla, así que es el mismo componente: escribir por qué antes de mover
+// una propuesta a un estado del que no se vuelve.
+//
+// El botón de confirmar arranca DESHABILITADO y sólo se habilita con texto
+// no vacío (espacios no cuentan): el motivo es lo único que después
 // distingue "se cargó mal la alícuota" de "la aseguradora dio de baja la
-// cotización", y una propuesta que desaparece de la vista sin decir por
-// qué es indistinguible de un dato perdido. La misma regla la vuelve a
-// aplicar el backend (422), esto es sólo para no hacer el viaje.
-const AnularModal = ({ version, enviando, error, onCancelar, onConfirmar }) => {
+// cotización", o "se fue por precio" de "nunca contestó". La misma regla
+// la vuelve a aplicar el backend (422 en /anular y en PATCH /nota), esto
+// es sólo para no hacer el viaje y, sobre todo, para explicar la exigencia
+// ANTES de escribir.
+//
+// El `error` se muestra DENTRO del modal y el texto tipeado NO se pierde:
+// si se cerrara, habría que volver a escribirlo.
+const MotivoModal = ({
+  titulo,
+  descripcion,
+  placeholder,
+  confirmarLabel,
+  enviandoLabel,
+  claseConfirmar = 'bg-red-600 hover:bg-red-500 text-white',
+  pie = null,
+  maxLength = 500,
+  enviando,
+  error,
+  onCancelar,
+  onConfirmar,
+}) => {
   const [motivo, setMotivo] = useState('');
   const vacio = !motivo.trim();
 
@@ -61,12 +116,8 @@ const AnularModal = ({ version, enviando, error, onCancelar, onConfirmar }) => {
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
       <div className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-md p-6 space-y-4">
         <div>
-          <h3 className="text-lg font-semibold">Anular propuesta v{version}</h3>
-          <p className="text-slate-400 text-sm mt-1">
-            Anular no es lo mismo que rechazar: "rechazada" es la respuesta del cliente.
-            Se anula una propuesta que no debió existir (alícuota mal cargada, empresa
-            equivocada, precio que la aseguradora dio de baja).
-          </p>
+          <h3 className="text-lg font-semibold">{titulo}</h3>
+          <p className="text-slate-400 text-sm mt-1">{descripcion}</p>
         </div>
 
         <label className="block">
@@ -78,8 +129,8 @@ const AnularModal = ({ version, enviando, error, onCancelar, onConfirmar }) => {
             onChange={(e) => setMotivo(e.target.value)}
             rows={3}
             autoFocus
-            maxLength={500}
-            placeholder="Por qué se anula"
+            maxLength={maxLength}
+            placeholder={placeholder}
             className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm placeholder-slate-500"
           />
         </label>
@@ -90,10 +141,7 @@ const AnularModal = ({ version, enviando, error, onCancelar, onConfirmar }) => {
           </div>
         )}
 
-        <p className="text-[11px] text-slate-500">
-          Si la propuesta ya se entregó, el PDF que tiene el cliente y su constancia no
-          se tocan.
-        </p>
+        {pie && <p className="text-[11px] text-slate-500">{pie}</p>}
 
         <div className="flex items-center justify-end gap-2">
           <button
@@ -108,9 +156,111 @@ const AnularModal = ({ version, enviando, error, onCancelar, onConfirmar }) => {
             type="button"
             onClick={() => onConfirmar(motivo)}
             disabled={vacio || enviando}
-            className="px-3 py-2 rounded-lg text-sm font-medium bg-red-600 hover:bg-red-500 text-white transition disabled:opacity-40 disabled:cursor-not-allowed"
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition disabled:opacity-40 disabled:cursor-not-allowed ${claseConfirmar}`}
           >
-            {enviando ? 'Anulando...' : 'Anular propuesta'}
+            {enviando ? enviandoLabel : confirmarLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// La bitácora de seguimiento (BLOQUE 1.5 del backend): lo que pasó DESPUÉS
+// de armar la propuesta. Va a la vista y no detrás de un colapsable como
+// la rentabilidad: es historia comercial de la empresa, no margen de AYMA,
+// y es lo primero que alguien necesita leer antes de volver a llamar.
+//
+// APPEND-ONLY, y la pantalla lo dice: no hay botón de editar ni de borrar
+// una entrada, porque el backend no expone ninguno. Una bitácora que se
+// puede corregir no sirve para lo único para lo que existe. Si algo se
+// anotó mal, se escribe otra nota diciéndolo.
+//
+// Se muestran en el orden en que se escribieron (la más vieja arriba): es
+// una línea de tiempo, y leída al revés una conversación no se entiende.
+// Cada entrada lleva el estado que tenía la propuesta AL MOMENTO de
+// escribirla, no el de hoy - es lo que convierte la lista en un relato
+// ("esto se dijo cuando todavía era un BORRADOR") en vez de un montón de
+// comentarios sueltos.
+//
+// `usuario` viene como id (un UUID) y no se muestra: un UUID en pantalla
+// no le dice nada a nadie. La trazabilidad está guardada igual en el
+// backend, que es donde hace falta.
+const Bitacora = ({ notas, enviando, error, onAgregar }) => {
+  const [nota, setNota] = useState('');
+  const vacia = !nota.trim();
+
+  const agregar = async () => {
+    const ok = await onAgregar(nota);
+    // Sólo se limpia si el backend la aceptó: con un 422 o un 500, lo
+    // tipeado sigue ahí para reintentar sin volver a escribirlo.
+    if (ok) setNota('');
+  };
+
+  return (
+    <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6 space-y-4">
+      <div>
+        <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide">
+          Bitácora de seguimiento
+        </h3>
+        <p className="text-slate-500 text-xs mt-0.5">
+          Qué pasó después de armarla. Una entrada no se edita ni se borra: si algo
+          se anotó mal, se escribe otra nota diciéndolo.
+        </p>
+      </div>
+
+      {notas.length === 0 ? (
+        <p className="text-slate-500 text-sm">
+          Todavía no hay notas. La primera se asienta sola al marcar la propuesta como
+          aceptada o rechazada.
+        </p>
+      ) : (
+        <ol className="space-y-3">
+          {notas.map((entrada, idx) => {
+            const estadoNota = estadoPropuestaInfo(entrada.estado);
+            return (
+              <li
+                key={`${entrada.fecha}-${idx}`}
+                className="border-l-2 border-slate-700 pl-3 py-0.5"
+              >
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-slate-400 text-xs">
+                    {fechaCorta(entrada.fecha) || VACIO}
+                  </span>
+                  <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${estadoNota.badge}`}>
+                    {estadoNota.label}
+                  </span>
+                </div>
+                <p className="text-slate-200 text-sm mt-1 whitespace-pre-wrap">{entrada.nota}</p>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+
+      {error && (
+        <div className="bg-red-500/15 border border-red-500/50 rounded-lg p-3">
+          <p className="text-red-200 text-sm">{error}</p>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        <textarea
+          value={nota}
+          onChange={(e) => setNota(e.target.value)}
+          rows={2}
+          maxLength={1000}
+          placeholder="Agregar una nota de seguimiento"
+          className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm placeholder-slate-500"
+        />
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={agregar}
+            disabled={vacia || enviando}
+            className="px-3 py-2 rounded-lg text-sm font-medium bg-slate-700/50 hover:bg-slate-700 text-slate-200 transition disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {enviando ? 'Guardando...' : 'Agregar nota'}
           </button>
         </div>
       </div>
@@ -142,6 +292,12 @@ const Dato = ({ label, children }) => (
 //     necesita para decidir si presentarla - pero tampoco puede estar
 //     abierto mientras alguien comparte pantalla con el cliente.
 //
+// Abajo de los dos va la BITÁCORA (BLOQUE 1.5): qué pasó después de armar
+// la propuesta. Los números de una propuesta entregada no se tocan nunca -
+// es lo que se le dijo a una empresa - así que la bitácora es lo único que
+// se le puede agregar, y el único lugar donde queda por qué se cerró o por
+// qué se perdió.
+//
 // Igual que la grilla, no es una ruta: se abre como drill-down desde la
 // grilla o desde la ficha, con estado local (la app no usa router de URLs -
 // ver el docstring de ArtCarteraView.jsx).
@@ -155,6 +311,12 @@ const ArtPropuestaDetalle = ({ token, propuestaId, onVolver, volverLabel = 'Volv
   const [advertencias, setAdvertencias] = useState([]);
   const [anularAbierto, setAnularAbierto] = useState(false);
   const [anularError, setAnularError] = useState(null);
+  // La acción de estado que está esperando el motivo (la entrada de
+  // ACCIONES_POR_ESTADO, no sólo el nombre del estado: el modal saca de ahí
+  // su título, su placeholder y el color del botón).
+  const [accionPendiente, setAccionPendiente] = useState(null);
+  const [motivoError, setMotivoError] = useState(null);
+  const [notaError, setNotaError] = useState(null);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -170,17 +332,71 @@ const ArtPropuestaDetalle = ({ token, propuestaId, onVolver, volverLabel = 'Volv
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  const cambiarEstado = async (estado) => {
+  // Manda el movimiento de estado. Devuelve null si salió bien, o el
+  // mensaje de error - NO lo pinta por su cuenta: quien llama decide dónde
+  // se lee (el panel o el modal). Devolverlo en vez de leerlo del state
+  // después es lo que evita el clásico de ver el error del intento
+  // anterior: el `set` de React no se refleja en el mismo closure.
+  //
+  // `nota` viaja sólo cuando la acción pide motivo; entregar no lo pide.
+  const mandarEstado = async (estado, nota) => {
     setEnviando(estado);
-    setAccionError(null);
     try {
-      const resultado = await cambiarEstadoPropuestaArt(token, propuestaId, estado);
+      const resultado = await cambiarEstadoPropuestaArt(token, propuestaId, estado, nota);
       setData(resultado.propuesta);
       setAdvertencias(resultado.advertencias || []);
+      return null;
     } catch (err) {
       // El 409 del backend trae la instrucción de qué hacer ("cargar F.931
-      // primero"), así que se muestra tal cual en vez de un "no se pudo".
-      setAccionError(err.message);
+      // primero"), así que se devuelve tal cual en vez de un "no se pudo".
+      return err.message;
+    } finally {
+      setEnviando(null);
+    }
+  };
+
+  // Clic en un botón de estado: los que exigen motivo abren el modal, el
+  // resto ("Marcar entregada") va derecho.
+  const ejecutarAccion = async (accion) => {
+    if (accion.motivo) {
+      setMotivoError(null);
+      setAccionPendiente(accion);
+      return;
+    }
+    setAccionError(await mandarEstado(accion.estado));
+  };
+
+  // Confirmación del modal de motivo. El motivo viaja como `nota`: el
+  // backend lo asienta en la bitácora con el estado NUEVO, y SÓLO si la
+  // transición se acepta - un 409 (la ACEPTADA sin F.931, por ejemplo) hace
+  // rollback y no anota nada. Por eso el error se muestra DENTRO del modal,
+  // que queda abierto con el motivo ya escrito: el movimiento no pasó y hay
+  // que reintentarlo, no volver a tipearlo.
+  const confirmarMotivo = async (motivo) => {
+    const accion = accionPendiente;
+    if (!accion) return;
+    setMotivoError(null);
+    const error = await mandarEstado(accion.estado, motivo);
+    if (error) {
+      setMotivoError(error);
+      return;
+    }
+    setAccionPendiente(null);
+    setAccionError(null);
+  };
+
+  // PATCH /nota: agrega una entrada a la bitácora sin tocar nada más. Anda
+  // en cualquier estado, incluidos los finales - es la única escritura que
+  // acepta una propuesta que ya salió de la oficina.
+  const agregarNota = async (nota) => {
+    setEnviando('NOTA');
+    setNotaError(null);
+    try {
+      setData(await agregarNotaPropuestaArt(token, propuestaId, nota));
+      return true;
+    } catch (err) {
+      setNotaError(err.message);
+      return false;
     } finally {
       setEnviando(null);
     }
@@ -329,7 +545,7 @@ const ArtPropuestaDetalle = ({ token, propuestaId, onVolver, volverLabel = 'Volv
             <button
               key={accion.estado}
               type="button"
-              onClick={() => cambiarEstado(accion.estado)}
+              onClick={() => ejecutarAccion(accion)}
               disabled={enviando !== null}
               className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition disabled:opacity-50 ${accion.clase}`}
             >
@@ -493,9 +709,43 @@ const ArtPropuestaDetalle = ({ token, propuestaId, onVolver, volverLabel = 'Volv
         )}
       </div>
 
+      {/* Bitácora: debajo del resumen y de la rentabilidad, que es el orden
+          en que se lee la pantalla (qué se ofreció -> cuánto deja -> qué
+          pasó). `notas` puede no venir en una respuesta vieja cacheada, de
+          ahí el fallback a lista vacía. */}
+      <Bitacora
+        notas={data.notas || []}
+        enviando={enviando === 'NOTA'}
+        error={notaError}
+        onAgregar={agregarNota}
+      />
+
+      {accionPendiente && (
+        <MotivoModal
+          titulo={`${accionPendiente.titulo} · v${data.version}`}
+          descripcion={accionPendiente.descripcion}
+          placeholder={accionPendiente.placeholder}
+          confirmarLabel={accionPendiente.confirmar}
+          enviandoLabel={accionPendiente.enviandoLabel}
+          claseConfirmar={accionPendiente.claseConfirmar}
+          maxLength={1000}
+          pie="Los números y el PDF de la propuesta no se tocan: la nota cuenta lo que pasó después."
+          enviando={enviando === accionPendiente.estado}
+          error={motivoError}
+          onCancelar={() => setAccionPendiente(null)}
+          onConfirmar={confirmarMotivo}
+        />
+      )}
+
       {anularAbierto && (
-        <AnularModal
-          version={data.version}
+        <MotivoModal
+          titulo={`Anular propuesta v${data.version}`}
+          descripcion={'Anular no es lo mismo que rechazar: "rechazada" es la respuesta del cliente. Se anula una propuesta que no debió existir (alícuota mal cargada, empresa equivocada, precio que la aseguradora dio de baja).'}
+          placeholder="Por qué se anula"
+          confirmarLabel="Anular propuesta"
+          enviandoLabel="Anulando..."
+          claseConfirmar="bg-red-600 hover:bg-red-500 text-white"
+          pie="Si la propuesta ya se entregó, el PDF que tiene el cliente y su constancia no se tocan."
           enviando={enviando === 'ANULAR'}
           error={anularError}
           onCancelar={() => setAnularAbierto(false)}

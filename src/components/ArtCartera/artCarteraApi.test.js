@@ -15,7 +15,7 @@ import {
   obtenerColaAlicuotas, registrarCargaRapidaAlicuotas,
   crearPropuestaArt, listarPropuestasArt, obtenerPropuestaArt,
   cambiarEstadoPropuestaArt, descargarPdfPropuestaArt,
-  anularPropuestaArt, quitarF931Art,
+  agregarNotaPropuestaArt, anularPropuestaArt, quitarF931Art,
   normalizarBusqueda,
 } from './artCarteraApi';
 
@@ -543,6 +543,63 @@ describe('propuestas ART', () => {
     ));
     await expect(cambiarEstadoPropuestaArt(TOKEN, 'prop-1', 'ACEPTADA'))
       .rejects.toThrow(/Transición inválida/);
+  });
+
+  it('cambiarEstadoPropuestaArt manda el motivo como `nota` cuando hay uno', async () => {
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse({
+      propuesta: { id: 'prop-1', estado: 'RECHAZADA' }, advertencias: [],
+    }));
+    await cambiarEstadoPropuestaArt(TOKEN, 'prop-1', 'RECHAZADA', '  Se fue con Galeno por precio  ');
+    const [, init] = globalThis.fetch.mock.calls[0];
+    // Viaja recortado: el backend también lo hace, pero el espacio de más
+    // quedaría guardado en una bitácora que no se puede editar.
+    expect(JSON.parse(init.body)).toEqual({
+      estado: 'RECHAZADA', nota: 'Se fue con Galeno por precio',
+    });
+  });
+
+  it('cambiarEstadoPropuestaArt NO manda `nota` si el motivo está vacío', async () => {
+    globalThis.fetch.mockResolvedValue(jsonResponse({
+      propuesta: { id: 'prop-1', estado: 'ENTREGADA' }, advertencias: [],
+    }));
+    // Sin nota, con string vacío y con sólo espacios: los tres son lo mismo
+    // para el backend, así que la clave no se manda (`nota: null` sería
+    // ruido en el log de una operación que no anotó nada).
+    await cambiarEstadoPropuestaArt(TOKEN, 'prop-1', 'ENTREGADA');
+    await cambiarEstadoPropuestaArt(TOKEN, 'prop-1', 'ENTREGADA', '');
+    await cambiarEstadoPropuestaArt(TOKEN, 'prop-1', 'ENTREGADA', '   ');
+    globalThis.fetch.mock.calls.forEach(([, init]) => {
+      expect(JSON.parse(init.body)).toEqual({ estado: 'ENTREGADA' });
+    });
+  });
+
+  it('agregarNotaPropuestaArt va por PATCH /nota y devuelve la propuesta', async () => {
+    const conNota = {
+      id: 'prop-1',
+      estado: 'ACEPTADA',
+      notas: [
+        { fecha: '2026-09-12', estado: 'ACEPTADA', nota: 'Firmó', usuario: 'user-1' },
+      ],
+    };
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse(conNota));
+
+    const propuesta = await agregarNotaPropuestaArt(TOKEN, 'prop-1', 'Firmó');
+
+    const [url, init] = globalThis.fetch.mock.calls[0];
+    expect(url).toContain('/art/propuestas/prop-1/nota');
+    expect(init.method).toBe('PATCH');
+    expect(JSON.parse(init.body)).toEqual({ nota: 'Firmó' });
+    // Devuelve la propuesta pelada, NO el envelope {propuesta, advertencias}:
+    // una nota no recalcula nada, así que no genera advertencias.
+    expect(propuesta.notas).toHaveLength(1);
+  });
+
+  it('agregarNotaPropuestaArt propaga el 422 de la nota vacía', async () => {
+    globalThis.fetch.mockResolvedValueOnce(jsonResponse(
+      { detail: 'nota no puede ser sólo espacios' }, false, 422,
+    ));
+    await expect(agregarNotaPropuestaArt(TOKEN, 'prop-1', '   '))
+      .rejects.toThrow(/sólo espacios/);
   });
 
   it('descargarPdfPropuestaArt pide el blob con Authorization', async () => {
