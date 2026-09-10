@@ -1,6 +1,8 @@
 // Constantes compartidas de Oportunidades (CRM Fase 2), en espejo de las
 // listas válidas en app/schemas/crm_v2.py del backend.
 
+import { aFecha, hoyISO } from '../../utils/fechas';
+
 export const TRACKS_VALIDOS = [
   'AUTO', 'ART', 'FLOTA', 'INTEGRAL', 'HYS', 'RC', 'INCENDIO', 'TRO',
   'TRANSPORTE', 'ROBO', 'CREDITO', 'CAUCION', 'VIDA', 'HOGAR', 'AP',
@@ -62,15 +64,16 @@ export const formatMoneda = (valor) => {
 // interacción" en las tarjetas del Kanban (el pipeline no trae el detalle
 // de interacciones por oportunidad, así que se aproxima con updated_at).
 export const diasDesde = (fechaISO) => {
-  if (!fechaISO) return null;
-  const fecha = new Date(fechaISO);
-  if (Number.isNaN(fecha.getTime())) return null;
+  const fecha = aFecha(fechaISO);
+  if (fecha === null) return null;
   const ms = Date.now() - fecha.getTime();
   return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
 };
 
+// `fecha_cierre_estimada` es un campo `date`: se compara contra el día LOCAL.
+// Con el UTC de `toISOString`, una oportunidad que cierra hoy aparecía vencida
+// desde las 21:00 hora argentina.
 export const estaVencida = (oportunidad) => {
   if (!oportunidad?.fecha_cierre_estimada) return false;
-  const hoy = new Date().toISOString().slice(0, 10);
-  return oportunidad.fecha_cierre_estimada < hoy;
+  return oportunidad.fecha_cierre_estimada < hoyISO();
 };

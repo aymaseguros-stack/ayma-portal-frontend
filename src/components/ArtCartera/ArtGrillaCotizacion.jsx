@@ -15,7 +15,7 @@ import {
   riesgoBadgeClass,
   variacionPct,
 } from './artCarteraConstants';
-import { fechaCorta } from './artFechas';
+import { fechaCorta } from '../../utils/fechas';
 
 // El guion medio para "no hay dato". Se usa uno solo en todo el archivo a
 // propósito: mezclar '-', '—' y '' hace que la tabla se lea como si

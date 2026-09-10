@@ -1,16 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Dato } from './FichaHelpers';
 import { normalizeList, formatApiError, authHeader } from '../../utils/api';
+import { fechaCorta } from '../../utils/fechas';
 import { estrategiaArtInfo, estrategiaArtBadgeClass } from './artEstrategia';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
-
-const fechaCorta = (valor) => {
-  if (!valor) return null;
-  const d = new Date(valor);
-  if (Number.isNaN(d.getTime())) return valor;
-  return d.toLocaleDateString('es-AR');
-};
 
 // Sección "ART" del bloque de Datos en la ficha de empresa, más el historial
 // de verificaciones SRT debajo. Se usa solo dentro de EmpresasPanel.

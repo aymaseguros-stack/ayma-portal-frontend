@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Icon } from '../Icons';
 import { normalizeList, formatApiError, authHeader } from '../../utils/api';
+import { fechaCorta, hoyISO } from '../../utils/fechas';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -31,7 +32,7 @@ const RecuperablesPanel = ({ token }) => {
     }
   };
 
-  const hoy = new Date().toISOString().split('T')[0];
+  const hoy = hoyISO();
 
   return (
     <div className="space-y-6">
@@ -85,7 +86,7 @@ const RecuperablesPanel = ({ token }) => {
                         <span className={`px-2 py-1 rounded text-xs font-medium ${
                           vencido ? 'bg-red-500/20 text-red-400' : 'text-slate-300'
                         }`}>
-                          {r.fecha_recontacto ? new Date(r.fecha_recontacto).toLocaleDateString('es-AR') : '-'}
+                          {fechaCorta(r.fecha_recontacto) || '-'}
                           {vencido ? ' ⚠️ Vencido' : ''}
                         </span>
                       </td>

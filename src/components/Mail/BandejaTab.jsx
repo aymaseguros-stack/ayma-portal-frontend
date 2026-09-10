@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from '../Icons';
 import { listarEmails, ESTADOS_VINCULACION_BADGE } from './mailApi';
+import { fechaHora } from '../../utils/fechas';
 
 const PAGE_SIZE = 25;
 
@@ -105,7 +106,7 @@ const BandejaTab = ({ token, onAbrirEmail, refreshKey }) => {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-400 whitespace-nowrap">
-                        {m.fecha ? new Date(m.fecha).toLocaleString('es-AR') : '-'}
+                        {fechaHora(m.fecha) || '-'}
                       </td>
                     </tr>
                   );

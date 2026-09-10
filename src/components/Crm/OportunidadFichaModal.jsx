@@ -3,6 +3,7 @@ import { Icon } from '../Icons';
 import Modal from '../Modal';
 import { Dato } from './FichaHelpers';
 import { authHeader } from '../../utils/api';
+import { fechaCorta, fechaHora } from '../../utils/fechas';
 import Timeline from './Timeline';
 import {
   ESTADO_CRM_BADGE, CANALES_VALIDOS, MOTIVOS_PERDIDA_VALIDOS,
@@ -205,7 +206,7 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
               <Dato label="Origen" valor={detalle.origen} />
               <Dato label="Probabilidad de cierre" valor={detalle.probabilidad_cierre !== null && detalle.probabilidad_cierre !== undefined ? `${detalle.probabilidad_cierre}%` : null} />
               <Dato label="Fecha de cierre estimada" valor={detalle.fecha_cierre_estimada} />
-              <Dato label="Fecha de alta" valor={detalle.fecha_alta ? new Date(detalle.fecha_alta).toLocaleDateString('es-AR') : null} />
+              <Dato label="Fecha de alta" valor={fechaCorta(detalle.fecha_alta)} />
               {cerrada && (
                 <>
                   <Dato label="Fecha de cierre real" valor={detalle.fecha_cierre_real} />
@@ -245,7 +246,7 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
                         <span className={`font-medium ${t.estado === 'COMPLETADA' ? 'line-through text-slate-500' : ''}`}>{t.titulo}</span>
-                        <span className="text-slate-500 text-xs shrink-0">{new Date(t.fecha_programada).toLocaleString('es-AR')}</span>
+                        <span className="text-slate-500 text-xs shrink-0">{fechaHora(t.fecha_programada)}</span>
                       </div>
                       <span className="inline-block mt-1 px-2 py-0.5 bg-slate-600 rounded text-xs">{t.prioridad}</span>
                     </div>

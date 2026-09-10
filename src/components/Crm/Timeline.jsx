@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Icon } from '../Icons';
 import { CANAL_ICON } from './oportunidadConstants';
 import { obtenerTimeline, obtenerEmail } from '../Mail/mailApi';
+import { fechaHora } from '../../utils/fechas';
 import ComposeModal from '../Mail/ComposeModal';
 
 const iconoPorItem = (item) => {
@@ -90,7 +91,7 @@ const Timeline = ({ token, tipo, id, destinatarioEmail, oportunidadId }) => {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium truncate">{item.titulo || item.asunto || item.canal || 'Actividad'}</span>
-                      <span className="text-slate-500 text-xs shrink-0">{item.fecha ? new Date(item.fecha).toLocaleString('es-AR') : ''}</span>
+                      <span className="text-slate-500 text-xs shrink-0">{fechaHora(item.fecha) || ''}</span>
                     </div>
                     {item.detalle && <p className="text-slate-400 text-sm mt-1">{item.detalle}</p>}
                     {item.estado && <span className="inline-block mt-1 px-2 py-0.5 bg-slate-600 rounded text-xs">{item.estado}</span>}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Icon } from '../Icons';
 import { authHeader } from '../../utils/api';
+import { fechaCorta } from '../../utils/fechas';
 
 const IntelligencePanel = ({ token }) => {
   const [scrapes, setScrapes] = useState([]);
@@ -146,7 +147,7 @@ const IntelligencePanel = ({ token }) => {
                         {scrape.status}
                       </span>
                     </td>
-                    <td className="p-2 text-sm text-slate-200">{new Date(scrape.created_at).toLocaleDateString()}</td>
+                    <td className="p-2 text-sm text-slate-200">{fechaCorta(scrape.created_at)}</td>
                   </tr>
                 ))}
               </tbody>

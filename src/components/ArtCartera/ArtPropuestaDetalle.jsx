@@ -16,7 +16,7 @@ import {
   estadoPropuestaInfo,
   pesosAr,
 } from './artCarteraConstants';
-import { fechaCorta } from './artFechas';
+import { fechaCorta } from '../../utils/fechas';
 
 const VACIO = '—';
 

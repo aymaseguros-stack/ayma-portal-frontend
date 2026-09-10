@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from '../Icons';
 import { listarCuentas, sincronizarCuenta, iniciarConexionCuenta } from './mailApi';
+import { fechaHora } from '../../utils/fechas';
 
 const DIAS_OPCIONES = [30, 90, 180];
 
@@ -120,7 +121,7 @@ const CuentasTab = ({ token }) => {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-400 whitespace-nowrap">
-                      {c.ultima_sync ? new Date(c.ultima_sync).toLocaleString('es-AR') : 'Nunca'}
+                      {fechaHora(c.ultima_sync) || 'Nunca'}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <button

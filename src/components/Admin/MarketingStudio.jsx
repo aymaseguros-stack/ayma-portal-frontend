@@ -14,6 +14,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { hoyISO } from '../../utils/fechas';
 
 // ============================================
 // API CONFIGURATION
@@ -364,7 +365,7 @@ export default function MarketingStudio() {
           red: c.channel || 'instagram',
           formato: c.tipo || 'post',
           estado: 'pendiente',
-          fecha: c.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+          fecha: c.created_at?.split('T')[0] || hoyISO(),
           categoria: c.categoria || 'educativo',
           token: c.token || `AYMA-MKT-${c.id}`,
           hashtags: c.hashtags || '',
@@ -460,7 +461,7 @@ export default function MarketingStudio() {
       red: selectedRed,
       formato: selectedFormat,
       estado: 'aprobado',
-      fecha: new Date().toISOString().split('T')[0],
+      fecha: hoyISO(),
       categoria: selectedTemplate.category,
       token: token,
     };

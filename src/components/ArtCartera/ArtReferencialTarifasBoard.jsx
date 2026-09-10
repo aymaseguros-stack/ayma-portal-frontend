@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Icon } from '../Icons';
 import { obtenerReferencialTarifas } from './artCarteraApi';
 import { ASEGURADORAS_ART, numeroAr, decimalAr } from './artCarteraConstants';
-import { anioDeFecha } from './artFechas';
+import { anioDeFecha } from '../../utils/fechas';
 
 const TRAMOS_DOTACION = ['1-10', '11-25', '26-50', '51-100', '100+', 'sin_dato'];
 

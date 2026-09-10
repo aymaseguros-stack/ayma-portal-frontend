@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Icon } from '../Icons';
 import { listarEmails } from './mailApi';
 import VincularBuscador from './VincularBuscador';
+import { fechaHora } from '../../utils/fechas';
 
 // Correos que llegaron pero no quedaron atados a ninguna ficha del CRM
 // (GET /api/v1/email?estado_vinculacion=SIN_VINCULAR). Cada fila tiene su
@@ -64,7 +65,7 @@ const SinVincularTab = ({ token }) => {
                       {m.snippet && <span className="text-slate-500 ml-2 hidden lg:inline">— {m.snippet}</span>}
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-400 whitespace-nowrap">
-                      {m.fecha ? new Date(m.fecha).toLocaleString('es-AR') : '-'}
+                      {fechaHora(m.fecha) || '-'}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <button

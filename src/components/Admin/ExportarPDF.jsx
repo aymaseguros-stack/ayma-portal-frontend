@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { FileDown, Loader } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { fechaHora, hoyISO } from '../../utils/fechas';
 
 const ExportarPDF = ({ targetId = 'dashboard-content', nombreArchivo = 'dashboard-ayma' }) => {
   const [exportando, setExportando] = useState(false);
@@ -55,9 +56,9 @@ const ExportarPDF = ({ targetId = 'dashboard-content', nombreArchivo = 'dashboar
       
       pdf.setFontSize(10);
       pdf.setFont('helvetica', 'normal');
-      const fecha = new Date().toLocaleString('es-AR', { 
-        dateStyle: 'long', 
-        timeStyle: 'short' 
+      const fecha = fechaHora(new Date(), {
+        dateStyle: 'long',
+        timeStyle: 'short',
       });
       pdf.text(`Generado: ${fecha}`, pageWidth - 70, 13);
 
@@ -107,7 +108,7 @@ const ExportarPDF = ({ targetId = 'dashboard-content', nombreArchivo = 'dashboar
       );
 
       // Descargar
-      const fechaArchivo = new Date().toISOString().split('T')[0];
+      const fechaArchivo = hoyISO();
       pdf.save(`${nombreArchivo}-${fechaArchivo}.pdf`);
 
     } catch (error) {
