@@ -21,12 +21,34 @@ const buildQuery = (params = {}) => {
   return str ? `?${str}` : '';
 };
 
+// Normaliza el término del buscador (`q`) antes de mandarlo.
+//
+// EL BUG QUE CIERRA: `empresas.cuit` tiene los dos formatos conviviendo en
+// la base - con guiones ("30-71000001-7") y sin ellos ("30710000017"),
+// según por dónde entró la empresa. Buscar un CUIT tipeado con guiones
+// encontraba sólo la mitad de la cartera y la pantalla decía "sin
+// resultados", que se lee como "esa empresa no está".
+//
+// Si lo tipeado es SÓLO dígitos y separadores de CUIT (guiones, puntos,
+// espacios), se mandan los dígitos pelados; cualquier otra cosa - una
+// razón social - viaja tal cual, incluidas las que llevan números
+// ("ACME 2000"). El backend normaliza igual por su cuenta
+// (app/api/v1/art_consultas.py::_filtro_busqueda): esto le ahorra el
+// viaje al caso más común, no lo reemplaza.
+export const normalizarBusqueda = (q) => {
+  const texto = (q ?? '').trim();
+  if (!texto) return texto;
+  if (!/^[\d\s.\-]+$/.test(texto)) return texto;
+  return texto.replace(/\D/g, '') || texto;
+};
+
 // GET /art/empresas - listado server-side paginado de la cartera ART.
 // `filtros` acepta: ciiu, provincia, dotacion_min, dotacion_max,
 // riesgo_suscripcion, estado_efectivo, aseguradora, estrategia_art, q,
 // order_by, limit, offset (ver app/api/v1/art_consultas.py).
 export const listarEmpresasArt = async (token, filtros = {}) => {
-  const res = await fetch(`${API_URL}/api/v1/art/empresas${buildQuery(filtros)}`, { headers: artHeaders(token) });
+  const params = 'q' in filtros ? { ...filtros, q: normalizarBusqueda(filtros.q) } : filtros;
+  const res = await fetch(`${API_URL}/api/v1/art/empresas${buildQuery(params)}`, { headers: artHeaders(token) });
   if (!res.ok) throw new Error(await formatApiError(res));
   return normalizeList(await res.json());
 };

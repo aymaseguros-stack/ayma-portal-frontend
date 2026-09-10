@@ -15,6 +15,7 @@ import {
   obtenerColaAlicuotas, registrarCargaRapidaAlicuotas,
   crearPropuestaArt, listarPropuestasArt, obtenerPropuestaArt,
   cambiarEstadoPropuestaArt, descargarPdfPropuestaArt,
+  normalizarBusqueda,
 } from './artCarteraApi';
 
 const TOKEN = 'token-de-prueba';
@@ -555,5 +556,77 @@ describe('propuestas ART', () => {
     // link plano del browser no manda el token.
     expect(init.headers.Authorization).toBe(`Bearer ${TOKEN}`);
     expect(resultado).toBe(blob);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Búsqueda por CUIT: normalización antes de mandar
+//
+// EL BUG. `empresas.cuit` tiene los dos formatos conviviendo en la base -
+// con guiones ("30-70716304-2") y sin ellos ("30690927833"), según por
+// dónde entró la empresa. Buscar un CUIT tipeado con guiones encontraba
+// sólo la mitad de la cartera y la pantalla decía "sin resultados", que se
+// lee como "esa empresa no está".
+//
+// El backend normaliza igual por su cuenta (_filtro_busqueda en
+// app/api/v1/art_consultas.py): esto le ahorra el viaje al caso más común,
+// no lo reemplaza.
+// ---------------------------------------------------------------------------
+
+describe('normalizarBusqueda', () => {
+  it('deja los digitos pelados de un CUIT, se tipee como se tipee', () => {
+    expect(normalizarBusqueda('30-70716304-2')).toBe('30707163042');
+    expect(normalizarBusqueda('30.70716304.2')).toBe('30707163042');
+    expect(normalizarBusqueda('30 70716304 2')).toBe('30707163042');
+    expect(normalizarBusqueda('30707163042')).toBe('30707163042');
+  });
+
+  it('no toca una razon social, ni siquiera si tiene numeros', () => {
+    // "GRUPO 2000" es un nombre, no un CUIT: si se le quitaran los
+    // no-digitos quedaria "2000" y la busqueda por nombre dejaria de andar
+    // en cuanto el nombre tuviera un numero.
+    expect(normalizarBusqueda('GRUPO 2000')).toBe('GRUPO 2000');
+    expect(normalizarBusqueda('gemplast')).toBe('gemplast');
+  });
+
+  it('recorta espacios y tolera vacio', () => {
+    expect(normalizarBusqueda('  gemplast  ')).toBe('gemplast');
+    expect(normalizarBusqueda('   ')).toBe('');
+    expect(normalizarBusqueda(undefined)).toBe('');
+    expect(normalizarBusqueda(null)).toBe('');
+  });
+});
+
+describe('listarEmpresasArt - normalizacion del termino de busqueda', () => {
+  it('manda el CUIT sin guiones aunque el operador lo haya tipeado con guiones', async () => {
+    globalThis.fetch.mockResolvedValue(
+      jsonResponse({ total: 0, limit: 50, offset: 0, items: [] })
+    );
+
+    await listarEmpresasArt(TOKEN, { q: '30-70716304-2' });
+
+    const url = globalThis.fetch.mock.calls[0][0];
+    expect(url).toContain('q=30707163042');
+    expect(url).not.toContain('30-70716304-2');
+  });
+
+  it('manda la razon social tal cual', async () => {
+    globalThis.fetch.mockResolvedValue(
+      jsonResponse({ total: 0, limit: 50, offset: 0, items: [] })
+    );
+
+    await listarEmpresasArt(TOKEN, { q: 'GRUPO 2000' });
+
+    expect(globalThis.fetch.mock.calls[0][0]).toContain('q=GRUPO+2000');
+  });
+
+  it('no agrega un q vacio al querystring cuando no se busco nada', async () => {
+    globalThis.fetch.mockResolvedValue(
+      jsonResponse({ total: 0, limit: 50, offset: 0, items: [] })
+    );
+
+    await listarEmpresasArt(TOKEN, { q: '' });
+
+    expect(globalThis.fetch.mock.calls[0][0]).not.toContain('q=');
   });
 });
