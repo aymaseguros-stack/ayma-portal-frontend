@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import ArtCarteraListado from './ArtCarteraListado';
 import ArtEmpresaFicha from './ArtEmpresaFicha';
 import ArtGrillaCotizacion from './ArtGrillaCotizacion';
+import ArtPropuestaDetalle from './ArtPropuestaDetalle';
 import ArtDesbloqueosBoard from './ArtDesbloqueosBoard';
 import ArtTecnicaVencidaBoard from './ArtTecnicaVencidaBoard';
 import ArtReferencialTarifasBoard from './ArtReferencialTarifasBoard';
@@ -52,11 +53,28 @@ const ArtCarteraView = ({ token }) => {
   // sin perderla. Mismo mecanismo de estado local que la ficha: la app no
   // usa router de URLs (ver el comentario de arriba).
   const [empresaIdGrilla, setEmpresaIdGrilla] = useState(null);
+  // Propuesta abierta desde la LISTA de la ficha (BLOQUE 1.3). La que se
+  // abre recién armada desde la grilla vive adentro de ArtGrillaCotizacion,
+  // porque al volver tiene que caer en la grilla y no en la ficha: son dos
+  // caminos de entrada distintos a la misma pantalla.
+  const [propuestaIdFicha, setPropuestaIdFicha] = useState(null);
 
   const abrirFicha = (cuit) => setCuitFicha(cuit);
   const volverACartera = () => setCuitFicha(null);
   const abrirGrilla = (empresaId) => setEmpresaIdGrilla(empresaId);
   const volverALaFicha = () => setEmpresaIdGrilla(null);
+  const abrirPropuesta = (propuestaId) => setPropuestaIdFicha(propuestaId);
+
+  if (propuestaIdFicha) {
+    return (
+      <ArtPropuestaDetalle
+        token={token}
+        propuestaId={propuestaIdFicha}
+        onVolver={() => setPropuestaIdFicha(null)}
+        volverLabel="Volver a la ficha"
+      />
+    );
+  }
 
   if (empresaIdGrilla) {
     return (
@@ -71,6 +89,7 @@ const ArtCarteraView = ({ token }) => {
         cuit={cuitFicha}
         onVolver={volverACartera}
         onAbrirGrilla={abrirGrilla}
+        onAbrirPropuesta={abrirPropuesta}
       />
     );
   }

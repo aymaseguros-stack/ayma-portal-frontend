@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icon } from '../Icons';
 import { obtenerGrillaArt } from './artCarteraApi';
 import ArtF931Modal from './ArtF931Modal';
+import ArtPropuestaForm from './ArtPropuestaForm';
+import ArtPropuestaDetalle from './ArtPropuestaDetalle';
 import {
   aseguradoraLabel,
   confianzaMasaInfo,
@@ -92,7 +94,7 @@ const Dato = ({ label, children }) => (
 // vencimiento a la vista: quien mira la grilla tiene que poder contestar
 // "¿por qué no puedo cotizar acá y desde cuándo voy a poder?" sin abrir
 // otra pantalla.
-const FilaAseguradora = ({ fila, esMejor }) => {
+const FilaAseguradora = ({ fila, esMejor, onArmarPropuesta }) => {
   const cotizable = fila.estado_efectivo === 'COTIZABLE';
   const info = estadoArtInfo(fila.estado_efectivo);
   const origen = fila.origen_alicuota ? origenAlicuotaInfo(fila.origen_alicuota) : null;
@@ -172,6 +174,24 @@ const FilaAseguradora = ({ fila, esMejor }) => {
       </td>
 
       <td className="px-4 py-3"><Importe valor={fila.comision_neta} /></td>
+
+      {/* "Armar propuesta" SOLO en las filas cotizables y con alícuota: sin
+          precio no hay nada que ofrecer, y sobre una bloqueada/rechazada/en
+          técnica el botón prometería una gestión que hoy no se puede hacer.
+          Las demás filas dejan la celda vacía en vez de un botón
+          deshabilitado, que se lee como "algo salió mal". */}
+      <td className="px-4 py-3 text-right">
+        {cotizable && fila.alicuota_ref !== null && fila.alicuota_ref !== undefined && (
+          <button
+            type="button"
+            onClick={() => onArmarPropuesta(fila)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition whitespace-nowrap"
+          >
+            <Icon name="document-text" size={13} />
+            Armar propuesta
+          </button>
+        )}
+      </td>
     </tr>
   );
 };
@@ -190,6 +210,12 @@ const ArtGrillaCotizacion = ({ token, empresaId, onVolver }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [modalF931, setModalF931] = useState(false);
+  // Drill-down a la propuesta, un nivel MÁS ADENTRO de la grilla: mismo
+  // mecanismo de estado local que usa la grilla dentro de la ficha (la app
+  // no tiene router de URLs - ver el docstring de ArtCarteraView.jsx). Al
+  // volver, la grilla que quedó detrás sigue cargada.
+  const [filaPropuesta, setFilaPropuesta] = useState(null);
+  const [propuestaId, setPropuestaId] = useState(null);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -210,6 +236,23 @@ const ArtGrillaCotizacion = ({ token, empresaId, onVolver }) => {
     () => (data?.advertencias || []).includes('SIN_MASA'),
     [data],
   );
+
+  if (propuestaId) {
+    return (
+      <ArtPropuestaDetalle
+        token={token}
+        propuestaId={propuestaId}
+        onVolver={() => {
+          setPropuestaId(null);
+          // Se recarga la grilla al volver: entregar una propuesta con
+          // origen COTIZACION_REAL asienta esa alícuota como propia de la
+          // empresa, así que la fila de esa aseguradora ya no dice lo
+          // mismo que antes de entrar.
+          cargar();
+        }}
+      />
+    );
+  }
 
   const volverBtn = (
     <button
@@ -380,6 +423,7 @@ const ArtGrillaCotizacion = ({ token, empresaId, onVolver }) => {
                 <th className="px-4 py-2 text-left text-slate-300 font-medium">LRT mensual</th>
                 <th className="px-4 py-2 text-left text-slate-300 font-medium">Ahorro anual</th>
                 <th className="px-4 py-2 text-left text-slate-300 font-medium">Comisión neta</th>
+                <th className="px-4 py-2" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700">
@@ -388,12 +432,28 @@ const ArtGrillaCotizacion = ({ token, empresaId, onVolver }) => {
                   key={fila.aseguradora}
                   fila={fila}
                   esMejor={fila.aseguradora === mejorAseguradora}
+                  onArmarPropuesta={setFilaPropuesta}
                 />
               ))}
             </tbody>
           </table>
         </div>
       </div>
+
+      {filaPropuesta && (
+        <ArtPropuestaForm
+          token={token}
+          empresaId={empresaId}
+          aseguradora={filaPropuesta.aseguradora}
+          alicuotaSugerida={filaPropuesta.alicuota_ref}
+          origenSugerido={filaPropuesta.origen_alicuota}
+          onClose={() => setFilaPropuesta(null)}
+          onCreada={(resultado) => {
+            setFilaPropuesta(null);
+            setPropuestaId(resultado.propuesta.id);
+          }}
+        />
+      )}
 
       {modalF931 && (
         <ArtF931Modal

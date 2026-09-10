@@ -7,8 +7,10 @@
 // para las secciones de "Contrato actual"/"Historial de contratos"
 // (historial_contratos/contrato_actual, mismo endpoint) y el checklist de
 // "Documentos" (GET /art/empresas/{cuit}/documentos, fetch propio de
-// ArtDocumentosChecklist - por eso CADA test acá encadena un segundo
-// mockResolvedValueOnce, aunque no le interese esa sección).
+// ArtDocumentosChecklist) y la lista de "Propuestas" (GET
+// /art/empresas/{id}/propuestas, fetch propio de ArtPropuestasEmpresa) -
+// por eso CADA test acá encadena TRES respuestas, aunque no le interesen
+// esas secciones.
 // Mismo patrón que ArtAnalisisBoard.test.jsx: fetch mockeado con la forma
 // exacta del contrato.
 import React from 'react';
@@ -46,14 +48,23 @@ const detalleBase = {
   calculo_bloqueado_por: 'dotacion',
 };
 
-// Encadena la respuesta de GET /art/empresas/{cuit} (1er fetch, disparado
-// por ArtEmpresaFicha) con la de GET .../documentos (2do fetch, disparado
-// por ArtDocumentosChecklist al montar) - por default una lista vacía,
-// salvo que el test pase la suya.
-const mockearFetchFicha = (detalle, documentos = []) => {
-  globalThis.fetch = vi.fn()
-    .mockResolvedValueOnce(jsonResponse(detalle))
-    .mockResolvedValueOnce(jsonResponse(documentos));
+// Las tres respuestas que pide la ficha al montarse: GET
+// /art/empresas/{cuit} (ArtEmpresaFicha), GET .../documentos
+// (ArtDocumentosChecklist) y GET /art/empresas/{id}/propuestas
+// (ArtPropuestasEmpresa). Documentos y propuestas van vacíos por default,
+// salvo que el test pase los suyos.
+//
+// Se rutea por URL y no encadenando mockResolvedValueOnce: con tres
+// componentes pidiendo en paralelo, el orden de las llamadas depende del
+// orden de montaje en el árbol, así que mover una sección de lugar en la
+// ficha le entregaba a un componente la respuesta de otro (y el error era
+// un "documentos.find is not a function" a diez archivos de distancia).
+const mockearFetchFicha = (detalle, documentos = [], propuestas = { total: 0, items: [] }) => {
+  globalThis.fetch = vi.fn((url) => {
+    if (String(url).includes('/documentos')) return Promise.resolve(jsonResponse(documentos));
+    if (String(url).includes('/propuestas')) return Promise.resolve(jsonResponse(propuestas));
+    return Promise.resolve(jsonResponse(detalle));
+  });
 };
 
 beforeEach(() => {
@@ -290,7 +301,7 @@ describe('ArtEmpresaFicha - checklist de documentos (ArtDocumentosChecklist)', (
     const { container } = render(<ArtEmpresaFicha token="tok" cuit="30-12345678-9" onVolver={() => {}} />);
 
     await waitFor(() => expect(container.textContent).toContain('Documentos'));
-    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(3));
     expect(container.textContent).toContain('Formulario 931');
     expect(container.textContent).toContain('Póliza actual');
     expect(container.textContent.match(/Pendiente/g)).toHaveLength(2);

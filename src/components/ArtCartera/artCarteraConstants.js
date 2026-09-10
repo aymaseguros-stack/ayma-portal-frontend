@@ -190,3 +190,51 @@ export const variacionPct = (valor) => {
   const pct = numero * 100;
   return `${pct > 0 ? '+' : ''}${pct.toLocaleString('es-AR', { maximumFractionDigits: 1 })}%`;
 };
+
+// Estado EFECTIVO de una propuesta ART (BLOQUE 1.3). Son los cuatro
+// guardados más VENCIDA, que el backend calcula al leer (`valida_hasta <
+// hoy` con la propuesta todavía en BORRADOR o ENTREGADA) y no existe como
+// valor de la columna - ver app/models/crm/propuesta_art.py.
+//
+// Por eso el frontend muestra SIEMPRE `estado_efectivo` y nunca `estado` a
+// secas: una propuesta vencida que se viera como "ENTREGADA" mandaría a
+// alguien a llamar prometiendo un precio que ya no está vigente.
+const ESTADO_PROPUESTA_META = {
+  BORRADOR: { label: 'Borrador', badge: 'bg-slate-500/20 text-slate-300' },
+  ENTREGADA: { label: 'Entregada', badge: 'bg-blue-500/20 text-blue-300' },
+  ACEPTADA: { label: 'Aceptada', badge: 'bg-green-500/20 text-green-300' },
+  RECHAZADA: { label: 'Rechazada', badge: 'bg-red-500/20 text-red-300' },
+  VENCIDA: { label: 'Vencida', badge: 'bg-amber-500/20 text-amber-300' },
+};
+
+export const estadoPropuestaInfo = (estado) =>
+  ESTADO_PROPUESTA_META[estado] || { label: estado || 'Sin dato', badge: 'bg-slate-500/20 text-slate-400' };
+
+// Origen de la alícuota con la que se arma una propuesta. La distinción no
+// es cosmética: al entregar, sólo una COTIZACION_REAL se asienta como
+// alícuota propia de la empresa en el backend. Marcar como "cotización
+// real" un número que en realidad es la mediana de mercado contamina el
+// benchmark del mes siguiente con nuestro propio número.
+export const ORIGENES_ALICUOTA_PROPUESTA = [
+  {
+    id: 'BENCHMARK',
+    label: 'Referencia de mercado',
+    ayuda: 'La alícuota sale de la mediana de lo que esta aseguradora cotiza en empresas similares. No se asienta como cotización de la empresa.',
+  },
+  {
+    id: 'COTIZACION_REAL',
+    label: 'Cotización real',
+    ayuda: 'La aseguradora pasó este precio para esta empresa. Al entregar la propuesta queda asentado como su alícuota.',
+  },
+];
+
+// Días restantes de validez -> cómo se muestra. El backend manda el número
+// con signo (negativo = venció hace tantos días), así que "vence hoy" y
+// "venció la semana pasada" no se ven igual.
+export const diasRestantesTexto = (dias) => {
+  if (dias === null || dias === undefined || !Number.isFinite(Number(dias))) return null;
+  const numero = Number(dias);
+  if (numero < 0) return `venció hace ${Math.abs(numero)} día${Math.abs(numero) === 1 ? '' : 's'}`;
+  if (numero === 0) return 'vence hoy';
+  return `${numero} día${numero === 1 ? '' : 's'} restantes`;
+};

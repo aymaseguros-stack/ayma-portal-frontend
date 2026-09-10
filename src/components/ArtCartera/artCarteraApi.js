@@ -238,3 +238,103 @@ export const cargarF931Art = async (token, empresaId, { masa_salarial, dotacion,
   if (!res.ok) throw new Error(await formatApiError(res));
   return res.json();
 };
+
+// ---------------------------------------------------------------------------
+// Propuestas ART (BLOQUE 1.3) - app/api/v1/art_propuestas.py del backend.
+//
+// Una propuesta es una fila de la grilla ya CONGELADA: la alícuota que se
+// ofreció, sobre qué masa salarial, con qué parámetros y con qué resultado
+// para el cliente. La grilla se recalcula sola en cada request; una
+// propuesta entregada no cambia nunca - es lo que se le dijo a una empresa
+// un día determinado, con un PDF en su poder.
+//
+// Igual que la grilla, todas estas rutas van por `id` de empresa (UUID),
+// no por CUIT.
+// ---------------------------------------------------------------------------
+
+// POST /art/empresas/{id}/propuestas - arma una propuesta en BORRADOR.
+// Devuelve {propuesta, advertencias}: `advertencias` son los supuestos que
+// hubo que hacer (masa estimada, sin tarifa actual, comisión bajo umbral).
+// Ninguno impide crearla, pero se muestran - son la diferencia entre una
+// cotización presentable y una que hay que confirmar antes.
+//
+// 409 cuando la empresa no tiene masa salarial estimable: el backend NO
+// arma una propuesta con el LRT en cero.
+export const crearPropuestaArt = async (token, empresaId, payload) => {
+  const res = await fetch(
+    `${API_URL}/api/v1/art/empresas/${encodeURIComponent(empresaId)}/propuestas`,
+    { method: 'POST', headers: artHeaders(token), body: JSON.stringify(payload) },
+  );
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.json();
+};
+
+// GET /art/empresas/{id}/propuestas - el historial completo de lo que se le
+// ofreció a una empresa, de la versión más nueva a la más vieja. No está
+// paginado en el backend (son unidades por empresa), así que devuelve
+// {total, items} y no un Page con limit/offset.
+export const listarPropuestasArt = async (token, empresaId) => {
+  const res = await fetch(
+    `${API_URL}/api/v1/art/empresas/${encodeURIComponent(empresaId)}/propuestas`,
+    { headers: artHeaders(token) },
+  );
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.json();
+};
+
+// GET /art/propuestas/{id} - el detalle, con `estado_efectivo` y
+// `dias_restantes` ya calculados por el backend.
+//
+// OJO con `estado_efectivo`: puede decir VENCIDA aunque `estado` diga
+// BORRADOR o ENTREGADA. La vencida se calcula al leer (valida_hasta < hoy),
+// no la escribe ningún proceso - por eso hay que mostrar SIEMPRE
+// `estado_efectivo` y nunca `estado` a secas.
+export const obtenerPropuestaArt = async (token, propuestaId) => {
+  const res = await fetch(
+    `${API_URL}/api/v1/art/propuestas/${encodeURIComponent(propuestaId)}`,
+    { headers: artHeaders(token) },
+  );
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.json();
+};
+
+// PUT /art/propuestas/{id} - edita un BORRADOR y recalcula la cadena.
+// 409 sobre cualquier propuesta que ya no esté en BORRADOR: una entregada
+// está en manos del cliente y es inmutable.
+export const actualizarPropuestaArt = async (token, propuestaId, payload) => {
+  const res = await fetch(
+    `${API_URL}/api/v1/art/propuestas/${encodeURIComponent(propuestaId)}`,
+    { method: 'PUT', headers: artHeaders(token), body: JSON.stringify(payload) },
+  );
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.json();
+};
+
+// POST /art/propuestas/{id}/estado - BORRADOR->ENTREGADA,
+// ENTREGADA->ACEPTADA|RECHAZADA. Cualquier otro par es 409, igual que
+// ACEPTADA sin F.931 cargado ("cargar F.931 primero"): esos mensajes se
+// muestran tal cual llegan, son la instrucción de qué hacer.
+export const cambiarEstadoPropuestaArt = async (token, propuestaId, estado) => {
+  const res = await fetch(
+    `${API_URL}/api/v1/art/propuestas/${encodeURIComponent(propuestaId)}/estado`,
+    { method: 'POST', headers: artHeaders(token), body: JSON.stringify({ estado }) },
+  );
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.json();
+};
+
+// GET /art/propuestas/{id}/pdf - el PDF que recibe la empresa.
+//
+// Va por fetch con el header de Authorization y NO como un <a href>: la
+// ruta es admin-only con JWT, y un link plano del browser no manda el
+// token (mismo motivo por el que no se expone una URL pública del
+// archivo). Devuelve el Blob; el componente decide si lo descarga o lo
+// abre.
+export const descargarPdfPropuestaArt = async (token, propuestaId) => {
+  const res = await fetch(
+    `${API_URL}/api/v1/art/propuestas/${encodeURIComponent(propuestaId)}/pdf`,
+    { headers: authHeader(token) },
+  );
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.blob();
+};
