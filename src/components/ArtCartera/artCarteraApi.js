@@ -194,3 +194,47 @@ export const registrarCargaRapidaAlicuotas = async (token, items) => {
   if (!res.ok) throw new Error(await formatApiError(res));
   return res.json();
 };
+
+// GET /art/empresas/{id}/grilla - grilla de cotización (BLOQUE 1.2):
+// cabecera (masa estimada con su confianza, tarifa actual "a confirmar",
+// ART actual, riesgo de suscripción), una fila por aseguradora ACTIVA del
+// catálogo y `ranking`/`mejor_oferta`.
+//
+// OJO: va por `id` (UUID de la empresa), NO por CUIT como el resto de este
+// módulo. El id sale de `empresa.id` de la ficha (GET /art/empresas/{cuit},
+// campo EmpresaARTFicha.id) - es de donde se abre esta pantalla.
+//
+// Todos los importes pueden venir en null: cuando el backend no pudo
+// estimar la masa, `advertencias` trae 'SIN_MASA' y los pesos NO se
+// calculan. No reemplazar esos null por 0 al renderizar - un cero se lee
+// como "no ahorra nada" y acá significa "no sabemos" (ver el docstring de
+// app/services/grilla_art.py del backend).
+export const obtenerGrillaArt = async (token, empresaId) => {
+  const res = await fetch(
+    `${API_URL}/api/v1/art/empresas/${encodeURIComponent(empresaId)}/grilla`,
+    { headers: artHeaders(token) },
+  );
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.json();
+};
+
+// POST /art/empresas/{id}/f931?dry_run=false - carga el F.931 declarado
+// (masa salarial mensual, dotación y período 'YYYY-MM'). A partir de acá la
+// masa de esa empresa deja de estimarse: pasa a confianza CONFIRMADA.
+//
+// `dry_run` va SIEMPRE en la query string, nunca en el body: mandarlo en el
+// body es 422 (ESTANDAR-API-AYMA-v1.0, ver app/api/dry_run.py del backend).
+// Se manda explícito en `false` porque el default del backend es la corrida
+// en seco - omitirlo devolvería 200 sin haber escrito nada.
+export const cargarF931Art = async (token, empresaId, { masa_salarial, dotacion, periodo }) => {
+  const res = await fetch(
+    `${API_URL}/api/v1/art/empresas/${encodeURIComponent(empresaId)}/f931?dry_run=false`,
+    {
+      method: 'POST',
+      headers: artHeaders(token),
+      body: JSON.stringify({ masa_salarial, dotacion, periodo }),
+    },
+  );
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.json();
+};
