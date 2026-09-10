@@ -2,16 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Icon } from '../Icons';
 import { listarDesbloqueos } from './artCarteraApi';
 import { aseguradoraLabel } from './artCarteraConstants';
+import { fechaCorta } from './artFechas';
 
 const LIMIT = 50;
 const OPCIONES_DIAS = [7, 15, 30];
-
-const fechaCorta = (valor) => {
-  if (!valor) return null;
-  const d = new Date(valor);
-  if (Number.isNaN(d.getTime())) return valor;
-  return d.toLocaleDateString('es-AR');
-};
 
 const FilaSkeleton = () => (
   <tr className="animate-pulse">

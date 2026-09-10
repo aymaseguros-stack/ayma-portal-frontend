@@ -3,7 +3,6 @@ import { Icon } from '../Icons';
 import { authHeader } from '../../utils/api';
 
 const CompliancePanel = ({ token }) => {
-  const [validaciones, setValidaciones] = useState([]);
   const [pendientes, setPendientes] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -52,7 +51,7 @@ const CompliancePanel = ({ token }) => {
         alert(`Contenido ${aprobado ? 'aprobado' : 'rechazado'} exitosamente`);
         cargarDatos();
       }
-    } catch (error) {
+    } catch {
       alert('Error al procesar decisión');
     }
   };

@@ -87,7 +87,12 @@ const ArtPropuestasEmpresa = ({ token, empresaId, onAbrirPropuesta }) => {
             <tbody className="divide-y divide-slate-700">
               {items.map((propuesta) => {
                 const estado = estadoPropuestaInfo(propuesta.estado_efectivo);
-                const validez = diasRestantesTexto(propuesta.dias_restantes);
+                // Una anulada ya tuvo su desenlace: no "vence". Mostrarle
+                // "venció hace 3 días" la dejaría leyéndose como si
+                // siguiera en el circuito, esperando respuesta.
+                const validez = propuesta.estado === 'ANULADA'
+                  ? null
+                  : diasRestantesTexto(propuesta.dias_restantes);
                 return (
                   <tr key={propuesta.id}>
                     <td className="px-4 py-3 text-slate-300">v{propuesta.version}</td>
@@ -104,6 +109,14 @@ const ArtPropuestasEmpresa = ({ token, empresaId, onAbrirPropuesta }) => {
                       <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${estado.badge}`}>
                         {estado.label}
                       </span>
+                      {/* El motivo, al lado del estado: una propuesta
+                          anulada sin decir por qué es indistinguible de un
+                          dato perdido. */}
+                      {propuesta.motivo_anulacion && (
+                        <p className="text-[11px] text-slate-500 mt-1 max-w-[220px]">
+                          {propuesta.motivo_anulacion}
+                        </p>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-slate-400">
                       {validez || VACIO}

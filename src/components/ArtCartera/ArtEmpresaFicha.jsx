@@ -4,19 +4,14 @@ import ArtPropuestasEmpresa from './ArtPropuestasEmpresa';
 import { Dato } from '../Crm/FichaHelpers';
 import { ArtDatos } from '../Crm/EmpresaArtSection';
 import { estrategiaArtInfo, estrategiaArtBadgeClass } from '../Crm/artEstrategia';
-import { obtenerEmpresaArt } from './artCarteraApi';
+import { obtenerEmpresaArt, quitarF931Art } from './artCarteraApi';
 import ArtEstadoModal from './ArtEstadoModal';
 import ArtDocumentosChecklist from './ArtDocumentosChecklist';
 import {
-  ASEGURADORAS_ART, riesgoBadgeClass, estadoArtInfo, esAlicuotaNoCompetitiva, decimalAr, aseguradoraLabel,
+  ASEGURADORAS_ART, riesgoBadgeClass, estadoArtInfo, esAlicuotaNoCompetitiva, decimalAr,
+  aseguradoraLabel, confianzaMasaInfo, pesosAr,
 } from './artCarteraConstants';
-
-const fechaCorta = (valor) => {
-  if (!valor) return null;
-  const d = new Date(valor);
-  if (Number.isNaN(d.getTime())) return valor;
-  return d.toLocaleDateString('es-AR');
-};
+import { fechaCorta } from './artFechas';
 
 // ContratoHistoricoItem/ContratoActualBlock (contrato_art_historico) traen
 // `aseguradora` como texto crudo de la SRT y `aseguradora_normalizada` solo
@@ -82,6 +77,129 @@ const HistorialContratosTabla = ({ contratos }) => {
         </div>
       )}
     </>
+  );
+};
+
+// Bloque del F.931 declarado (las 4 columnas `*_f931` de `empresas`, que
+// la ficha expone desde la baja - ver EmpresaARTFicha en
+// app/schemas/art_consultas.py del backend).
+//
+// POR QUÉ SE PUEDE QUITAR. El F.931 se carga a mano desde la grilla y a
+// mano se equivoca: un período viejo, la masa de otra empresa, un dígito
+// de más. Un dato declarado equivocado es PEOR que ninguno - pone la masa
+// en confianza CONFIRMADA, y con eso el backend habilita a ACEPTAR
+// propuestas sobre un número inventado. Sin baja, el único arreglo era
+// cargar otro F.931 encima, lo que sólo sirve si se tiene el correcto.
+//
+// La confirmación no es ceremonia: es la única acción destructiva de la
+// ficha y el dato no está en ninguna otra pantalla para recuperarlo.
+const BloqueF931 = ({ token, empresa, onCambiado }) => {
+  const [confirmando, setConfirmando] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState(null);
+
+  const tieneF931 = empresa.masa_salarial_f931 !== null
+    && empresa.masa_salarial_f931 !== undefined;
+
+  const quitar = async () => {
+    setEnviando(true);
+    setError(null);
+    try {
+      await quitarF931Art(token, empresa.id);
+      setConfirmando(false);
+      onCambiado();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  return (
+    <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
+      <div className="flex items-start justify-between flex-wrap gap-3 mb-4">
+        <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide">
+          F.931 declarado
+        </h3>
+        {tieneF931 && (
+          <button
+            type="button"
+            onClick={() => { setError(null); setConfirmando(true); }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-red-500/50 text-red-300 hover:bg-red-500/10 transition"
+          >
+            Quitar F.931
+          </button>
+        )}
+      </div>
+
+      {!tieneF931 ? (
+        <p className="text-slate-500 text-sm">
+          Sin F.931 cargado: la masa salarial de esta empresa se estima. Se carga desde
+          la grilla de cotización.
+        </p>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Dato label="Masa salarial mensual" valor={pesosAr(empresa.masa_salarial_f931) || '-'} />
+            <Dato label="Dotación declarada" valor={empresa.dotacion_f931 ?? '-'} />
+            <Dato label="Período" valor={empresa.f931_periodo || '-'} />
+            <Dato label="Cargado el" valor={fechaCorta(empresa.f931_cargado_en) || '-'} />
+          </div>
+          <span
+            className={`inline-block mt-4 px-2 py-0.5 rounded text-[11px] font-medium ${confianzaMasaInfo('CONFIRMADA').badge}`}
+          >
+            {confianzaMasaInfo('CONFIRMADA').label}
+          </span>
+        </>
+      )}
+
+      {error && !confirmando && (
+        <p className="text-red-300 text-sm mt-3">{error}</p>
+      )}
+
+      {confirmando && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-lg font-semibold">¿Quitar el F.931 de esta empresa?</h3>
+            <p className="text-slate-400 text-sm">
+              La masa salarial vuelve a ser <strong className="text-slate-200">estimada</strong>,
+              y con eso no se van a poder aceptar propuestas hasta cargar un F.931 nuevo.
+              Las propuestas ya armadas no cambian: cada una congela los números con los
+              que se hizo.
+            </p>
+            <div className="bg-slate-700/40 rounded-lg p-3 text-sm text-slate-300">
+              Se da de baja: {pesosAr(empresa.masa_salarial_f931) || '-'} ·{' '}
+              {empresa.dotacion_f931 ?? '-'} trabajadores · período {empresa.f931_periodo || '-'}
+            </div>
+
+            {error && (
+              <div className="bg-red-500/15 border border-red-500/50 rounded-lg p-3">
+                <p className="text-red-200 text-sm">{error}</p>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmando(false)}
+                disabled={enviando}
+                className="px-3 py-2 rounded-lg text-sm text-slate-300 hover:text-white transition disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={quitar}
+                disabled={enviando}
+                className="px-3 py-2 rounded-lg text-sm font-medium bg-red-600 hover:bg-red-500 text-white transition disabled:opacity-50"
+              >
+                {enviando ? 'Quitando...' : 'Sí, quitar F.931'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -340,6 +458,8 @@ const ArtEmpresaFicha = ({ token, cuit, onVolver, onAbrirGrilla, onAbrirPropuest
           <p className="text-slate-500 text-sm">Sin cobertura vigente</p>
         )}
       </div>
+
+      <BloqueF931 token={token} empresa={empresa} onCambiado={cargar} />
 
       {/* Propuestas emitidas (BLOQUE 1.3) - GET
           /art/empresas/{id}/propuestas. Va acá y no en un tab propio

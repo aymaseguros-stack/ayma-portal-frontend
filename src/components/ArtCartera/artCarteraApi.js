@@ -239,6 +239,31 @@ export const cargarF931Art = async (token, empresaId, { masa_salarial, dotacion,
   return res.json();
 };
 
+// DELETE /art/empresas/{id}/f931?dry_run=false - da de baja el F.931
+// declarado: la empresa vuelve a masa ESTIMADA.
+//
+// Existe porque el F.931 se carga a mano y a mano se equivoca (un período
+// viejo, la masa de otra empresa, un dígito de más), y un dato declarado
+// equivocado es PEOR que ninguno: deja la masa en confianza CONFIRMADA y
+// habilita a aceptar propuestas sobre un número inventado.
+//
+// `dry_run` va SIEMPRE en la query string y se manda explícito en `false`,
+// igual que en la carga: el default del backend es la corrida en seco, así
+// que omitirlo devolvería 200 sin haber borrado nada. 409 si no había
+// F.931 cargado.
+//
+// NO recalcula las propuestas ya armadas (congelan sus insumos); la
+// respuesta trae `propuestas_afectadas` con las que están en BORRADOR
+// apoyadas en ese F.931.
+export const quitarF931Art = async (token, empresaId) => {
+  const res = await fetch(
+    `${API_URL}/api/v1/art/empresas/${encodeURIComponent(empresaId)}/f931?dry_run=false`,
+    { method: 'DELETE', headers: artHeaders(token) },
+  );
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.json();
+};
+
 // ---------------------------------------------------------------------------
 // Propuestas ART (BLOQUE 1.3) - app/api/v1/art_propuestas.py del backend.
 //
@@ -318,6 +343,24 @@ export const cambiarEstadoPropuestaArt = async (token, propuestaId, estado) => {
   const res = await fetch(
     `${API_URL}/api/v1/art/propuestas/${encodeURIComponent(propuestaId)}/estado`,
     { method: 'POST', headers: artHeaders(token), body: JSON.stringify({ estado }) },
+  );
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.json();
+};
+
+// POST /art/propuestas/{id}/anular - anula la propuesta con un motivo
+// OBLIGATORIO. Devuelve la propuesta ya anulada (no el envelope
+// {propuesta, advertencias}: las advertencias del armado/entrega ya no
+// describen a una propuesta que salió del circuito).
+//
+// Endpoint aparte de /estado justamente por el motivo: aquel no lo recibe,
+// y anular sin decir por qué deja una propuesta desaparecida de la vista
+// que es indistinguible de un dato perdido. 409 desde ACEPTADA, RECHAZADA
+// o ANULADA (ya tuvieron desenlace); 422 con motivo vacío.
+export const anularPropuestaArt = async (token, propuestaId, motivo) => {
+  const res = await fetch(
+    `${API_URL}/api/v1/art/propuestas/${encodeURIComponent(propuestaId)}/anular`,
+    { method: 'POST', headers: artHeaders(token), body: JSON.stringify({ motivo }) },
   );
   if (!res.ok) throw new Error(await formatApiError(res));
   return res.json();

@@ -1,23 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+
+// Datos hardcodeados por ahora. Constante y no estado: no cambia nunca, y
+// setearla dentro del efecto obligaba a un segundo render por cada montaje
+// para llegar al mismo valor (react-hooks: "Calling setState synchronously
+// within an effect can trigger cascading renders").
+const USUARIO = {
+  email: 'aymaseguros@hotmail.com',
+  role: 'admin',
+};
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const [userData, setUserData] = useState(null);
 
+  // El efecto queda sólo con lo que ES un efecto: la redirección.
   useEffect(() => {
     const token = localStorage.getItem('token');
     const userRole = localStorage.getItem('userRole');
-    
+
     if (!token || userRole !== 'admin') {
       navigate('/login');
     }
-    
-    // Datos hardcodeados por ahora
-    setUserData({
-      email: 'aymaseguros@hotmail.com',
-      role: 'admin'
-    });
   }, [navigate]);
 
   const handleLogout = () => {
@@ -64,7 +67,7 @@ const AdminDashboard = () => {
 
         <div className="mt-8 bg-white p-6 rounded-lg shadow">
           <h2 className="text-xl font-bold mb-4">Panel de Administración</h2>
-          <p>Bienvenido, {userData?.email}</p>
+          <p>Bienvenido, {USUARIO.email}</p>
           <div className="mt-4">
             <p className="text-sm text-gray-600">
               El módulo completo de gestión de clientes se activará cuando el backend complete la actualización.

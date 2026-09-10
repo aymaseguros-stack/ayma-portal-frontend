@@ -26,8 +26,11 @@ const ExportarPDF = ({ targetId = 'dashboard-content', nombreArchivo = 'dashboar
         windowHeight: elemento.scrollHeight
       });
 
-      const imgData = canvas.toDataURL('image/png');
-      
+      // El PDF no usa el canvas entero: más abajo se recorta en porciones
+      // de una página (tempCanvas) y cada una se convierte por separado.
+      // El toDataURL del canvas completo que había acá no lo leía nadie y
+      // en un dashboard largo es varios MB serializados al pedo.
+
       // Crear PDF
       const pdf = new jsPDF({
         orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
