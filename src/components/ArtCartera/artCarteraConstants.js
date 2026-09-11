@@ -288,3 +288,67 @@ export const diasRestantesTexto = (dias) => {
   if (numero === 0) return 'vence hoy';
   return `${numero} día${numero === 1 ? '' : 's'} restantes`;
 };
+
+// ---------------------------------------------------------------------------
+// Performance por compañía (BLOQUE 2) - ver app/services/art_performance.py
+// del backend, fuente de verdad de estos valores.
+// ---------------------------------------------------------------------------
+
+// Tramos de nómina SRT. El orden es el de la respuesta del backend: de menor
+// a mayor y SIN_DATO al final - no es un tamaño, es la ausencia del dato, y
+// encabezar el filtro con él lo haría ilegible.
+export const TRAMOS_NOMINA_SRT = ['1-5', '6-25', '26-100', '101-500', '501-1500', '1501+', 'SIN_DATO'];
+
+// Resultado de benchmark de un evento ALICUOTA. NO es el resultado comercial
+// de AYMA: "ganadora" dice que esa compañía cotizó por debajo de la tarifa
+// que la empresa paga hoy, no que se le colocó la cuenta (ver el docstring
+// de obtenerPerformanceCompanias en artCarteraApi.js).
+export const RESULTADOS_BENCHMARK = [
+  { id: 'ganadora', label: 'Ganadora' },
+  { id: 'perdedora', label: 'Perdedora' },
+  { id: 'sin_comparable', label: 'Sin comparable' },
+];
+
+// Secciones CIIU (ClaNAE-2010) - los mismos rangos que
+// app/services/ciiu.py::_DIVISIONES_POR_SECCION del backend, que es quien
+// calcula `Empresa.ciiu_seccion`. Acá sólo vive la etiqueta: la sección de
+// cada empresa llega siempre calculada, nunca se deduce en el cliente.
+export const SECCIONES_CIIU = [
+  { id: 'A', label: 'A · Agricultura, ganadería, silvicultura y pesca' },
+  { id: 'B', label: 'B · Explotación de minas y canteras' },
+  { id: 'C', label: 'C · Industria manufacturera' },
+  { id: 'D', label: 'D · Electricidad, gas, vapor y aire acondicionado' },
+  { id: 'E', label: 'E · Agua, cloacas y gestión de residuos' },
+  { id: 'F', label: 'F · Construcción' },
+  { id: 'G', label: 'G · Comercio mayorista y minorista' },
+  { id: 'H', label: 'H · Transporte y almacenamiento' },
+  { id: 'I', label: 'I · Alojamiento y servicios de comida' },
+  { id: 'J', label: 'J · Información y comunicaciones' },
+  { id: 'K', label: 'K · Servicios financieros y de seguros' },
+  { id: 'L', label: 'L · Servicios inmobiliarios' },
+  { id: 'M', label: 'M · Profesionales, científicos y técnicos' },
+  { id: 'N', label: 'N · Actividades administrativas y de apoyo' },
+  { id: 'O', label: 'O · Administración pública y defensa' },
+  { id: 'P', label: 'P · Enseñanza' },
+  { id: 'Q', label: 'Q · Salud humana y servicios sociales' },
+  { id: 'R', label: 'R · Artes, entretenimiento y recreación' },
+  { id: 'S', label: 'S · Otras actividades de servicios' },
+  { id: 'T', label: 'T · Hogares privados como empleadores' },
+  { id: 'U', label: 'U · Organizaciones y órganos extraterritoriales' },
+];
+
+// Porcentaje a partir de una FRACCIÓN 0..1 (tasa_ganadora = ganadora /
+// (ganadora + perdedora), que el backend redondea a 4 decimales). Sin signo,
+// a diferencia de `variacionPct`: una tasa no es una variación y un "+62%"
+// se leería como "62 puntos más que antes".
+//
+// Devuelve null cuando el backend mandó null - y null acá significa algo
+// preciso: no hubo NINGUNA ganadora ni perdedora en ese corte (sólo
+// sin_comparable, o ningún evento). Un 0% ahí afirmaría que esa compañía
+// perdió todas las que cotizó.
+export const porcentajeDeFraccion = (valor, opciones = { maximumFractionDigits: 1 }) => {
+  if (valor === null || valor === undefined) return null;
+  const numero = Number(valor);
+  if (!Number.isFinite(numero)) return null;
+  return `${(numero * 100).toLocaleString('es-AR', opciones)}%`;
+};

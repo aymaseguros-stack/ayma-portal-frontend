@@ -10,6 +10,7 @@ import ArtLeadsCalientesBoard from './ArtLeadsCalientesBoard';
 import ArtAnalisisBoard from './ArtAnalisisBoard';
 import ArtMercadoBoard from './ArtMercadoBoard';
 import ArtRelevamientoAlicuotas from './ArtRelevamientoAlicuotas';
+import ArtPerformanceBoard from './ArtPerformanceBoard';
 
 const SUB_TABS = [
   { id: 'cartera', label: 'Cartera' },
@@ -20,6 +21,7 @@ const SUB_TABS = [
   { id: 'relevamiento', label: 'Relevamiento' },
   { id: 'analisis', label: 'Análisis' },
   { id: 'mercado', label: 'Mercado' },
+  { id: 'performance', label: 'Performance' },
 ];
 
 const subTabButtonClass = (active) =>
@@ -44,6 +46,10 @@ const subTabButtonClass = (active) =>
 // /art/:cuit real. "Relevamiento" (BLOQUE 8) es aparte: Modo Relevamiento
 // de carga rápida de alícuotas por teléfono (GET /art/cola-alicuotas, POST
 // /art/alicuotas/carga-rapida - ver ArtRelevamientoAlicuotas.jsx).
+// "Performance" (BLOQUE 2) es un sub-tab más de esta misma pantalla, no una
+// ruta ni un ítem de menú nuevo: GET /art/performance-companias y su
+// drill-down por compañía (app/api/v1/art_performance.py). Su detalle abre
+// la MISMA ficha de empresa que la cartera, con el `abrirFicha` de acá.
 const ArtCarteraView = ({ token }) => {
   const [subTab, setSubTab] = useState('cartera');
   const [cuitFicha, setCuitFicha] = useState(null);
@@ -117,6 +123,7 @@ const ArtCarteraView = ({ token }) => {
       {subTab === 'relevamiento' && <ArtRelevamientoAlicuotas token={token} />}
       {subTab === 'analisis' && <ArtAnalisisBoard token={token} />}
       {subTab === 'mercado' && <ArtMercadoBoard token={token} />}
+      {subTab === 'performance' && <ArtPerformanceBoard token={token} onAbrirFicha={abrirFicha} />}
     </div>
   );
 };

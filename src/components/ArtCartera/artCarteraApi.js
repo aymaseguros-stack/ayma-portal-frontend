@@ -438,3 +438,78 @@ export const descargarPdfPropuestaArt = async (token, propuestaId) => {
   if (!res.ok) throw new Error(await formatApiError(res));
   return res.blob();
 };
+
+// ---------------------------------------------------------------------------
+// Performance por compañía (BLOQUE 2) - app/api/v1/art_performance.py del
+// backend (PR #102). Tres rutas de SOLO LECTURA, todas admin-only con JWT.
+//
+// OJO CON LOS NOMBRES: acá `benchmark_ganadora` es "esa compañía cotizó por
+// debajo de lo que la empresa paga hoy", NO "AYMA se quedó con la cuenta"
+// (eso lo contesta GET /art/embudo, con otro criterio). La pantalla repite
+// la aclaración como leyenda fija - un "ganadora" sin su definición al lado
+// ya costó un bloque entero en el tablero de gestión.
+// ---------------------------------------------------------------------------
+
+const PERFORMANCE_PATH = '/api/v1/art/performance-companias';
+
+// GET /art/performance-companias - tablero agregado. `filtros`: desde,
+// hasta, incluir_caducados, seccion, tramo. Devuelve {parametros, totales,
+// companias, advertencias}: `companias` trae UNA entrada por cada
+// aseguradora activa del catálogo, incluidas las de 0 eventos, así que la
+// pantalla no arma la lista por su cuenta (son 19 hoy y el catálogo se
+// mueve - ver app/models/crm/empresa_art_estado.py).
+//
+// `incluir_caducados` viaja también cuando es `false`: es un booleano, no
+// un filtro vacío, y omitirlo haría que el backend aplique su default
+// (true) justo cuando el operador pidió lo contrario.
+export const obtenerPerformanceCompanias = async (token, filtros = {}) => {
+  const res = await fetch(`${API_URL}${PERFORMANCE_PATH}${buildQuery(filtros)}`, { headers: artHeaders(token) });
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.json();
+};
+
+// GET /art/performance-companias?formato=csv - el MISMO corte que se está
+// viendo, serializado por el backend (una fila por compañía × tramo).
+//
+// Va por fetch con el header de Authorization y NO como un <a href>: la
+// ruta es admin-only con JWT y un link plano del browser no manda el
+// token - devolvería el HTML del login o un 401, y el archivo bajaría
+// igual, corrupto. Mismo motivo que en descargarPdfPropuestaArt. Devuelve
+// el Blob; el componente arma la descarga.
+export const descargarCsvPerformanceCompanias = async (token, filtros = {}) => {
+  const res = await fetch(
+    `${API_URL}${PERFORMANCE_PATH}${buildQuery({ ...filtros, formato: 'csv' })}`,
+    { headers: authHeader(token) },
+  );
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.blob();
+};
+
+// GET /art/performance-companias/{aseguradora}/eventos - drill-down: las
+// filas crudas detrás de un número del tablero. `filtros`: tipo, resultado,
+// tramo, motivo, desde, hasta, page, size. Devuelve {aseguradora, total,
+// page, size, items}.
+//
+// Este endpoint incluye SIEMPRE los eventos caducados (el histórico ya
+// caducó entero, ESPEC §3.3: filtrarlos dejaría el detalle vacío) y no
+// acepta `incluir_caducados`. Cada fila trae `vigente` para distinguirlos.
+export const listarEventosPerformanceCompania = async (token, aseguradora, filtros = {}) => {
+  const res = await fetch(
+    `${API_URL}${PERFORMANCE_PATH}/${encodeURIComponent(aseguradora)}/eventos${buildQuery(filtros)}`,
+    { headers: artHeaders(token) },
+  );
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.json();
+};
+
+// GET /art/performance-companias/{aseguradora}/eventos?formato=csv - mismo
+// contrato de descarga que el CSV del tablero (fetch con Authorization,
+// nunca un <a href>).
+export const descargarCsvEventosPerformanceCompania = async (token, aseguradora, filtros = {}) => {
+  const res = await fetch(
+    `${API_URL}${PERFORMANCE_PATH}/${encodeURIComponent(aseguradora)}/eventos${buildQuery({ ...filtros, formato: 'csv' })}`,
+    { headers: authHeader(token) },
+  );
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.blob();
+};
