@@ -12,10 +12,20 @@ const artHeaders = (token) => ({ ...authHeader(token), 'Content-Type': 'applicat
 
 // Arma el query string salteando params undefined/null/'' para no mandar
 // filtros vacíos como querystring literal (ej. ciiu='' no debe ser ?ciiu=).
+//
+// Un array se serializa REPETIDO (`?fuente=A&fuente=B`), que es la forma que
+// espera FastAPI para un `Query(List[str])` - ver el filtro `fuente` de
+// /art/performance-companias. Un array vacío no manda nada: es "sin filtro",
+// y mandar `fuente=` sería un 422.
 const buildQuery = (params = {}) => {
   const qs = new URLSearchParams();
+  const vacio = (v) => v === undefined || v === null || v === '';
   Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') qs.set(key, value);
+    if (Array.isArray(value)) {
+      value.forEach((item) => { if (!vacio(item)) qs.append(key, item); });
+    } else if (!vacio(value)) {
+      qs.set(key, value);
+    }
   });
   const str = qs.toString();
   return str ? `?${str}` : '';
@@ -453,7 +463,8 @@ export const descargarPdfPropuestaArt = async (token, propuestaId) => {
 const PERFORMANCE_PATH = '/api/v1/art/performance-companias';
 
 // GET /art/performance-companias - tablero agregado. `filtros`: desde,
-// hasta, incluir_caducados, seccion, tramo. Devuelve {parametros, totales,
+// hasta, incluir_caducados, seccion, tramo, fuente (array; se serializa
+// repetido, ver buildQuery). Devuelve {parametros, totales,
 // companias, advertencias}: `companias` trae UNA entrada por cada
 // aseguradora activa del catálogo, incluidas las de 0 eventos, así que la
 // pantalla no arma la lista por su cuenta (son 19 hoy y el catálogo se
@@ -461,7 +472,10 @@ const PERFORMANCE_PATH = '/api/v1/art/performance-companias';
 //
 // `incluir_caducados` viaja también cuando es `false`: es un booleano, no
 // un filtro vacío, y omitirlo haría que el backend aplique su default
-// (true) justo cuando el operador pidió lo contrario.
+// (true) justo cuando el operador pidió lo contrario. `fuente` viaja igual
+// de explícito: el default del backend es PLANILLA_2025 + MANUAL (la SRT
+// verifica el padrón, no cotiza) y lo excluido vuelve contado en
+// `eventos_excluidos_por_fuente`.
 export const obtenerPerformanceCompanias = async (token, filtros = {}) => {
   const res = await fetch(`${API_URL}${PERFORMANCE_PATH}${buildQuery(filtros)}`, { headers: artHeaders(token) });
   if (!res.ok) throw new Error(await formatApiError(res));
@@ -487,7 +501,7 @@ export const descargarCsvPerformanceCompanias = async (token, filtros = {}) => {
 
 // GET /art/performance-companias/{aseguradora}/eventos - drill-down: las
 // filas crudas detrás de un número del tablero. `filtros`: tipo, resultado,
-// tramo, motivo, desde, hasta, page, size. Devuelve {aseguradora, total,
+// tramo, motivo, desde, hasta, fuente (array), page, size. Devuelve {aseguradora, total,
 // page, size, items}.
 //
 // Este endpoint incluye SIEMPRE los eventos caducados (el histórico ya
@@ -512,4 +526,27 @@ export const descargarCsvEventosPerformanceCompania = async (token, aseguradora,
   );
   if (!res.ok) throw new Error(await formatApiError(res));
   return res.blob();
+};
+
+// ---------------------------------------------------------------------------
+// Catálogo CIIU (bloque D3) - GET /art/ciiu?q= (app/api/v1/art_ciiu.py del
+// backend, PR #104). SOLO LECTURA y, a diferencia del resto de /art/*, no es
+// admin-only: lo consulta cualquier usuario autenticado.
+// ---------------------------------------------------------------------------
+
+// Tope duro del backend (MAX_RESULTADOS_BUSQUEDA_CIIU): pedir más devuelve
+// 422, así que el valor vive acá y no en cada pantalla.
+export const MAX_RESULTADOS_CIIU = 50;
+
+// Devuelve {total, items:[{codigo, descripcion, seccion, en_catalogo_vigente}],
+// limit, truncado}. `total` es el universo REAL de coincidencias: cuando es
+// mayor que items.length hay resultados afuera del tope y el término hay que
+// afinarlo (`truncado` lo dice explícito).
+export const buscarCiiu = async (token, q, { limit = MAX_RESULTADOS_CIIU } = {}) => {
+  const res = await fetch(
+    `${API_URL}/api/v1/art/ciiu${buildQuery({ q, limit })}`,
+    { headers: artHeaders(token) },
+  );
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.json();
 };

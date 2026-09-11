@@ -3,6 +3,7 @@ import { Icon } from '../Icons';
 import { obtenerReferencialTarifas } from './artCarteraApi';
 import { ASEGURADORAS_ART, numeroAr, decimalAr } from './artCarteraConstants';
 import { anioDeFecha } from '../../utils/fechas';
+import CiiuLabel from '../Ciiu/CiiuLabel';
 
 const TRAMOS_DOTACION = ['1-10', '11-25', '26-50', '51-100', '100+', 'sin_dato'];
 
@@ -192,7 +193,9 @@ const ArtReferencialTarifasBoard = ({ token }) => {
               ) : (
                 items.map((it, idx) => (
                   <tr key={`${it.ciiu}-${it.tramo_dotacion}-${it.provincia}-${idx}`} className="hover:bg-slate-700/30 transition">
-                    <td className="px-3 py-3 text-sm font-medium whitespace-nowrap">{it.ciiu}</td>
+                    <td className="px-3 py-3 text-sm font-medium whitespace-nowrap">
+                      <CiiuLabel codigo={it.ciiu} descripcion={it.ciiu_descripcion} />
+                    </td>
                     <td className="px-3 py-3 text-sm text-slate-300 whitespace-nowrap">{it.provincia}</td>
                     <td className="px-3 py-3 text-sm text-slate-300 whitespace-nowrap">{it.tramo_dotacion}</td>
                     <td className={tdNum}>{numeroAr(it.cantidad_observaciones) ?? '0'}</td>

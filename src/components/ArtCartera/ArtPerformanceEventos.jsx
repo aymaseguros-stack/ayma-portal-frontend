@@ -13,8 +13,10 @@ import {
   RESULTADOS_BENCHMARK,
   TIPOS_ESTADO_ART,
   TRAMOS_NOMINA_SRT,
+  fuenteTarifaActualLabel,
 } from './artCarteraConstants';
 import { descargarBlobComoArchivo } from './descargaArchivo';
+import CiiuLabel from '../Ciiu/CiiuLabel';
 import { fechaCorta } from '../../utils/fechas';
 
 const VACIO = '—';
@@ -40,7 +42,7 @@ const resultadoLabel = (id) => RESULTADOS_BENCHMARK.find((r) => r.id === id)?.la
 
 const FilaSkeleton = () => (
   <tr className="animate-pulse">
-    {Array.from({ length: 14 }).map((_, i) => (
+    {Array.from({ length: 15 }).map((_, i) => (
       <td key={i} className="px-3 py-2.5"><div className="h-3 bg-slate-700 rounded w-full max-w-[70px]" /></td>
     ))}
   </tr>
@@ -56,7 +58,7 @@ const FilaSkeleton = () => (
 // que la celda que lo originó; `incluir_caducados` NO baja: este endpoint
 // incluye siempre los caducados (el histórico ya caducó entero) y cada fila
 // trae `vigente` para distinguirlos.
-const ArtPerformanceEventos = ({ token, aseguradora, rango = {}, onVolver, onAbrirFicha }) => {
+const ArtPerformanceEventos = ({ token, aseguradora, rango = {}, fuentes, onVolver, onAbrirFicha }) => {
   const [filtros, setFiltros] = useState(FILTROS_INICIALES);
   const [page, setPage] = useState(1);
   const [data, setData] = useState(null);
@@ -65,9 +67,17 @@ const ArtPerformanceEventos = ({ token, aseguradora, rango = {}, onVolver, onAbr
   const [descargando, setDescargando] = useState(false);
   const [errorCsv, setErrorCsv] = useState(null);
 
+  // `fuente` baja del tablero por el mismo motivo que el rango de fechas: el
+  // detalle tiene que ser el MISMO corte que la celda que lo originó.
+  const fuentesKey = Array.isArray(fuentes) ? fuentes.join(',') : '';
   const consulta = useMemo(
-    () => ({ ...filtros, desde: rango.desde || '', hasta: rango.hasta || '' }),
-    [filtros, rango.desde, rango.hasta],
+    () => ({
+      ...filtros,
+      desde: rango.desde || '',
+      hasta: rango.hasta || '',
+      fuente: fuentesKey ? fuentesKey.split(',') : [],
+    }),
+    [filtros, rango.desde, rango.hasta, fuentesKey],
   );
   const consultaKey = JSON.stringify(consulta);
 
@@ -234,6 +244,7 @@ const ArtPerformanceEventos = ({ token, aseguradora, rango = {}, onVolver, onAbr
                 <th className={th}>Motivo</th>
                 <th className={thNum}>Alícuota</th>
                 <th className={thNum}>Tarifa actual</th>
+                <th className={th}>Fuente tarifa actual</th>
                 <th className={thNum}>Desc. vs actual</th>
                 <th className={th}>Fecha evento</th>
                 <th className={th}>Caducidad</th>
@@ -244,7 +255,7 @@ const ArtPerformanceEventos = ({ token, aseguradora, rango = {}, onVolver, onAbr
               {loading && Array.from({ length: 5 }).map((_, i) => <FilaSkeleton key={i} />)}
               {!loading && items.length === 0 && (
                 <tr>
-                  <td colSpan={14} className="px-3 py-8 text-center text-slate-400 text-sm">
+                  <td colSpan={15} className="px-3 py-8 text-center text-slate-400 text-sm">
                     No hay eventos para este corte.
                   </td>
                 </tr>
@@ -263,7 +274,9 @@ const ArtPerformanceEventos = ({ token, aseguradora, rango = {}, onVolver, onAbr
                     ) : VACIO}
                   </td>
                   <td className={td}>{ev.razon_social || VACIO}</td>
-                  <td className={td}>{ev.ciiu || VACIO}</td>
+                  <td className={td}>
+                    <CiiuLabel codigo={ev.ciiu} descripcion={ev.ciiu_descripcion} />
+                  </td>
                   <td className={td}>{ev.seccion || VACIO}</td>
                   <td className={tdNum}>{numeroAr(ev.dotacion) ?? VACIO}</td>
                   <td className={td}>{ev.tramo || VACIO}</td>
@@ -280,6 +293,7 @@ const ArtPerformanceEventos = ({ token, aseguradora, rango = {}, onVolver, onAbr
                   <td className={td}>{ev.motivo || VACIO}</td>
                   <td className={tdNum}>{decimalAr(ev.alicuota, { maximumFractionDigits: 3 }) ?? VACIO}</td>
                   <td className={tdNum}>{decimalAr(ev.tarifa_actual, { maximumFractionDigits: 3 }) ?? VACIO}</td>
+                  <td className={td}>{fuenteTarifaActualLabel(ev.fuente_tarifa_actual) || VACIO}</td>
                   <td className={tdNum}>{variacionPct(ev.descuento_vs_actual) ?? VACIO}</td>
                   <td className={td}>{fechaCorta(ev.fecha_evento) ?? VACIO}</td>
                   <td className={td}>{fechaCorta(ev.fecha_caducidad) ?? VACIO}</td>

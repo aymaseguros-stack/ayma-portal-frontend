@@ -16,6 +16,7 @@ import {
   variacionPct,
 } from './artCarteraConstants';
 import { fechaCorta } from '../../utils/fechas';
+import CiiuLabel from '../Ciiu/CiiuLabel';
 
 // El guion medio para "no hay dato". Se usa uno solo en todo el archivo a
 // propósito: mezclar '-', '—' y '' hace que la tabla se lea como si
@@ -315,8 +316,13 @@ const ArtGrillaCotizacion = ({ token, empresaId, onVolver }) => {
             <h2 className="text-2xl font-bold">{data.razon_social || 'Empresa'}</h2>
             <p className="text-slate-400 text-sm mt-1">
               CUIT {data.cuit || VACIO}
-              {data.ciiu ? ` · CIIU ${data.ciiu}` : ''}
-              {data.ciiu_seccion ? ` (sección ${data.ciiu_seccion})` : ''}
+              {data.ciiu && (
+                <>
+                  {' · CIIU '}
+                  <CiiuLabel codigo={data.ciiu} descripcion={data.ciiu_descripcion} />
+                  {data.ciiu_seccion ? ` (sección ${data.ciiu_seccion})` : ''}
+                </>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-2">

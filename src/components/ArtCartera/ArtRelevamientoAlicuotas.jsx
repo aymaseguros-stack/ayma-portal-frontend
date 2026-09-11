@@ -3,6 +3,7 @@ import { Icon } from '../Icons';
 import { obtenerColaAlicuotas, registrarCargaRapidaAlicuotas } from './artCarteraApi';
 import { suspendSessionExpiredHandling } from '../../utils/api';
 import { numeroAr, decimalAr, dotacionConfianzaInfo } from './artCarteraConstants';
+import CiiuLabel from '../Ciiu/CiiuLabel';
 
 const LIMIT = 20;
 const AUTOSAVE_EVERY = 5;
@@ -717,7 +718,9 @@ const ArtRelevamientoAlicuotas = ({ token }) => {
               </div>
               <div>
                 <p className="text-slate-500 text-xs">CIIU</p>
-                <p className="text-sm mt-1">{actual.ciiu || '—'}</p>
+                <p className="text-sm mt-1">
+                  <CiiuLabel codigo={actual.ciiu} descripcion={actual.ciiu_descripcion} />
+                </p>
               </div>
               <div>
                 <p className="text-slate-500 text-xs">Dotación</p>

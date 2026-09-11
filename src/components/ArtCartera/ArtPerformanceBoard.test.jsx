@@ -57,6 +57,7 @@ const bloqueVacio = () => ({
   alicuota_mediana_perdedora: null,
   descuento_promedio_vs_actual: null,
   descuento_mediano_vs_actual: null,
+  comparables_por_fuente: {},
 });
 
 const companiaFixture = (id) => {
@@ -81,10 +82,11 @@ const companiaFixture = (id) => {
     alicuota_promedio_ganadora: con.alicuota_g,
     alicuota_promedio_perdedora: 8.02,
     descuento_promedio_vs_actual: -0.18,
+    comparables_por_fuente: { EMPRESA: con.cotizadas - 2, SIN_COMPARABLE: 2 },
   };
 };
 
-const respuestaTablero = ({ advertencias = [] } = {}) => ({
+const respuestaTablero = ({ advertencias = [], excluidos = { SRT: 84 } } = {}) => ({
   parametros: {
     desde: null,
     hasta: null,
@@ -94,7 +96,9 @@ const respuestaTablero = ({ advertencias = [] } = {}) => ({
     hoy: '2026-09-11',
     aseguradoras_del_catalogo: ASEGURADORAS_ART.length,
     eventos_considerados: 320,
+    fuentes: ['PLANILLA_2025', 'MANUAL'],
   },
+  eventos_excluidos_por_fuente: excluidos,
   totales: { ...companiaFixture('plus'), aseguradora: 'TOTALES', cotizadas: 110 },
   companias: ASEGURADORAS_ART.map((a) => companiaFixture(a.id)),
   advertencias,
@@ -111,6 +115,7 @@ const respuestaEventos = () => ({
       cuit: '30-71000001-7',
       razon_social: 'ACME SRL',
       ciiu: '4520',
+      ciiu_descripcion: 'Venta de partes, piezas y accesorios de vehículos automotores',
       seccion: 'G',
       dotacion: 12,
       tramo: '6-25',
@@ -118,6 +123,7 @@ const respuestaEventos = () => ({
       motivo: null,
       alicuota: 5.5,
       tarifa_actual: 7.0,
+      fuente_tarifa_actual: 'EMPRESA',
       descuento_vs_actual: -0.2143,
       resultado: 'ganadora',
       fecha_evento: '2025-04-10',
@@ -130,6 +136,7 @@ const respuestaEventos = () => ({
       cuit: null,
       razon_social: 'SIN CUIT SA',
       ciiu: null,
+      ciiu_descripcion: null,
       seccion: null,
       dotacion: null,
       tramo: 'SIN_DATO',
@@ -137,6 +144,7 @@ const respuestaEventos = () => ({
       motivo: 'CUPO_TOMADO',
       alicuota: null,
       tarifa_actual: null,
+      fuente_tarifa_actual: null,
       descuento_vs_actual: null,
       resultado: null,
       fecha_evento: '2025-05-02',
@@ -156,6 +164,18 @@ const mockFetchPorUrl = (handler) => {
 
 const soloTablero = (body = respuestaTablero()) =>
   mockFetchPorUrl(() => jsonResponse(body));
+
+// Tablero + drill-down en el mismo mock: los tests de navegación disparan
+// los dos endpoints. `conCiiuFueraDeCatalogo` simula un código que está en la
+// cartera pero no en el catálogo 2026 (ciiu_descripcion en null).
+const mockTableroYDetalle = ({ conCiiuFueraDeCatalogo = false } = {}) => mockFetchPorUrl((url) => {
+  if (url.includes('/eventos')) {
+    const eventos = respuestaEventos();
+    if (conCiiuFueraDeCatalogo) eventos.items[0].ciiu_descripcion = null;
+    return jsonResponse(eventos);
+  }
+  return jsonResponse(respuestaTablero());
+});
 
 const filasDeCuerpo = (container) => Array.from(container.querySelectorAll('tbody tr'));
 
@@ -351,5 +371,128 @@ describe('ArtPerformanceBoard - drill-down por compañía', () => {
       const ultima = globalThis.fetch.mock.calls.filter(([url]) => String(url).includes('/eventos')).pop();
       expect(String(ultima[0])).toContain('resultado=perdedora');
     });
+  });
+});
+
+// Filtro "Fuente" (PR #103): qué eventos del histórico cuentan como
+// cotización. La verificación del padrón (SRT) dice qué ART tiene la empresa,
+// no a cuánto le cotizó una compañía.
+describe('ArtPerformanceBoard - filtro de fuente', () => {
+  it('arranca con el default del backend (PLANILLA_2025 + MANUAL) y lo manda repetido en la query', async () => {
+    soloTablero();
+    render(<ArtPerformanceBoard token="tok" />);
+
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+    const url = String(globalThis.fetch.mock.calls[0][0]);
+    expect(url).toContain('fuente=PLANILLA_2025');
+    expect(url).toContain('fuente=MANUAL');
+    expect(url).not.toContain('fuente=SRT');
+
+    expect(screen.getByLabelText('Planilla 2025').checked).toBe(true);
+    expect(screen.getByLabelText('Manual').checked).toBe(true);
+    expect(screen.getByLabelText('SRT (padrón)').checked).toBe(false);
+  });
+
+  it('marcar SRT la agrega al corte', async () => {
+    soloTablero();
+    render(<ArtPerformanceBoard token="tok" />);
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByLabelText('SRT (padrón)'));
+
+    await waitFor(() => {
+      const ultima = String(globalThis.fetch.mock.calls.at(-1)[0]);
+      expect(ultima).toContain('fuente=SRT');
+      expect(ultima).toContain('fuente=PLANILLA_2025');
+    });
+  });
+
+  it('desmarcar la última fuente se ignora: cero fuentes haría que el backend aplique su default', async () => {
+    soloTablero();
+    render(<ArtPerformanceBoard token="tok" />);
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+    const llamadasIniciales = globalThis.fetch.mock.calls.length;
+
+    fireEvent.click(screen.getByLabelText('Manual'));
+    await waitFor(() => expect(globalThis.fetch.mock.calls.length).toBeGreaterThan(llamadasIniciales));
+    fireEvent.click(screen.getByLabelText('Planilla 2025'));
+
+    await waitFor(() => {
+      const ultima = String(globalThis.fetch.mock.calls.at(-1)[0]);
+      expect(ultima).toContain('fuente=PLANILLA_2025');
+    });
+    expect(screen.getByLabelText('Planilla 2025').checked).toBe(true);
+  });
+
+  it('muestra los eventos excluidos por fuente debajo de los totales', async () => {
+    soloTablero();
+    const { container } = render(<ArtPerformanceBoard token="tok" />);
+
+    await waitFor(() => expect(container.textContent).toContain('Excluidos por fuente'));
+    expect(container.textContent).toContain('SRT (padrón) 84');
+  });
+
+  it('sin excluidos no muestra la línea: un "Excluidos: 0" es ruido', async () => {
+    soloTablero(respuestaTablero({ excluidos: {} }));
+    const { container } = render(<ArtPerformanceBoard token="tok" />);
+
+    await waitFor(() => expect(container.textContent).toContain('Totales'));
+    expect(container.textContent).not.toContain('Excluidos por fuente');
+  });
+
+  it('el tooltip de "sin comparable" abre comparables_por_fuente', async () => {
+    soloTablero();
+    const { container } = render(<ArtPerformanceBoard token="tok" />);
+
+    await waitFor(() => expect(filasDeCuerpo(container).length).toBe(ASEGURADORAS_ART.length));
+    const conTooltip = Array.from(container.querySelectorAll('span[title]'))
+      .map((el) => el.title)
+      .filter((t) => t.includes('Cotizadas por origen del comparable'));
+    expect(conTooltip.length).toBeGreaterThan(0);
+    expect(conTooltip[0]).toContain('Tarifa histórica de la empresa');
+    expect(conTooltip[0]).toContain('Sin comparable');
+  });
+
+  it('la fuente elegida baja al drill-down: el detalle es el mismo corte que la celda', async () => {
+    mockTableroYDetalle();
+    const { container } = render(<ArtPerformanceBoard token="tok" />);
+    await waitFor(() => expect(filasDeCuerpo(container).length).toBe(ASEGURADORAS_ART.length));
+
+    fireEvent.click(screen.getByLabelText('SRT (padrón)'));
+    await waitFor(() => expect(String(globalThis.fetch.mock.calls.at(-1)[0])).toContain('fuente=SRT'));
+    fireEvent.click(filasDeCuerpo(container)[0]);
+
+    await waitFor(() => {
+      const ultima = globalThis.fetch.mock.calls.filter(([url]) => String(url).includes('/eventos')).pop();
+      expect(String(ultima[0])).toContain('fuente=SRT');
+      expect(String(ultima[0])).toContain('fuente=PLANILLA_2025');
+    });
+  });
+});
+
+// D3 en el drill-down: el CIIU nunca sale solo, y `fuente_tarifa_actual` dice
+// de qué escalón de la cascada salió la tarifa contra la que se comparó.
+describe('ArtPerformanceEventos - CIIU y fuente de la tarifa actual', () => {
+  it('el CIIU sale con su descripción y la fuente de la tarifa actual en texto', async () => {
+    mockTableroYDetalle();
+    const { container } = render(<ArtPerformanceBoard token="tok" />);
+    await waitFor(() => expect(filasDeCuerpo(container).length).toBe(ASEGURADORAS_ART.length));
+    fireEvent.click(filasDeCuerpo(container)[0]);
+
+    await waitFor(() => expect(container.textContent).toContain('ACME SRL'));
+    expect(container.textContent).toContain('4520 — Venta de partes, piezas y accesorios');
+    expect(container.textContent).toContain('Tarifa histórica de la empresa');
+    // El evento sin CIIU no muestra un código pelado ni inventa descripción.
+    expect(container.textContent).toContain('Fuente tarifa actual');
+  });
+
+  it('CIIU sin descripción en el catálogo: lo dice, no muestra el código solo', async () => {
+    mockTableroYDetalle({ conCiiuFueraDeCatalogo: true });
+    const { container } = render(<ArtPerformanceBoard token="tok" />);
+    await waitFor(() => expect(filasDeCuerpo(container).length).toBe(ASEGURADORAS_ART.length));
+    fireEvent.click(filasDeCuerpo(container)[0]);
+
+    await waitFor(() => expect(container.textContent).toContain('ACME SRL'));
+    expect(container.textContent).toContain('4520 — no está en el catálogo 2026');
   });
 });

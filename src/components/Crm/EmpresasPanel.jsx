@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../Icons';
 import Modal from '../Modal';
 import FieldForm from '../FieldForm';
@@ -13,6 +13,8 @@ import GruposPanel from './GruposPanel';
 import CarteraArtPanel from './CarteraArtPanel';
 import { ArtDatos, ArtHistorial } from './EmpresaArtSection';
 import Timeline from './Timeline';
+import CiiuLabel from '../Ciiu/CiiuLabel';
+import CiiuBuscador from '../Ciiu/CiiuBuscador';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -39,11 +41,57 @@ const subTabButtonClass = (active) =>
     active ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
   }`;
 
+// Buscador de catálogo colgado del campo `ciiu_codigo` del formulario de
+// empresa (bloque D3). Acá SÍ escribe: `ciiu_codigo` es un campo editable de
+// la empresa del CRM (EmpresaUpdate del backend), a diferencia de
+// `empresas.ciiu` de la cartera ART, que lo cargan los backfills de padrón.
+//
+// Elegir una actividad completa los TRES campos de la sección en un solo
+// cambio - código, descripción y sección salen de la misma fila del catálogo,
+// y dejar la descripción vieja al lado de un código nuevo es peor que no
+// tener descripción.
+const CiiuCampoExtra = ({ token, valor, setValores }) => {
+  const [abierto, setAbierto] = useState(false);
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={() => setAbierto((prev) => !prev)}
+        className="text-blue-400 hover:text-blue-300 text-xs underline"
+      >
+        {abierto ? 'cerrar buscador' : 'cambiar'}
+      </button>
+      {abierto && (
+        <div className="mt-2">
+          <CiiuBuscador
+            token={token}
+            valorInicial={valor}
+            onCerrar={() => setAbierto(false)}
+            onElegir={(item) => {
+              setValores({
+                ciiu_codigo: item.codigo,
+                ciiu_descripcion: item.descripcion,
+                ciiu_seccion: item.seccion || '',
+              });
+              setAbierto(false);
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+};
+
 const EmpresasPanel = ({
   token, abrirFichaIdInicial, onFichaAbierta, abrirGrupoFichaIdInicial, onGrupoFichaAbierta,
 }) => {
   const [subTab, setSubTab] = useState('empresas');
   const [grupoFichaIdParaAbrir, setGrupoFichaIdParaAbrir] = useState(null);
+
+  // El mismo `extras` para el alta y la edición: son el mismo formulario.
+  const extrasCiiu = useMemo(() => ({
+    ciiu_codigo: (props) => <CiiuCampoExtra token={token} {...props} />,
+  }), [token]);
 
   const [empresas, setEmpresas] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -404,7 +452,9 @@ const EmpresasPanel = ({
                   >
                     <td className="px-4 py-3 text-sm font-medium">{emp.razon_social}</td>
                     <td className="px-4 py-3 text-sm text-slate-400">{emp.cuit || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-slate-400">{emp.ciiu_codigo || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-slate-400">
+                      <CiiuLabel codigo={emp.ciiu_codigo} descripcion={emp.ciiu_descripcion} />
+                    </td>
                     <td className="px-4 py-3 text-sm text-center">{emp.cantidad_empleados ?? '-'}</td>
                     <td className="px-4 py-3 text-sm text-slate-400">{emp.domicilio_fiscal_localidad || '-'}</td>
                     <td className="px-4 py-3 text-sm text-center">{emp.contactos_count}</td>
@@ -433,6 +483,7 @@ const EmpresasPanel = ({
               values={nuevaForm}
               onChange={handleCuitChange(nuevaForm, setNuevaForm, setCuitInvalido)}
               errors={cuitInvalido ? { cuit: 'CUIT inválido (dígito verificador incorrecto)' } : {}}
+              extras={extrasCiiu}
             />
             {errorForm && (
               <div className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-2 rounded-lg text-sm">
@@ -521,6 +572,7 @@ const EmpresasPanel = ({
                       values={editForm}
                       onChange={handleCuitChange(editForm, setEditForm, setEditCuitInvalido)}
                       errors={editCuitInvalido ? { cuit: 'CUIT inválido (dígito verificador incorrecto)' } : {}}
+                      extras={extrasCiiu}
                     />
                     <div className="flex gap-4 pt-2">
                       <button
@@ -546,7 +598,12 @@ const EmpresasPanel = ({
                       <Dato label="Nombre de fantasía" valor={ficha.nombre_fantasia} />
                       <Dato label="CUIT" valor={ficha.cuit} />
                       <Dato label="Condición IVA" valor={ficha.condicion_iva} />
-                      <Dato label="CIIU" valor={ficha.ciiu_codigo ? `${ficha.ciiu_codigo} - ${ficha.ciiu_descripcion || ''}` : null} />
+                      <Dato
+                        label="CIIU"
+                        valor={ficha.ciiu_codigo
+                          ? <CiiuLabel codigo={ficha.ciiu_codigo} descripcion={ficha.ciiu_descripcion} />
+                          : null}
+                      />
                       <Dato label="Empleados" valor={ficha.cantidad_empleados} />
                       <Dato label="Facturación anual estimada" valor={ficha.facturacion_anual_estimada} />
                       <Dato label="Domicilio fiscal" valor={[ficha.domicilio_fiscal_calle, ficha.domicilio_fiscal_numero, ficha.domicilio_fiscal_localidad, ficha.domicilio_fiscal_provincia].filter(Boolean).join(', ')} full />

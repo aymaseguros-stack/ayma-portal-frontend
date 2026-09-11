@@ -3,6 +3,7 @@ import { Icon } from '../Icons';
 import { normalizeList, formatApiError, authHeader, numeroSeguro } from '../../utils/api';
 import { fechaCorta } from '../../utils/fechas';
 import { ESTRATEGIA_ART_INFO, ESTRATEGIA_ART_ORDEN, estrategiaArtInfo, estrategiaArtBadgeClass } from './artEstrategia';
+import CiiuLabel from '../Ciiu/CiiuLabel';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -331,7 +332,9 @@ const CarteraArtPanel = ({ token, onAbrirFicha, encabezado }) => {
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-400">{fechaCorta(emp.art_ultima_verificacion) || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-slate-400">{emp.ciiu_codigo || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-slate-400">
+                        <CiiuLabel codigo={emp.ciiu_codigo} descripcion={emp.ciiu_descripcion} />
+                      </td>
                       <td className="px-4 py-3 text-sm text-slate-400">{emp.domicilio_fiscal_localidad || '-'}</td>
                     </tr>
                   );
