@@ -11,6 +11,8 @@ import {
   ASEGURADORAS_ART, riesgoBadgeClass, estadoArtInfo, esAlicuotaNoCompetitiva, decimalAr,
   aseguradoraLabel, confianzaMasaInfo, pesosAr,
 } from './artCarteraConstants';
+import CiiuLabel from '../Ciiu/CiiuLabel';
+import CiiuBuscador from '../Ciiu/CiiuBuscador';
 import { fechaCorta } from '../../utils/fechas';
 
 // ContratoHistoricoItem/ContratoActualBlock (contrato_art_historico) traen
@@ -289,6 +291,7 @@ const ArtEmpresaFicha = ({ token, cuit, onVolver, onAbrirGrilla, onAbrirPropuest
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [modalAseguradora, setModalAseguradora] = useState(null);
+  const [buscadorCiiu, setBuscadorCiiu] = useState(false);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -405,13 +408,41 @@ const ArtEmpresaFicha = ({ token, cuit, onVolver, onAbrirGrilla, onAbrirPropuest
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Dato label="CUIT" valor={empresa.cuit} mono />
-          <Dato label="CIIU" valor={empresa.ciiu} />
+          <Dato
+            label="CIIU"
+            valor={(
+              <span className="inline-flex items-center gap-2 flex-wrap">
+                <CiiuLabel codigo={empresa.ciiu} descripcion={empresa.ciiu_descripcion} />
+                <button
+                  type="button"
+                  onClick={() => setBuscadorCiiu((abierto) => !abierto)}
+                  className="text-blue-400 hover:text-blue-300 text-xs underline"
+                >
+                  {buscadorCiiu ? 'cerrar' : 'cambiar'}
+                </button>
+              </span>
+            )}
+          />
           <Dato label="Provincia" valor={empresa.provincia} />
           <Dato label="Dotación" valor={empresa.dotacion} />
           <Dato label="Teléfono" valor={empresa.telefono} />
           <Dato label="Email" valor={empresa.email} />
           <ArtDatos ficha={empresa} />
         </div>
+
+        {/* El buscador del catálogo va acá y NO escribe nada: `empresas.ciiu`
+            de la cartera ART lo cargan los backfills de padrón (ARCA/SRT) y
+            no hay endpoint que lo edite a mano, así que un "cambiar" que
+            guardara sería un botón que miente. Sirve para verificar contra
+            qué actividad está cotizando la empresa; el CIIU editable a mano
+            es `ciiu_codigo`, en la ficha de empresa del CRM. */}
+        {buscadorCiiu && (
+          <CiiuBuscador
+            token={token}
+            valorInicial={empresa.ciiu || ''}
+            onCerrar={() => setBuscadorCiiu(false)}
+          />
+        )}
       </div>
 
       {/* Actividad + alícuota de referencia SRT (CIIU x año calendario vigente).

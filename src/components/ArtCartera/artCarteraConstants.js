@@ -309,6 +309,38 @@ export const RESULTADOS_BENCHMARK = [
   { id: 'sin_comparable', label: 'Sin comparable' },
 ];
 
+// Fuente del evento de `empresa_art_estado` (FUENTES_VALIDAS del backend,
+// app/models/crm/empresa_art_estado.py). El tablero de performance las usa
+// como filtro repetible (`?fuente=`).
+export const FUENTES_EVENTO_ART = [
+  { id: 'PLANILLA_2025', label: 'Planilla 2025' },
+  { id: 'MANUAL', label: 'Manual' },
+  { id: 'SRT', label: 'SRT (padrón)' },
+];
+
+// El default del backend, replicado acá para que el filtro arranque marcado
+// con lo que efectivamente se está viendo: la verificación del padrón
+// (fuente=SRT) dice qué ART tiene la empresa, no a cuánto le cotizó una
+// compañía, así que NO es una cotización de mercado y no entra al benchmark
+// salvo que se la pida a mano.
+export const FUENTES_EVENTO_ART_DEFAULT = ['PLANILLA_2025', 'MANUAL'];
+
+export const fuenteEventoLabel = (id) => (
+  FUENTES_EVENTO_ART.find((f) => f.id === id)?.label || (id ? String(id) : null)
+);
+
+// Escalón de la cascada que aportó `tarifa_actual` de un evento
+// (`fuente_tarifa_actual`, PR #103).
+export const FUENTES_TARIFA_ACTUAL = {
+  EMPRESA: 'Tarifa histórica de la empresa',
+  EVENTO_ACTUAL: 'Alícuota del evento ACTUAL',
+  SIN_COMPARABLE: 'Sin comparable',
+};
+
+export const fuenteTarifaActualLabel = (id) => (
+  FUENTES_TARIFA_ACTUAL[id] || (id ? String(id) : null)
+);
+
 // Secciones CIIU (ClaNAE-2010) - los mismos rangos que
 // app/services/ciiu.py::_DIVISIONES_POR_SECCION del backend, que es quien
 // calcula `Empresa.ciiu_seccion`. Acá sólo vive la etiqueta: la sección de

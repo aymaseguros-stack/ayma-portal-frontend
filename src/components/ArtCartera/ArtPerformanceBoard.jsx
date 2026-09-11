@@ -13,6 +13,10 @@ import {
   variacionPct,
   SECCIONES_CIIU,
   TRAMOS_NOMINA_SRT,
+  FUENTES_EVENTO_ART,
+  FUENTES_EVENTO_ART_DEFAULT,
+  fuenteEventoLabel,
+  fuenteTarifaActualLabel,
 } from './artCarteraConstants';
 import { descargarBlobComoArchivo } from './descargaArchivo';
 import { fechaCorta } from '../../utils/fechas';
@@ -31,6 +35,11 @@ const FILTROS_INICIALES = {
   // Default ON y explícito: el histórico 2020-2025 ya caducó completo, así
   // que en false el tablero queda casi vacío y se lee como "no hay datos".
   incluir_caducados: true,
+  // Mismo default que el backend (FUENTES_COTIZACION_DEFAULT): la SRT no
+  // cotiza. Viaja explícito igual que `incluir_caducados` - si el operador
+  // desmarca todo, el filtro queda vacío y el backend vuelve a su default,
+  // así que la pantalla nunca deja seleccionar cero fuentes.
+  fuente: FUENTES_EVENTO_ART_DEFAULT,
 };
 
 const TOOLTIP_CADUCADOS = 'el histórico 2020-2025 ya caducó completo';
@@ -42,6 +51,16 @@ const TOOLTIP_CADUCADOS = 'el histórico 2020-2025 ya caducó completo';
 //
 // `valor` devuelve null cuando el backend mandó null - null siempre va al
 // final, en cualquier dirección: "sin dato" no es ni el mejor ni el peor.
+const tooltipComparables = (bloque) => {
+  const porFuente = bloque?.comparables_por_fuente;
+  const entradas = porFuente && typeof porFuente === 'object' ? Object.entries(porFuente) : [];
+  if (entradas.length === 0) return 'Sin desglose de comparables en este corte.';
+  const detalle = entradas
+    .map(([fuente, cantidad]) => `${fuenteTarifaActualLabel(fuente)}: ${numeroAr(cantidad) ?? cantidad}`)
+    .join(' · ');
+  return `Cotizadas por origen del comparable — ${detalle}`;
+};
+
 const COLUMNAS = [
   {
     id: 'aseguradora',
@@ -72,7 +91,13 @@ const COLUMNAS = [
     id: 'sin_comparable',
     label: 'Sin comparable',
     valor: (c) => c.sin_comparable ?? null,
-    render: (c) => numeroAr(c.sin_comparable) ?? '0',
+    // El desglose de `comparables_por_fuente` va en el title: un
+    // "sin comparable: 40" sin decir de dónde salieron las otras 60
+    // cotizadas (tarifa histórica de la empresa vs. alícuota del evento
+    // ACTUAL) no se puede auditar.
+    render: (c) => (
+      <span title={tooltipComparables(c)}>{numeroAr(c.sin_comparable) ?? '0'}</span>
+    ),
   },
   {
     id: 'tasa_ganadora',
@@ -222,6 +247,18 @@ const ArtPerformanceBoard = ({ token, onAbrirFicha }) => {
 
   const cambiarFiltro = (campo, valor) => setFiltros((prev) => ({ ...prev, [campo]: valor }));
 
+  // Nunca se puede quedar en cero fuentes: sin ninguna marcada el backend
+  // aplica su default y la pantalla mostraría un corte distinto del que
+  // dicen los checkboxes. Destildar la última se ignora.
+  const alternarFuente = (id) => setFiltros((prev) => {
+    const actuales = Array.isArray(prev.fuente) ? prev.fuente : [];
+    const siguiente = actuales.includes(id)
+      ? actuales.filter((f) => f !== id)
+      : [...actuales, id];
+    if (siguiente.length === 0) return prev;
+    return { ...prev, fuente: FUENTES_EVENTO_ART.map((f) => f.id).filter((f) => siguiente.includes(f)) };
+  });
+
   const ordenarPor = (columna) => setOrden((prev) => (
     prev.columna === columna.id
       ? { columna: prev.columna, direccion: prev.direccion === 'asc' ? 'desc' : 'asc' }
@@ -246,7 +283,10 @@ const ArtPerformanceBoard = ({ token, onAbrirFicha }) => {
     });
   }, [companias, orden]);
 
+  const fuentesElegidas = Array.isArray(filtros.fuente) ? filtros.fuente : [];
   const totales = data?.totales || null;
+  const excluidosPorFuente = Object.entries(data?.eventos_excluidos_por_fuente || {})
+    .filter(([, cantidad]) => Number(cantidad) > 0);
   const advertencias = Array.isArray(data?.advertencias) ? data.advertencias : [];
   const parametros = data?.parametros || null;
 
@@ -269,6 +309,7 @@ const ArtPerformanceBoard = ({ token, onAbrirFicha }) => {
         token={token}
         aseguradora={aseguradoraDetalle}
         rango={{ desde: filtros.desde, hasta: filtros.hasta }}
+        fuentes={filtros.fuente}
         onVolver={() => setAseguradoraDetalle(null)}
         onAbrirFicha={onAbrirFicha}
       />
@@ -370,7 +411,26 @@ const ArtPerformanceBoard = ({ token, onAbrirFicha }) => {
             </span>
           </label>
         </div>
-        <p className="text-slate-500 text-xs mt-3">Incluir caducados: {TOOLTIP_CADUCADOS}.</p>
+        <div className="mt-4 pt-3 border-t border-slate-700">
+          <p className={labelClass} id="perf-fuente-label">Fuente del evento</p>
+          <div className="flex flex-wrap gap-4" role="group" aria-labelledby="perf-fuente-label">
+            {FUENTES_EVENTO_ART.map((f) => (
+              <label key={f.id} className="flex items-center gap-2 text-sm text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={fuentesElegidas.includes(f.id)}
+                  onChange={() => alternarFuente(f.id)}
+                  className="rounded border-slate-600 bg-slate-700"
+                />
+                <span>{f.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+        <p className="text-slate-500 text-xs mt-3">
+          Incluir caducados: {TOOLTIP_CADUCADOS}. La verificación del padrón (SRT) no es una cotización de
+          mercado: dice qué ART tiene la empresa, no a cuánto le cotizó una compañía.
+        </p>
       </div>
 
       {error && !loading && (
@@ -453,6 +513,19 @@ const ArtPerformanceBoard = ({ token, onAbrirFicha }) => {
             </tbody>
           </table>
         </div>
+
+        {/* Los excluidos van pegados a los totales y no en las advertencias:
+            un total que bajó a la mitad porque el corte dejó afuera los
+            eventos de padrón se lee como "cayó la actividad" si el número
+            excluido no está al lado. */}
+        {excluidosPorFuente.length > 0 && (
+          <p className="px-4 py-3 border-t border-slate-700 text-slate-400 text-xs">
+            Excluidos por fuente:{' '}
+            {excluidosPorFuente
+              .map(([fuente, cantidad]) => `${fuenteEventoLabel(fuente)} ${numeroAr(cantidad) ?? cantidad}`)
+              .join(' · ')}
+          </p>
+        )}
       </div>
     </div>
   );

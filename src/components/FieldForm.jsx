@@ -3,8 +3,16 @@ import React from 'react';
 const baseInputClass = 'w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm';
 
 // Formulario genérico dirigido por config: [{ titulo, campos: [{name,label,type,required,placeholder}] }]
-const FieldForm = ({ sections, values, onChange, errors = {} }) => {
+//
+// `extras` es el escape para los campos que necesitan más que un input:
+// {nombre_del_campo: ({valor, setValor, setValores}) => <JSX/>}. Se renderiza
+// DEBAJO del input normal, no en su lugar - el campo sigue siendo editable a
+// mano (ej. el buscador de catálogo del CIIU, que además completa descripción
+// y sección de una). `setValores` aplica varios campos en un solo onChange:
+// tres `setValor` seguidos sobre el mismo `values` se pisan entre sí.
+const FieldForm = ({ sections, values, onChange, errors = {}, extras = {} }) => {
   const handle = (name, value) => onChange({ ...values, [name]: value });
+  const handleVarios = (cambios) => onChange({ ...values, ...cambios });
 
   return (
     <div className="space-y-6">
@@ -49,6 +57,11 @@ const FieldForm = ({ sections, values, onChange, errors = {} }) => {
                     className={baseInputClass}
                   />
                 )}
+                {extras[campo.name]?.({
+                  valor: values[campo.name] ?? '',
+                  setValor: (valor) => handle(campo.name, valor),
+                  setValores: handleVarios,
+                })}
                 {errors[campo.name] && (
                   <p className="text-red-400 text-xs mt-1">{errors[campo.name]}</p>
                 )}

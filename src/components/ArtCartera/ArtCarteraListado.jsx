@@ -4,6 +4,7 @@ import { listarEmpresasArt } from './artCarteraApi';
 import { RIESGO_SUSCRIPCION_OPCIONES, ESTADOS_EFECTIVOS, ASEGURADORAS_ART, riesgoBadgeClass } from './artCarteraConstants';
 import { ESTRATEGIA_ART_ORDEN, estrategiaArtInfo, estrategiaArtBadgeClass } from '../Crm/artEstrategia';
 import { fechaCorta } from '../../utils/fechas';
+import CiiuLabel from '../Ciiu/CiiuLabel';
 
 const LIMIT = 50;
 
@@ -223,7 +224,9 @@ const ArtCarteraListado = ({ token, onAbrirFicha }) => {
                     >
                       <td className="px-4 py-3 text-sm font-medium">{emp.razon_social}</td>
                       <td className="px-4 py-3 text-sm text-slate-400">{emp.cuit || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-slate-400">{emp.ciiu || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-slate-400">
+                        <CiiuLabel codigo={emp.ciiu} descripcion={emp.ciiu_descripcion} />
+                      </td>
                       <td className="px-4 py-3 text-sm text-slate-400">{emp.provincia || '-'}</td>
                       <td className="px-4 py-3 text-sm text-center">{emp.dotacion ?? '-'}</td>
                       <td className="px-4 py-3">
