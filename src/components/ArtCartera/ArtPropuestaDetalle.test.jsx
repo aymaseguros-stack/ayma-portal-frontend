@@ -21,6 +21,12 @@
 //    acepta. Un botón que va a dar 409 parece que se puede.
 // 5. Que un ahorro en `null` no se renderice como "$ 0" - misma regla que
 //    la grilla: null es "no se sabe", no "no ahorra nada".
+// 6. Que la CONSTANCIA del documento (hash SHA-256 y token del vault, con
+//    su botón de copiar) esté completa y copiable, y que la anulación
+//    asentada en el vault se vea con su fecha. Un hash re-tipeado a mano
+//    con una letra cambiada no prueba nada, y una anulación que NO entró
+//    en el vault deja un token figurando vigente allá: las dos cosas se
+//    miran meses después, cuando ya nadie se acuerda.
 import React from 'react';
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/react';
@@ -78,6 +84,9 @@ const propuesta = (extra = {}) => ({
   tiene_pdf: false,
   hash_sha256: null,
   vault_token: null,
+  vault_anulado: false,
+  vault_anulado_en: null,
+  vault_anulacion_respuesta: null,
   observaciones: null,
   creada_por: 'user-1',
   creada_en: '2026-09-10T12:00:00',
@@ -634,5 +643,127 @@ describe('ArtPropuestaDetalle - bitácora (T17)', () => {
     renderDetalle();
     await waitFor(() => expect(screen.getByText('Agregar nota')).toBeTruthy());
     expect(screen.getByText('Agregar nota').disabled).toBe(true);
+  });
+
+  // --- Constancia del documento (BLOQUE 1.5 - T25) ---
+
+  const HASH = 'a'.repeat(64);
+
+  const entregada = (extra = {}) => propuesta({
+    estado: 'ENTREGADA',
+    estado_efectivo: 'ENTREGADA',
+    fecha_entrega: '2026-09-10',
+    tiene_pdf: true,
+    hash_sha256: HASH,
+    vault_token: 'tok-vault-123',
+    ...extra,
+  });
+
+  it('un BORRADOR sin PDF no muestra la constancia: no hay nada que mostrar', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(jsonResponse(propuesta()));
+    renderDetalle();
+    await waitFor(() => expect(screen.getByText(/Propuesta v2/)).toBeTruthy());
+    expect(screen.queryByText('Constancia del documento')).toBeNull();
+  });
+
+  it('entregada: muestra el hash y el token COMPLETOS, sin recortar', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(jsonResponse(entregada()));
+    renderDetalle();
+
+    await waitFor(() => expect(screen.getByText('Constancia del documento')).toBeTruthy());
+    // El hash entero: un hash cortado con puntos suspensivos no se puede
+    // comparar contra otro, que es para lo único que se mira.
+    expect(screen.getByText(HASH)).toBeTruthy();
+    expect(screen.getByText('tok-vault-123')).toBeTruthy();
+  });
+
+  it('cada valor tiene su botón de copiar y copia el valor exacto', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(jsonResponse(entregada()));
+    renderDetalle();
+
+    await waitFor(() => expect(screen.getByText('Constancia del documento')).toBeTruthy());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar Hash SHA-256' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(HASH));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar Token del vault' }));
+    await waitFor(() => expect(writeText).toHaveBeenLastCalledWith('tok-vault-123'));
+  });
+
+  it('si el portapapeles no está, lo dice en vez de hacer creer que copió', async () => {
+    // Sin contexto seguro (http a secas) `navigator.clipboard` no existe.
+    Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(jsonResponse(entregada()));
+    renderDetalle();
+
+    await waitFor(() => expect(screen.getByText('Constancia del documento')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar Hash SHA-256' }));
+
+    await waitFor(() => expect(screen.getByText('No se pudo')).toBeTruthy());
+    expect(screen.queryByText('Copiado')).toBeNull();
+  });
+
+  it('sin token del vault lo dice, y no inventa que el PDF no vale', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(
+      jsonResponse(entregada({ vault_token: null })),
+    );
+    renderDetalle();
+
+    await waitFor(() => expect(screen.getByText('Constancia del documento')).toBeTruthy());
+    expect(screen.getByText(/El vault no respondió al entregar/)).toBeTruthy();
+    // El hash sigue estando y sigue siendo copiable.
+    expect(screen.getByRole('button', { name: 'Copiar Hash SHA-256' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Copiar Token del vault' })).toBeNull();
+  });
+
+  it('con vault_anulado_en muestra cuándo entró el asiento de anulación', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(jsonResponse(entregada({
+      estado: 'ANULADA',
+      estado_efectivo: 'ANULADA',
+      motivo_anulacion: 'alícuota mal cargada',
+      fecha_anulacion: '2026-09-11',
+      vault_anulado: true,
+      vault_anulado_en: '2026-09-11T14:30:00',
+      vault_anulacion_respuesta: { ok: true, status_code: 200 },
+    })));
+    renderDetalle();
+
+    await waitFor(() => expect(screen.getByText('Constancia del documento')).toBeTruthy());
+    // La fecha va DENTRO de esa línea: el 11/9 suelto también es la
+    // `fecha_anulacion` de la cabecera, y lo que se prueba acá es que el
+    // asiento del vault tiene la suya (con hora: es un instante UTC).
+    const linea = screen.getByText(/Anulación asentada en el vault/);
+    expect(linea.textContent).toContain('11/9/2026');
+    expect(linea.textContent).toMatch(/14:30/);
+    expect(linea.textContent).toContain('UTC');
+  });
+
+  it('anulada sin vault_anulado_en: avisa que allá el token sigue vigente, con el motivo del fallo', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(jsonResponse(entregada({
+      estado: 'ANULADA',
+      estado_efectivo: 'ANULADA',
+      motivo_anulacion: 'empresa equivocada',
+      fecha_anulacion: '2026-09-11',
+      vault_anulado: false,
+      vault_anulado_en: null,
+      vault_anulacion_respuesta: { ok: false, status_code: 401, error: null },
+    })));
+    renderDetalle();
+
+    await waitFor(() => expect(screen.getByText('Constancia del documento')).toBeTruthy());
+    expect(screen.getByText(/sigue figurando vigente/)).toBeTruthy();
+    expect(screen.getByText(/HTTP 401/)).toBeTruthy();
+    expect(screen.queryByText(/Anulación asentada en el vault/)).toBeNull();
+  });
+
+  it('una entregada NO anulada no habla de anulaciones', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(jsonResponse(entregada()));
+    renderDetalle();
+
+    await waitFor(() => expect(screen.getByText('Constancia del documento')).toBeTruthy());
+    expect(screen.queryByText(/Anulación asentada en el vault/)).toBeNull();
+    expect(screen.queryByText(/sigue figurando vigente/)).toBeNull();
   });
 });

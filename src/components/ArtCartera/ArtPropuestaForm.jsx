@@ -10,11 +10,23 @@ import {
 const labelClass = 'block text-slate-400 text-sm mb-1.5';
 const inputClass = 'w-full px-3 py-2.5 rounded-lg bg-slate-700/50 border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500';
 
-// Rango de alícuota que acepta el backend, (0, 10] - ver RANGO_TARIFA_MAX
-// en app/services/motor_art.py. Se valida acá para dar el aviso al toque,
-// pero el backend sigue siendo la fuente de verdad y su 422 se muestra tal
-// cual.
-const ALICUOTA_MAX = 10;
+// Rango COMERCIAL de la alícuota ofertada: 0,5% a 20%, los dos extremos
+// incluidos. No es el rango del backend -que valida (0, 10], ver
+// RANGO_TARIFA_MAX en app/services/motor_art.py- sino el de lo que una ART
+// cotiza de verdad: por debajo de 0,5% no existe precio de mercado y un
+// 0,25% tipeado es casi siempre un 2,5% al que se le fue la coma, que es
+// el error caro (la propuesta sale con un precio diez veces menor al que
+// la aseguradora pasó).
+//
+// Entre 10 y 20 la validación de acá deja pasar y el backend rechaza con
+// 422; ese mensaje se muestra tal cual y dice el rango exacto y el valor
+// que llegó. El backend sigue siendo la fuente de verdad.
+const ALICUOTA_MIN = 0.5;
+const ALICUOTA_MAX = 20;
+
+// "0,5" con coma: la pantalla está en español y el separador decimal
+// argentino es la coma, aunque el input numérico use punto.
+const decimalTexto = (n) => String(n).replace('.', ',');
 
 // Modal "Armar propuesta" de la grilla de cotización -> POST
 // /art/empresas/{id}/propuestas.
@@ -53,8 +65,11 @@ const ArtPropuestaForm = ({
 
   const validar = () => {
     const numero = Number(alicuota);
-    if (!alicuota || !Number.isFinite(numero) || numero <= 0 || numero > ALICUOTA_MAX) {
-      return `La alícuota ofertada tiene que ser mayor a 0 y hasta ${ALICUOTA_MAX}%`;
+    if (!alicuota.trim() || !Number.isFinite(numero)) {
+      return 'Cargá la alícuota ofertada.';
+    }
+    if (numero < ALICUOTA_MIN || numero > ALICUOTA_MAX) {
+      return `La alícuota ofertada tiene que estar entre ${decimalTexto(ALICUOTA_MIN)}% y ${decimalTexto(ALICUOTA_MAX)}% (llegó ${decimalTexto(numero)}%).`;
     }
     return null;
   };
@@ -97,25 +112,34 @@ const ArtPropuestaForm = ({
           <label className={labelClass} htmlFor="propuesta-alicuota">Alícuota ofertada (%)</label>
           {/* Sin `min`/`max` nativos a propósito: con ellos el browser
               bloquea el submit y muestra su propio globo ("Value must be
-              less than or equal to 10"), en inglés y sin decir por qué ese
-              es el tope. El rango se valida en `validar()`, con el mismo
-              límite que el backend y en el mismo idioma que el resto de la
-              pantalla. */}
+              less than or equal to 20"), en inglés y sin decir por qué ese
+              es el tope. El rango se valida en `validar()`, en el mismo
+              idioma que el resto de la pantalla.
+
+              `select()` al enfocar porque el campo VIENE PRELLENADO con la
+              alícuota de la grilla: lo normal es reemplazarla entera por
+              el precio que pasó la aseguradora, y sin esto el cursor cae
+              donde se hizo clic y queda "2.52.850". Es el error que no se
+              ve al tipearlo. */}
           <input
             id="propuesta-alicuota"
             type="number"
             step="0.001"
             value={alicuota}
-            onChange={(e) => setAlicuota(e.target.value)}
+            onFocus={(e) => e.target.select()}
+            onChange={(e) => { setAlicuota(e.target.value); setError(null); }}
             className={inputClass}
             placeholder="Ej: 2.850"
           />
-          {alicuotaSugerida !== null && alicuotaSugerida !== undefined && (
-            <p className="text-xs text-slate-500 mt-1.5">
-              La grilla trae {decimalAr(alicuotaSugerida, { maximumFractionDigits: 3 })}%. Editala
-              si la aseguradora pasó otro precio.
-            </p>
-          )}
+          <p className="text-xs text-slate-500 mt-1.5">
+            {alicuotaSugerida !== null && alicuotaSugerida !== undefined && (
+              <>
+                La grilla trae {decimalAr(alicuotaSugerida, { maximumFractionDigits: 3 })}%. Editala
+                si la aseguradora pasó otro precio.{' '}
+              </>
+            )}
+            Entre {decimalTexto(ALICUOTA_MIN)}% y {decimalTexto(ALICUOTA_MAX)}%.
+          </p>
         </div>
 
         <div>
