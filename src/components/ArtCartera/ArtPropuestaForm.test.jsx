@@ -13,7 +13,13 @@
 //    alícuota PROPIA es una cotización real; una de benchmark, no. Al
 //    entregar, sólo la primera se asienta como alícuota de la empresa en
 //    el backend, así que el default importa.
-// 3. Que la alícuota se valide contra el mismo rango que el backend, (0, 10].
+// 3. Que la alícuota se valide contra el rango comercial [0,5 - 20] ANTES
+//    de salir: una alícuota con la coma corrida -0,25 por 2,5- es una
+//    propuesta con un precio diez veces menor al que pasó la aseguradora,
+//    y eso se firma.
+// 3b. Que el campo se seleccione entero al enfocarlo: viene prellenado con
+//    la alícuota de la grilla y lo normal es reemplazarla. Sin esto el
+//    cursor cae donde se hizo clic y queda "2.52.850".
 // 4. Que un 409 del backend (empresa sin masa salarial estimable) se
 //    muestre tal cual en vez de un "no se pudo".
 import React from 'react';
@@ -58,15 +64,75 @@ describe('ArtPropuestaForm', () => {
     expect(screen.getByLabelText('Origen de la alícuota').value).toBe('COTIZACION_REAL');
   });
 
-  it('rechaza una alícuota fuera del rango que acepta el backend', async () => {
+  it('rechaza una alícuota por encima del tope y no llama al backend', async () => {
     globalThis.fetch = vi.fn();
     renderForm();
-    fireEvent.change(screen.getByLabelText('Alícuota ofertada (%)'), { target: { value: '15' } });
+    fireEvent.change(screen.getByLabelText('Alícuota ofertada (%)'), { target: { value: '25' } });
     fireEvent.click(screen.getByRole('button', { name: 'Armar propuesta' }));
 
-    await waitFor(() => expect(screen.getByText(/mayor a 0 y hasta 10%/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/entre 0,5% y 20%/)).toBeTruthy());
     // No se llama al backend con un valor que ya se sabe inválido.
     expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('rechaza una alícuota por debajo del piso: 0,25 es un 2,5 con la coma corrida', async () => {
+    globalThis.fetch = vi.fn();
+    renderForm();
+    fireEvent.change(screen.getByLabelText('Alícuota ofertada (%)'), { target: { value: '0.25' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Armar propuesta' }));
+
+    await waitFor(() => expect(screen.getByText(/entre 0,5% y 20%/)).toBeTruthy());
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('el campo vacío tampoco sale', async () => {
+    globalThis.fetch = vi.fn();
+    renderForm({ alicuotaSugerida: null });
+    fireEvent.click(screen.getByRole('button', { name: 'Armar propuesta' }));
+
+    await waitFor(() => expect(screen.getByText(/Cargá la alícuota ofertada/)).toBeTruthy());
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it.each([['0.5'], ['20'], ['2.85']])('acepta %s, que está dentro del rango', async (valor) => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true, status: 201, json: async () => ({ propuesta: { id: 'p' }, advertencias: [] }),
+    });
+    renderForm();
+    fireEvent.change(screen.getByLabelText('Alícuota ofertada (%)'), { target: { value: valor } });
+    fireEvent.click(screen.getByRole('button', { name: 'Armar propuesta' }));
+
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+    expect(JSON.parse(globalThis.fetch.mock.calls[0][1].body).alicuota_ofertada).toBe(Number(valor));
+  });
+
+  it('el error de rango se borra al corregir el número, sin tener que reintentar', async () => {
+    globalThis.fetch = vi.fn();
+    renderForm();
+    const input = screen.getByLabelText('Alícuota ofertada (%)');
+    fireEvent.change(input, { target: { value: '25' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Armar propuesta' }));
+    await waitFor(() => expect(screen.getByText(/entre 0,5% y 20%/)).toBeTruthy());
+
+    fireEvent.change(input, { target: { value: '2.5' } });
+    expect(screen.queryByText(/entre 0,5% y 20%/)).toBeNull();
+  });
+
+  it('al enfocar el campo se selecciona todo, para reemplazar la alícuota de la grilla de una', () => {
+    renderForm();
+    const input = screen.getByLabelText('Alícuota ofertada (%)');
+    // Se espía `select()` en vez de leer `selectionStart`: en un input
+    // `type="number"` ese atributo no aplica (el getter tira
+    // InvalidStateError en los browsers). Lo que importa es que el foco
+    // dispare la selección.
+    const select = vi.spyOn(input, 'select');
+    fireEvent.focus(input);
+    expect(select).toHaveBeenCalled();
+  });
+
+  it('el rango está escrito en la pantalla, no sólo en el error', () => {
+    renderForm();
+    expect(screen.getByText(/Entre 0,5% y 20%/)).toBeTruthy();
   });
 
   it('manda el cuerpo que espera el backend y devuelve la propuesta creada', async () => {

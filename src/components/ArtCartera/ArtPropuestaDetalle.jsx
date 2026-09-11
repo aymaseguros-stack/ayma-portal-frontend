@@ -16,7 +16,7 @@ import {
   estadoPropuestaInfo,
   pesosAr,
 } from './artCarteraConstants';
-import { fechaCorta } from '../../utils/fechas';
+import { fechaCorta, fechaHora } from '../../utils/fechas';
 
 const VACIO = '—';
 
@@ -280,6 +280,148 @@ const Dato = ({ label, children }) => (
     <div className="text-slate-200 mt-0.5">{children}</div>
   </div>
 );
+
+// Botón "Copiar" de un valor que NO se puede tipear a mano sin error: un
+// SHA-256 son 64 caracteres hexadecimales y el token del vault es un
+// identificador opaco. Los dos se copian para pegarlos en otro lado -un
+// mail al cliente, un reclamo a la aseguradora, el buscador del vault- y
+// una sola letra cambiada los vuelve inservibles sin avisar.
+//
+// El resultado se dice en el propio botón y no con un toast: el que copia
+// está mirando el botón que acaba de apretar. `navigator.clipboard` no
+// existe fuera de contexto seguro (http a secas) y puede tirar si el
+// permiso está denegado, así que el fallo se MUESTRA - "No se pudo" - en
+// vez de dejar creer que el valor está en el portapapeles cuando no está.
+const BotonCopiar = ({ texto, etiqueta }) => {
+  const [resultado, setResultado] = useState(null);
+
+  useEffect(() => {
+    if (!resultado) return undefined;
+    const id = setTimeout(() => setResultado(null), 2000);
+    return () => clearTimeout(id);
+  }, [resultado]);
+
+  const copiar = async () => {
+    try {
+      if (!navigator?.clipboard?.writeText) throw new Error('sin portapapeles');
+      await navigator.clipboard.writeText(texto);
+      setResultado('ok');
+    } catch {
+      setResultado('error');
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={copiar}
+      aria-label={`Copiar ${etiqueta}`}
+      className={`shrink-0 px-2 py-1 rounded text-[11px] font-medium border transition ${
+        resultado === 'error'
+          ? 'border-red-500/50 text-red-300'
+          : 'border-slate-600 text-slate-300 hover:bg-slate-700/50'
+      }`}
+    >
+      {resultado === 'ok' ? 'Copiado' : resultado === 'error' ? 'No se pudo' : 'Copiar'}
+    </button>
+  );
+};
+
+// Un valor largo y opaco con su botón de copiar. `break-all` y tipografía
+// mono a propósito: un hash cortado con puntos suspensivos no se puede
+// comparar de un vistazo contra otro, que es justo para lo que se mira.
+const DatoCopiable = ({ label, valor, ayudaVacio }) => (
+  <div>
+    <p className="text-slate-500 text-xs uppercase tracking-wide">{label}</p>
+    {valor ? (
+      <div className="flex items-start gap-2 mt-1">
+        <code className="text-[11px] text-slate-200 font-mono break-all leading-relaxed">{valor}</code>
+        <BotonCopiar texto={valor} etiqueta={label} />
+      </div>
+    ) : (
+      <div className="mt-1">
+        <span className="text-slate-600">{VACIO}</span>
+        {ayudaVacio && <span className="block text-[11px] text-slate-500">{ayudaVacio}</span>}
+      </div>
+    )}
+  </div>
+);
+
+// Evidencia de qué documento se entregó (BLOQUE 1.5 - T25).
+//
+// El HASH es la huella del PDF que recibió la empresa: sirve para probar
+// que el archivo que alguien trae tres meses después es el mismo que se
+// entregó, o que no lo es. El TOKEN es su asiento en el Token Vault.
+//
+// No es un dato del cliente ni de la rentabilidad de AYMA, así que no va
+// en ninguno de esos dos bloques: es la trazabilidad del papel.
+//
+// Sólo aparece cuando hay algo que mostrar. Un BORRADOR todavía no tiene
+// PDF - el hash y el token se cargan al entregar - y una tarjeta vacía con
+// dos guiones no informa nada.
+const ConstanciaDocumento = ({ data }) => {
+  if (!data.tiene_pdf && !data.hash_sha256 && !data.vault_token) return null;
+
+  // La anulación quedó asentada allá. `vault_anulado_en` es la fecha del
+  // HECHO (viene null mientras no haya entrado, aunque se haya intentado),
+  // y es un instante UTC, no una fecha suelta: va con hora.
+  //
+  // `hour12: false` porque es-AR formatea en 12 horas y un "02:30" sin
+  // am/pm en una evidencia no se puede leer. Y se rotula UTC: el backend
+  // lo guarda con `datetime.utcnow()` y lo serializa SIN offset, así que
+  // el reloj que se ve es el de UTC - decirlo es más barato que dejar a
+  // alguien restar tres horas de más.
+  const anuladoEn = data.vault_anulado_en
+    ? fechaHora(data.vault_anulado_en, { hour12: false })
+    : null;
+  // Se intentó y NO entró: el token sigue figurando vigente en el vault
+  // aunque la propuesta esté anulada acá. Hay que decirlo - alguien tiene
+  // que ir a darlo de baja a mano - y por eso el detalle del fallo (un 404
+  // de path, un 401 de credencial y un timeout se arreglan distinto).
+  const fallo = data.estado === 'ANULADA' && data.vault_token && !data.vault_anulado_en;
+  const respuesta = data.vault_anulacion_respuesta || null;
+  const detalleFallo = respuesta ? (respuesta.error || (respuesta.status_code ? `HTTP ${respuesta.status_code}` : null)) : null;
+
+  return (
+    <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6 space-y-4">
+      <div>
+        <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide">
+          Constancia del documento
+        </h3>
+        <p className="text-slate-500 text-xs mt-0.5">
+          La huella del PDF que recibió la empresa y su asiento en el Token Vault. No sale en el PDF del cliente.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <DatoCopiable
+          label="Hash SHA-256"
+          valor={data.hash_sha256}
+          ayudaVacio="Se calcula al entregar la propuesta."
+        />
+        <DatoCopiable
+          label="Token del vault"
+          valor={data.vault_token}
+          ayudaVacio="El vault no respondió al entregar. El PDF y su hash valen igual."
+        />
+      </div>
+
+      {anuladoEn && (
+        <p className="text-xs text-slate-400">
+          Anulación asentada en el vault el <span className="text-slate-200">{anuladoEn}</span> (UTC).
+        </p>
+      )}
+
+      {fallo && (
+        <p className="text-xs text-amber-300/90">
+          La anulación no quedó asentada en el vault: allá el token sigue figurando vigente y hay que
+          darlo de baja a mano. La anulación de esta propuesta vale igual.
+          {detalleFallo ? ` El vault contestó: ${detalleFallo}.` : ''}
+        </p>
+      )}
+    </div>
+  );
+};
 
 // Vista de UNA propuesta (BLOQUE 1.3) - GET /art/propuestas/{id}.
 //
@@ -708,6 +850,8 @@ const ArtPropuestaDetalle = ({ token, propuestaId, onVolver, volverLabel = 'Volv
           </div>
         )}
       </div>
+
+      <ConstanciaDocumento data={data} />
 
       {/* Bitácora: debajo del resumen y de la rentabilidad, que es el orden
           en que se lee la pantalla (qué se ofreció -> cuánto deja -> qué
