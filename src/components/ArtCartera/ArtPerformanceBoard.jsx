@@ -61,6 +61,15 @@ const tooltipComparables = (bloque) => {
   return `Cotizadas por origen del comparable — ${detalle}`;
 };
 
+// El umbral viaja en `parametros.dias_abandono` (el backend lo devuelve
+// justamente para que se pueda leer el número); si faltara, el tooltip
+// sigue explicando QUÉ es una abandonada sin inventar un umbral.
+const tooltipAbandonadas = (parametros) => {
+  const dias = parametros?.dias_abandono;
+  const umbral = dias === null || dias === undefined ? null : numeroAr(dias) ?? String(dias);
+  return `sin resolución hace más de ${umbral ?? '—'} días; no cuenta como pendiente ni en el promedio`;
+};
+
 const COLUMNAS = [
   {
     id: 'aseguradora',
@@ -121,11 +130,28 @@ const COLUMNAS = [
   },
   {
     id: 'tecnica',
-    label: 'Técnica (abiertas/resueltas, días)',
+    label: 'Técnica (abiertas/resueltas/abandonadas, días)',
+    // Ordena por ABIERTAS, no por el total de las tres: la pregunta del
+    // tablero es "¿cuántas TECNICA tiene esta compañía sin resolver y
+    // todavía vivas?". Las abandonadas ya no son pendientes de nadie.
     valor: (c) => c.tecnica_abiertas ?? null,
-    render: (c) => {
+    // Tercera cifra: las TECNICA que el backend (PR #109) dejó de contar
+    // como abiertas por llevar más de `dias_abandono` días sin resolución.
+    // No están en `tecnica_abiertas` ni en el promedio de días, así que sin
+    // mostrarlas la columna "pierde" filas: abiertas + resueltas dejó de
+    // ser el total de TECNICA. El umbral va en el tooltip porque el número
+    // no se puede leer sin él - con 365 y con 90 el reparto es otro.
+    render: (c, ctx) => {
       const dias = decimalAr(c.dias_en_tecnica_promedio, { maximumFractionDigits: 1 });
-      return `${numeroAr(c.tecnica_abiertas) ?? '0'} / ${numeroAr(c.tecnica_resueltas) ?? '0'}${dias ? ` · ${dias} d` : ''}`;
+      return (
+        <>
+          {`${numeroAr(c.tecnica_abiertas) ?? '0'} / ${numeroAr(c.tecnica_resueltas) ?? '0'} / `}
+          <span title={tooltipAbandonadas(ctx?.parametros)}>
+            {numeroAr(c.tecnica_abandonadas) ?? '0'}
+          </span>
+          {dias ? ` · ${dias} d` : ''}
+        </>
+      );
     },
   },
   {
@@ -202,6 +228,12 @@ const FilaSkeleton = () => (
 // /art/performance-companias (app/api/v1/art_performance.py del backend, PR
 // #102). Performance de CADA aseguradora del catálogo sobre el histórico de
 // `empresa_art_estado`.
+//
+// La columna TECNICA trae TRES cifras desde el PR #109 del backend:
+// abiertas / resueltas / abandonadas. Una TECNICA sin resolución con más de
+// `parametros.dias_abandono` días encima sale de `tecnica_abiertas` y del
+// promedio de días, y pasa a `tecnica_abandonadas` - con dos cifras la
+// columna perdía filas en silencio (TECNICA totales = las tres sumadas).
 //
 // LO QUE NO ES: un embudo de ventas. `benchmark_ganadora` dice que esa
 // compañía cotizó por debajo de la tarifa que la empresa paga hoy, no que
@@ -289,6 +321,9 @@ const ArtPerformanceBoard = ({ token, onAbrirFicha }) => {
     .filter(([, cantidad]) => Number(cantidad) > 0);
   const advertencias = Array.isArray(data?.advertencias) ? data.advertencias : [];
   const parametros = data?.parametros || null;
+  // Contexto que necesitan las columnas para renderizar y que no viaja en
+  // la fila: hoy, sólo `dias_abandono` para el tooltip de abandonadas.
+  const ctxRender = useMemo(() => ({ parametros }), [parametros]);
 
   const exportarCsv = async () => {
     setDescargando(true);
@@ -477,7 +512,7 @@ const ArtPerformanceBoard = ({ token, onAbrirFicha }) => {
                   >
                     {columna.id === 'aseguradora'
                       ? 'Totales'
-                      : (totales ? columna.render(totales) : VACIO)}
+                      : (totales ? columna.render(totales, ctxRender) : VACIO)}
                   </td>
                 ))}
               </tr>
@@ -504,7 +539,7 @@ const ArtPerformanceBoard = ({ token, onAbrirFicha }) => {
                         key={columna.id}
                         className={columna.texto ? 'px-3 py-3 text-sm text-slate-200 whitespace-nowrap' : `${tdNum} text-slate-300`}
                       >
-                        {columna.render(compania) ?? VACIO}
+                        {columna.render(compania, ctxRender) ?? VACIO}
                       </td>
                     ))}
                   </tr>
