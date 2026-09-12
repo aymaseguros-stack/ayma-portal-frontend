@@ -4,6 +4,10 @@
 // GET /art/performance-companias y su drill-down
 // (app/api/v1/art_performance.py del backend, PR #102).
 //
+// La columna TECNICA y el badge "Abandonada" del drill-down siguen el
+// contrato del PR #109 (tercer estado: sin resolución hace más de
+// `dias_abandono` días).
+//
 // Lo que cubren, en orden: que la tabla liste las 19 compañías del catálogo
 // -incluidas las de 0 eventos, que son varias y NO se filtran-, que el
 // orden por columna sea el del dato y no el del texto renderizado, que las
@@ -49,6 +53,7 @@ const bloqueVacio = () => ({
   bloqueadas_vigentes: 0,
   tecnica_abiertas: 0,
   tecnica_resueltas: 0,
+  tecnica_abandonadas: 0,
   dias_en_tecnica_promedio: null,
   alicuota_promedio_cotizada: null,
   alicuota_promedio_ganadora: null,
@@ -78,6 +83,7 @@ const companiaFixture = (id) => {
     bloqueadas_vigentes: 0,
     tecnica_abiertas: 1,
     tecnica_resueltas: 2,
+    tecnica_abandonadas: 4,
     dias_en_tecnica_promedio: 12.5,
     alicuota_promedio_ganadora: con.alicuota_g,
     alicuota_promedio_perdedora: 8.02,
@@ -97,15 +103,19 @@ const respuestaTablero = ({ advertencias = [], excluidos = { SRT: 84 } } = {}) =
     aseguradoras_del_catalogo: ASEGURADORAS_ART.length,
     eventos_considerados: 320,
     fuentes: ['PLANILLA_2025', 'MANUAL'],
+    dias_abandono: 365,
   },
   eventos_excluidos_por_fuente: excluidos,
-  totales: { ...companiaFixture('plus'), aseguradora: 'TOTALES', cotizadas: 110 },
+  totales: {
+    ...companiaFixture('plus'), aseguradora: 'TOTALES', cotizadas: 110, tecnica_abandonadas: 32,
+  },
   companias: ASEGURADORAS_ART.map((a) => companiaFixture(a.id)),
   advertencias,
 });
 
 const respuestaEventos = () => ({
   aseguradora: 'asociart',
+  dias_abandono: 365,
   total: 2,
   page: 1,
   size: 100,
@@ -121,6 +131,9 @@ const respuestaEventos = () => ({
       tramo: '6-25',
       tipo: 'ALICUOTA',
       motivo: null,
+      dias_en_tecnica: null,
+      tecnica_resuelta: null,
+      tecnica_abandonada: null,
       alicuota: 5.5,
       tarifa_actual: 7.0,
       fuente_tarifa_actual: 'EMPRESA',
@@ -142,6 +155,9 @@ const respuestaEventos = () => ({
       tramo: 'SIN_DATO',
       tipo: 'RECHAZADA',
       motivo: 'CUPO_TOMADO',
+      dias_en_tecnica: null,
+      tecnica_resuelta: null,
+      tecnica_abandonada: null,
       alicuota: null,
       tarifa_actual: null,
       fuente_tarifa_actual: null,
@@ -269,6 +285,56 @@ describe('ArtPerformanceBoard - tablero', () => {
     await waitFor(() => expect(container.textContent).toContain('No hay compañías para este corte'));
   });
 
+  // Columna TECNICA de tres cifras (PR #109 del backend). Antes era
+  // abiertas/resueltas, y con las abandonadas fuera de `tecnica_abiertas`
+  // esa lectura dejaba filas afuera sin decirlo.
+  it('la columna técnica muestra abiertas/resueltas/abandonadas y el título nombra las tres', async () => {
+    soloTablero();
+    const { container } = render(<ArtPerformanceBoard token="tok" />);
+
+    await waitFor(() => expect(filasDeCuerpo(container).length).toBe(ASEGURADORAS_ART.length));
+    expect(screen.getByRole('button', { name: /Técnica \(abiertas\/resueltas\/abandonadas, días\)/ })).toBeTruthy();
+
+    // Asociart: 1 abierta / 2 resueltas / 4 abandonadas · 12,5 d.
+    const asociart = filasDeCuerpo(container)[0];
+    expect(asociart.textContent).toContain('Asociart');
+    expect(asociart.textContent).toContain('1 / 2 / 4 · 12,5 d');
+  });
+
+  it('el tooltip de abandonadas explica el umbral con parametros.dias_abandono', async () => {
+    soloTablero();
+    const { container } = render(<ArtPerformanceBoard token="tok" />);
+
+    await waitFor(() => expect(filasDeCuerpo(container).length).toBe(ASEGURADORAS_ART.length));
+    const tooltip = 'sin resolución hace más de 365 días; no cuenta como pendiente ni en el promedio';
+    const conTooltip = Array.from(container.querySelectorAll(`[title="${tooltip}"]`));
+    // Una por fila del cuerpo + la de la fila de totales.
+    expect(conTooltip.length).toBe(ASEGURADORAS_ART.length + 1);
+    expect(conTooltip[0].textContent).toBe('32'); // la de totales va en el thead
+  });
+
+  it('sin dias_abandono en parametros el tooltip no inventa un umbral', async () => {
+    const body = respuestaTablero();
+    delete body.parametros.dias_abandono;
+    soloTablero(body);
+    const { container } = render(<ArtPerformanceBoard token="tok" />);
+
+    await waitFor(() => expect(filasDeCuerpo(container).length).toBe(ASEGURADORAS_ART.length));
+    expect(container.querySelector('[title*="más de — días"]')).toBeTruthy();
+    expect(container.querySelector('[title*="undefined"]')).toBeNull();
+  });
+
+  it('la fila de totales trae tecnica_abandonadas del backend (32 en producción)', async () => {
+    soloTablero();
+    const { container } = render(<ArtPerformanceBoard token="tok" />);
+
+    await waitFor(() => expect(container.textContent).toContain('Totales'));
+    const totales = container.querySelector('thead tr:last-child');
+    // 1 / 2 / 32: las abandonadas de los totales NO son la suma de las
+    // abiertas ni se recalculan en el cliente.
+    expect(totales.textContent).toContain('1 / 2 / 32');
+  });
+
   it('el CSV del tablero se pide con Authorization y formato=csv, no como link plano', async () => {
     const blob = new Blob(['aseguradora,tramo\n'], { type: 'text/csv' });
     mockFetchPorUrl((url) => (url.includes('formato=csv')
@@ -327,6 +393,81 @@ describe('ArtPerformanceBoard - drill-down por compañía', () => {
     expect(onAbrirFicha).toHaveBeenCalledWith('30-71000001-7');
     // La fila sin CUIT se renderiza igual, con guion en vez de botón.
     expect(container.textContent).toContain('SIN CUIT SA');
+  });
+
+  // Badge "Abandonada" (PR #109): la contracara de la tercera cifra del
+  // tablero. `tecnica_abandonada` es null en todo lo que no es TECNICA y
+  // false en las TECNICA abiertas y resueltas: sólo el true lleva badge.
+  const eventosConTecnica = () => {
+    const body = respuestaEventos();
+    body.items = [
+      {
+        ...body.items[0],
+        id: 10,
+        razon_social: 'ABANDONADA SA',
+        tipo: 'TECNICA',
+        dias_en_tecnica: 400,
+        tecnica_resuelta: false,
+        tecnica_abandonada: true,
+      },
+      {
+        ...body.items[0],
+        id: 11,
+        razon_social: 'ABIERTA SA',
+        tipo: 'TECNICA',
+        dias_en_tecnica: 30,
+        tecnica_resuelta: false,
+        tecnica_abandonada: false,
+      },
+      { ...body.items[1], id: 12, razon_social: 'NO TECNICA SA' },
+    ];
+    body.total = 3;
+    return body;
+  };
+
+  const abrirDetalleCon = async (body) => {
+    mockFetchPorUrl((url) => (url.includes('/eventos')
+      ? jsonResponse(body)
+      : jsonResponse(respuestaTablero())));
+    const utils = render(<ArtPerformanceBoard token="tok" />);
+    await waitFor(() => expect(filasDeCuerpo(utils.container).length).toBe(ASEGURADORAS_ART.length));
+    fireEvent.click(filasDeCuerpo(utils.container)[0]);
+    return utils;
+  };
+
+  it('marca con badge "Abandonada" sólo las filas con tecnica_abandonada=true', async () => {
+    const { container } = await abrirDetalleCon(eventosConTecnica());
+
+    await waitFor(() => expect(container.textContent).toContain('ABANDONADA SA'));
+    const filas = filasDeCuerpo(container);
+    const fila = (nombre) => filas.find((f) => f.textContent.includes(nombre));
+
+    expect(fila('ABANDONADA SA').textContent).toContain('Abandonada');
+    // false (TECNICA abierta) y null (no TECNICA) no llevan badge.
+    expect(fila('ABIERTA SA').textContent).not.toContain('Abandonada');
+    expect(fila('NO TECNICA SA').textContent).not.toContain('Abandonada');
+    expect(screen.getAllByText('Abandonada').length).toBe(1);
+  });
+
+  it('el badge explica el umbral con dias_abandono de la respuesta y los días que lleva', async () => {
+    const { container } = await abrirDetalleCon(eventosConTecnica());
+
+    await waitFor(() => expect(container.textContent).toContain('ABANDONADA SA'));
+    const badge = screen.getByText('Abandonada');
+    expect(badge.getAttribute('title')).toBe(
+      'sin resolución hace más de 365 días; no cuenta como pendiente ni en el promedio (lleva 400 d)',
+    );
+  });
+
+  it('sin dias_abandono en la respuesta el badge sigue apareciendo y no inventa el umbral', async () => {
+    const body = eventosConTecnica();
+    delete body.dias_abandono;
+    const { container } = await abrirDetalleCon(body);
+
+    await waitFor(() => expect(container.textContent).toContain('ABANDONADA SA'));
+    const titulo = screen.getByText('Abandonada').getAttribute('title');
+    expect(titulo).toContain('más de — días');
+    expect(titulo).not.toContain('undefined');
   });
 
   it('el CSV de eventos se pide con Authorization sobre el endpoint del drill-down', async () => {

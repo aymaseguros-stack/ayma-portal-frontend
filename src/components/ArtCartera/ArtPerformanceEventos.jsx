@@ -40,6 +40,18 @@ const RESULTADO_BADGE = {
 const resultadoLabel = (id) => RESULTADOS_BENCHMARK.find((r) => r.id === id)?.label
   || (typeof id === 'string' && id ? id : null);
 
+// Misma definición que la columna del tablero (ArtPerformanceBoard.jsx): una
+// TECNICA sin resolución con más de `dias_abandono` días encima dejó de
+// contarse como pendiente y salió del promedio de días.
+const tituloAbandonada = (ev, diasAbandono) => {
+  const umbral = diasAbandono === null || diasAbandono === undefined
+    ? null : numeroAr(diasAbandono) ?? String(diasAbandono);
+  const llevado = ev?.dias_en_tecnica === null || ev?.dias_en_tecnica === undefined
+    ? null : numeroAr(ev.dias_en_tecnica) ?? String(ev.dias_en_tecnica);
+  const base = `sin resolución hace más de ${umbral ?? '—'} días; no cuenta como pendiente ni en el promedio`;
+  return llevado ? `${base} (lleva ${llevado} d)` : base;
+};
+
 const FilaSkeleton = () => (
   <tr className="animate-pulse">
     {Array.from({ length: 15 }).map((_, i) => (
@@ -125,6 +137,9 @@ const ArtPerformanceEventos = ({ token, aseguradora, rango = {}, fuentes, onVolv
 
   const items = Array.isArray(data?.items) ? data.items : [];
   const total = Number.isFinite(Number(data?.total)) ? Number(data.total) : 0;
+  // El endpoint devuelve el umbral con el que clasificó las abandonadas
+  // (PR #109): el badge lo necesita para explicarse.
+  const diasAbandono = data?.dias_abandono ?? null;
   const ultimaPagina = Math.max(1, Math.ceil(total / SIZE));
 
   return (
@@ -286,6 +301,19 @@ const ArtPerformanceEventos = ({ token, aseguradora, rango = {}, fuentes, onVolv
                       {resultadoLabel(ev.resultado) && (
                         <span className={`px-2 py-0.5 rounded text-[11px] font-medium ${RESULTADO_BADGE[ev.resultado] || 'bg-slate-500/20 text-slate-400'}`}>
                           {resultadoLabel(ev.resultado)}
+                        </span>
+                      )}
+                      {/* Sólo con `tecnica_abandonada === true`. El campo es
+                          null en todo lo que no es TECNICA, y un `if (ev.x)`
+                          sobre null pintaría igual que false - pero además
+                          hay TECNICA con false (abiertas y resueltas), que
+                          NO llevan badge. */}
+                      {ev.tecnica_abandonada === true && (
+                        <span
+                          className="px-2 py-0.5 rounded text-[11px] font-medium bg-amber-500/20 text-amber-300"
+                          title={tituloAbandonada(ev, diasAbandono)}
+                        >
+                          Abandonada
                         </span>
                       )}
                     </span>
