@@ -17,6 +17,8 @@ import {
   cambiarEstadoPropuestaArt, descargarPdfPropuestaArt,
   agregarNotaPropuestaArt, anularPropuestaArt, quitarF931Art,
   normalizarBusqueda,
+  obtenerPerformanceCompanias, descargarCsvPerformanceCompanias,
+  listarEventosPerformanceCompania, descargarCsvEventosPerformanceCompania,
 } from './artCarteraApi';
 
 const TOKEN = 'token-de-prueba';
@@ -728,5 +730,48 @@ describe('quitarF931Art', () => {
     // Sin el flag explícito el backend corre en seco y devuelve 200 sin
     // haber borrado nada: el default de dry_run es true.
     expect(url).toContain('dry_run=false');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// El eje `tramo` de /art/performance-* son los diez tramos de la SRT desde
+// D-B4 (backend PR #119). Un tramo viejo devuelve 422, así que la capa de
+// datos lo descarta antes de armar la query: es el único chokepoint por el
+// que pasan el tablero, el drill-down y los dos CSV.
+// ---------------------------------------------------------------------------
+describe('performance por compañía - saneamiento del tramo', () => {
+  const blobResponse = () => ({ ok: true, status: 200, blob: async () => new Blob(['a,b\n']) });
+
+  it('manda los tramos nuevos tal cual, url-encodeados', async () => {
+    globalThis.fetch.mockResolvedValue(jsonResponse({ companias: [] }));
+    await obtenerPerformanceCompanias(TOKEN, { tramo: '101 a 500' });
+    const url = String(globalThis.fetch.mock.calls[0][0]);
+    expect(url).toContain('tramo=101+a+500');
+  });
+
+  it('un tramo viejo ("26-100") NO viaja: se descarta y el corte queda sin filtro de tramo', async () => {
+    globalThis.fetch.mockResolvedValue(jsonResponse({ companias: [] }));
+    await obtenerPerformanceCompanias(TOKEN, { tramo: '26-100', seccion: 'G' });
+    const url = String(globalThis.fetch.mock.calls[0][0]);
+    expect(url).not.toContain('tramo=');
+    expect(url).toContain('seccion=G');
+  });
+
+  it('el drill-down de eventos también descarta el tramo viejo', async () => {
+    globalThis.fetch.mockResolvedValue(jsonResponse({ items: [], total: 0 }));
+    await listarEventosPerformanceCompania(TOKEN, 'asociart', { tramo: '1501+', resultado: 'ganadora' });
+    const url = String(globalThis.fetch.mock.calls[0][0]);
+    expect(url).not.toContain('tramo=');
+    expect(url).toContain('resultado=ganadora');
+  });
+
+  it('los dos CSV bajan el mismo corte saneado', async () => {
+    globalThis.fetch.mockResolvedValue(blobResponse());
+    await descargarCsvPerformanceCompanias(TOKEN, { tramo: '501-1500' });
+    await descargarCsvEventosPerformanceCompania(TOKEN, 'asociart', { tramo: '6-25' });
+    globalThis.fetch.mock.calls.forEach(([url]) => {
+      expect(String(url)).toContain('formato=csv');
+      expect(String(url)).not.toContain('tramo=');
+    });
   });
 });

@@ -13,6 +13,7 @@ import {
   RESULTADOS_BENCHMARK,
   TIPOS_ESTADO_ART,
   TRAMOS_NOMINA_SRT,
+  sanearTramoNomina,
   fuenteTarifaActualLabel,
 } from './artCarteraConstants';
 import { descargarBlobComoArchivo } from './descargaArchivo';
@@ -211,8 +212,8 @@ const ArtPerformanceEventos = ({ token, aseguradora, rango = {}, fuentes, onVolv
             <label className={labelClass} htmlFor="ev-tramo">Tramo</label>
             <select
               id="ev-tramo"
-              value={filtros.tramo}
-              onChange={(e) => cambiarFiltro('tramo', e.target.value)}
+              value={sanearTramoNomina(filtros.tramo)}
+              onChange={(e) => cambiarFiltro('tramo', sanearTramoNomina(e.target.value))}
               className={`${inputClass} w-full`}
             >
               <option value="">Todos</option>

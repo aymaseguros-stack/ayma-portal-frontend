@@ -19,7 +19,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/react';
 import ArtPerformanceBoard from './ArtPerformanceBoard';
-import { ASEGURADORAS_ART } from './artCarteraConstants';
+import { ASEGURADORAS_ART, TRAMOS_NOMINA_SRT } from './artCarteraConstants';
 
 afterEach(cleanup);
 
@@ -128,7 +128,7 @@ const respuestaEventos = () => ({
       ciiu_descripcion: 'Venta de partes, piezas y accesorios de vehículos automotores',
       seccion: 'G',
       dotacion: 12,
-      tramo: '6-25',
+      tramo: '11 a 25',
       tipo: 'ALICUOTA',
       motivo: null,
       dias_en_tecnica: null,
@@ -635,5 +635,66 @@ describe('ArtPerformanceEventos - CIIU y fuente de la tarifa actual', () => {
 
     await waitFor(() => expect(container.textContent).toContain('ACME SRL'));
     expect(container.textContent).toContain('4520 — no está en el catálogo 2026');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Filtro "Tramo" (D-B4, backend PR #119): los diez tramos de la SRT, en orden
+// de dotación creciente. El select es la única forma de elegir un tramo, así
+// que si ofreciera uno viejo la pantalla se comería un 422.
+// ---------------------------------------------------------------------------
+describe('ArtPerformanceBoard - filtro de tramo (SRT)', () => {
+  const opciones = () => Array.from(screen.getByLabelText('Tramo').querySelectorAll('option'));
+
+  it('ofrece los diez tramos de la SRT más SIN_DATO, en orden de dotación y con "Todos" primero', async () => {
+    soloTablero();
+    render(<ArtPerformanceBoard token="tok" />);
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+
+    const valores = opciones().map((o) => o.value);
+    expect(valores).toEqual(['', ...TRAMOS_NOMINA_SRT]);
+    // El orden es por dotación, NO alfabético: "11 a 25" antes de "101 a 500".
+    expect(valores.indexOf('11 a 25')).toBeLessThan(valores.indexOf('101 a 500'));
+    expect(valores.indexOf('41 a 50')).toBeLessThan(valores.indexOf('51 a 100'));
+    // Y SIN_DATO cierra la lista.
+    expect(valores[valores.length - 1]).toBe('SIN_DATO');
+  });
+
+  it('no ofrece ningún tramo viejo (pre D-B4)', async () => {
+    soloTablero();
+    render(<ArtPerformanceBoard token="tok" />);
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+
+    const valores = opciones().map((o) => o.value);
+    ['1-5', '6-25', '26-100', '101-500', '501-1500', '1501+'].forEach((viejo) => {
+      expect(valores).not.toContain(viejo);
+    });
+  });
+
+  it('elegir un tramo lo manda al backend url-encodeado', async () => {
+    soloTablero();
+    render(<ArtPerformanceBoard token="tok" />);
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByLabelText('Tramo'), { target: { value: '26 a 40' } });
+
+    await waitFor(() => {
+      const url = String(globalThis.fetch.mock.calls.at(-1)[0]);
+      expect(url).toContain('tramo=26+a+40');
+    });
+  });
+
+  it('un valor viejo que llegue al select se descarta: el corte vuelve a "todos" y nunca sale un tramo inválido', async () => {
+    soloTablero();
+    render(<ArtPerformanceBoard token="tok" />);
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+
+    // Simula el filtro persistido de antes de D-B4 llegando al onChange.
+    fireEvent.change(screen.getByLabelText('Tramo'), { target: { value: '26-100' } });
+
+    expect(screen.getByLabelText('Tramo').value).toBe('');
+    globalThis.fetch.mock.calls.forEach(([url]) => {
+      expect(String(url)).not.toContain('tramo=26');
+    });
   });
 });

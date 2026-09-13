@@ -5,6 +5,7 @@
 // de utils/api, con normalizeList para los listados paginados (Page{total,
 // items,limit,offset} - ver app/schemas/common.py del backend).
 import { authHeader, formatApiError, normalizeList } from '../../utils/api';
+import { sanearTramoNomina } from './artCarteraConstants';
 
 export const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -462,6 +463,14 @@ export const descargarPdfPropuestaArt = async (token, propuestaId) => {
 
 const PERFORMANCE_PATH = '/api/v1/art/performance-companias';
 
+// Único punto por el que el eje `tramo` llega a /art/performance-*: si el
+// valor no es uno de los diez tramos de la SRT (backend PR #119) se descarta
+// y el filtro viaja vacío. Un '26-100' guardado antes de D-B4 devolvía 422 y
+// rompía la pantalla entera; acá degrada a "todos los tramos".
+const sanearFiltrosPerformance = (filtros = {}) => (
+  'tramo' in filtros ? { ...filtros, tramo: sanearTramoNomina(filtros.tramo) } : filtros
+);
+
 // GET /art/performance-companias - tablero agregado. `filtros`: desde,
 // hasta, incluir_caducados, seccion, tramo, fuente (array; se serializa
 // repetido, ver buildQuery). Devuelve {parametros, totales,
@@ -477,7 +486,7 @@ const PERFORMANCE_PATH = '/api/v1/art/performance-companias';
 // verifica el padrón, no cotiza) y lo excluido vuelve contado en
 // `eventos_excluidos_por_fuente`.
 export const obtenerPerformanceCompanias = async (token, filtros = {}) => {
-  const res = await fetch(`${API_URL}${PERFORMANCE_PATH}${buildQuery(filtros)}`, { headers: artHeaders(token) });
+  const res = await fetch(`${API_URL}${PERFORMANCE_PATH}${buildQuery(sanearFiltrosPerformance(filtros))}`, { headers: artHeaders(token) });
   if (!res.ok) throw new Error(await formatApiError(res));
   return res.json();
 };
@@ -492,7 +501,7 @@ export const obtenerPerformanceCompanias = async (token, filtros = {}) => {
 // el Blob; el componente arma la descarga.
 export const descargarCsvPerformanceCompanias = async (token, filtros = {}) => {
   const res = await fetch(
-    `${API_URL}${PERFORMANCE_PATH}${buildQuery({ ...filtros, formato: 'csv' })}`,
+    `${API_URL}${PERFORMANCE_PATH}${buildQuery({ ...sanearFiltrosPerformance(filtros), formato: 'csv' })}`,
     { headers: authHeader(token) },
   );
   if (!res.ok) throw new Error(await formatApiError(res));
@@ -509,7 +518,7 @@ export const descargarCsvPerformanceCompanias = async (token, filtros = {}) => {
 // acepta `incluir_caducados`. Cada fila trae `vigente` para distinguirlos.
 export const listarEventosPerformanceCompania = async (token, aseguradora, filtros = {}) => {
   const res = await fetch(
-    `${API_URL}${PERFORMANCE_PATH}/${encodeURIComponent(aseguradora)}/eventos${buildQuery(filtros)}`,
+    `${API_URL}${PERFORMANCE_PATH}/${encodeURIComponent(aseguradora)}/eventos${buildQuery(sanearFiltrosPerformance(filtros))}`,
     { headers: artHeaders(token) },
   );
   if (!res.ok) throw new Error(await formatApiError(res));
@@ -521,7 +530,7 @@ export const listarEventosPerformanceCompania = async (token, aseguradora, filtr
 // nunca un <a href>).
 export const descargarCsvEventosPerformanceCompania = async (token, aseguradora, filtros = {}) => {
   const res = await fetch(
-    `${API_URL}${PERFORMANCE_PATH}/${encodeURIComponent(aseguradora)}/eventos${buildQuery({ ...filtros, formato: 'csv' })}`,
+    `${API_URL}${PERFORMANCE_PATH}/${encodeURIComponent(aseguradora)}/eventos${buildQuery({ ...sanearFiltrosPerformance(filtros), formato: 'csv' })}`,
     { headers: authHeader(token) },
   );
   if (!res.ok) throw new Error(await formatApiError(res));

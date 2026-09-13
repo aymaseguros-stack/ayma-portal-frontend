@@ -13,6 +13,7 @@ import {
   variacionPct,
   SECCIONES_CIIU,
   TRAMOS_NOMINA_SRT,
+  sanearTramoNomina,
   FUENTES_EVENTO_ART,
   FUENTES_EVENTO_ART_DEFAULT,
   fuenteEventoLabel,
@@ -425,8 +426,8 @@ const ArtPerformanceBoard = ({ token, onAbrirFicha }) => {
             <label className={labelClass} htmlFor="perf-tramo">Tramo</label>
             <select
               id="perf-tramo"
-              value={filtros.tramo}
-              onChange={(e) => cambiarFiltro('tramo', e.target.value)}
+              value={sanearTramoNomina(filtros.tramo)}
+              onChange={(e) => cambiarFiltro('tramo', sanearTramoNomina(e.target.value))}
               className={`${inputClass} w-full`}
             >
               <option value="">Todos</option>

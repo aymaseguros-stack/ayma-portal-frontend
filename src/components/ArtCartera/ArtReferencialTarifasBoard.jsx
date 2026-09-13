@@ -5,6 +5,12 @@ import { ASEGURADORAS_ART, numeroAr, decimalAr } from './artCarteraConstants';
 import { anioDeFecha } from '../../utils/fechas';
 import CiiuLabel from '../Ciiu/CiiuLabel';
 
+// Tramos del referencial histórico (BLOQUE 7). NO son los tramos SRT de
+// Performance (TRAMOS_NOMINA_SRT en artCarteraConstants.js): este tablero
+// pega contra GET /art/referencial-tarifas, que valida ?tramo_dotacion=
+// contra app/services/art_dashboard.py::TRAMOS_DOTACION - otros cinco
+// cortes, vigentes y sin cambios en el backend PR #119. Unificar los dos
+// ejes rompería uno de los dos tableros con un 422.
 const TRAMOS_DOTACION = ['1-10', '11-25', '26-50', '51-100', '100+', 'sin_dato'];
 
 const FILTROS_INICIALES = { ciiu: '', provincia: '', tramo_dotacion: '', aseguradora: '' };

@@ -294,10 +294,66 @@ export const diasRestantesTexto = (dias) => {
 // del backend, fuente de verdad de estos valores.
 // ---------------------------------------------------------------------------
 
-// Tramos de nómina SRT. El orden es el de la respuesta del backend: de menor
-// a mayor y SIN_DATO al final - no es un tamaño, es la ausencia del dato, y
-// encabezar el filtro con él lo haría ilegible.
-export const TRAMOS_NOMINA_SRT = ['1-5', '6-25', '26-100', '101-500', '501-1500', '1501+', 'SIN_DATO'];
+// Tramos de nómina SRT (D-B4, backend PR #119). ÚNICA fuente de verdad del
+// frontend para el eje "tramo" de Performance: el select del tablero, el del
+// drill-down, las claves de `por_tramo` y la columna `tramo` del CSV salen
+// todos de acá. Espejo exacto de
+// app/services/art_performance.py::TRAMOS (= RANGOS_TRAMOS_SRT + SIN_DATO).
+//
+// Los tramos propios anteriores ('1-5', '6-25', '26-100', '101-500',
+// '501-1500', '1501+') ya NO existen en el backend: mandarlos devuelve 422.
+// El "26-100" ponía en la misma bolsa a una empresa de 27 y a una de 95
+// empleados, a las que la SRT publica alícuotas distintas, así que el
+// promedio del tramo no era comparable contra ningún precio publicado.
+//
+// OJO: este eje NO es el de TRAMOS_DOTACION de ArtReferencialTarifasBoard.jsx
+// ('1-10' ... '100+', BLOQUE 7, GET /art/referencial-tarifas), que sigue
+// vigente en el backend (app/services/art_dashboard.py::TRAMOS_DOTACION) y
+// no cambió. Son dos cortes distintos de dos endpoints distintos: unificarlos
+// rompería el otro tablero.
+//
+// EL ORDEN ES POR DOTACIÓN CRECIENTE, NO ALFABÉTICO (alfabético pondría
+// "101 a 500" antes de "11 a 25"), con SIN_DATO al final: no es un tamaño,
+// es la ausencia del dato, y encabezar el filtro con él lo haría ilegible.
+export const TRAMO_NOMINA_SIN_DATO = 'SIN_DATO';
+
+export const TRAMOS_NOMINA_SRT = [
+  '1',
+  '2',
+  '3 a 5',
+  '6 a 10',
+  '11 a 25',
+  '26 a 40',
+  '41 a 50',
+  '51 a 100',
+  '101 a 500',
+  '501 y más',
+  TRAMO_NOMINA_SIN_DATO,
+];
+
+const _ORDEN_TRAMO_NOMINA = new Map(TRAMOS_NOMINA_SRT.map((t, i) => [t, i]));
+
+// Posición del tramo en el eje (dotación creciente, SIN_DATO último). Un
+// tramo desconocido va al final, nunca al principio: si el backend agrega uno
+// antes de que este archivo lo conozca, la lista no se desordena.
+export const ordenTramoNomina = (tramo) => (
+  _ORDEN_TRAMO_NOMINA.has(tramo) ? _ORDEN_TRAMO_NOMINA.get(tramo) : TRAMOS_NOMINA_SRT.length
+);
+
+// Ordena claves de tramo (p. ej. las de `por_tramo`) por dotación creciente.
+export const ordenarTramosNomina = (tramos = []) => (
+  [...tramos].sort((a, b) => ordenTramoNomina(a) - ordenTramoNomina(b))
+);
+
+export const esTramoNominaValido = (tramo) => _ORDEN_TRAMO_NOMINA.has(tramo);
+
+// Descarta un tramo que el backend ya no conoce y vuelve al default ("todos").
+// Un valor viejo ('26-100') que sobrevivió en estado, querystring o filtro
+// guardado se come un 422 si viaja: acá se convierte en '' y la pantalla
+// muestra el corte completo en vez de un error.
+export const sanearTramoNomina = (tramo) => (
+  esTramoNominaValido(tramo) ? tramo : ''
+);
 
 // Resultado de benchmark de un evento ALICUOTA. NO es el resultado comercial
 // de AYMA: "ganadora" dice que esa compañía cotizó por debajo de la tarifa
