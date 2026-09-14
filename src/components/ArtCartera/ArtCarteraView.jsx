@@ -11,9 +11,11 @@ import ArtAnalisisBoard from './ArtAnalisisBoard';
 import ArtMercadoBoard from './ArtMercadoBoard';
 import ArtRelevamientoAlicuotas from './ArtRelevamientoAlicuotas';
 import ArtPerformanceBoard from './ArtPerformanceBoard';
+import ArtAccionComercialBoard from './ArtAccionComercialBoard';
 
 const SUB_TABS = [
   { id: 'cartera', label: 'Cartera' },
+  { id: 'accion-comercial', label: 'Acción comercial' },
   { id: 'desbloqueos', label: 'Desbloqueos' },
   { id: 'tecnica-vencida', label: 'Técnica vencida' },
   { id: 'referencial-tarifas', label: 'Referencial de Tarifas' },
@@ -50,6 +52,12 @@ const subTabButtonClass = (active) =>
 // ruta ni un ítem de menú nuevo: GET /art/performance-companias y su
 // drill-down por compañía (app/api/v1/art_performance.py). Su detalle abre
 // la MISMA ficha de empresa que la cartera, con el `abrirFicha` de acá.
+// "Acción comercial" (BLOQUE 3, paso 3) es OTRO sub-tab de esta misma
+// sección, por el mismo motivo: la navegación está congelada y no se agregan
+// ítems de menú. GET /art/accion-comercial/lista
+// (app/api/v1/art_accion_comercial.py) - a quién llamar hoy, con el detalle
+// de empresa en modal sobre la lista y no en pantalla propia, para no perder
+// la fila siguiente mientras se llama.
 const ArtCarteraView = ({ token }) => {
   const [subTab, setSubTab] = useState('cartera');
   const [cuitFicha, setCuitFicha] = useState(null);
@@ -116,6 +124,7 @@ const ArtCarteraView = ({ token }) => {
       </nav>
 
       {subTab === 'cartera' && <ArtCarteraListado token={token} onAbrirFicha={abrirFicha} />}
+      {subTab === 'accion-comercial' && <ArtAccionComercialBoard token={token} />}
       {subTab === 'desbloqueos' && <ArtDesbloqueosBoard token={token} onAbrirFicha={abrirFicha} />}
       {subTab === 'tecnica-vencida' && <ArtTecnicaVencidaBoard token={token} onAbrirFicha={abrirFicha} />}
       {subTab === 'referencial-tarifas' && <ArtReferencialTarifasBoard token={token} />}

@@ -559,3 +559,71 @@ export const buscarCiiu = async (token, q, { limit = MAX_RESULTADOS_CIIU } = {})
   if (!res.ok) throw new Error(await formatApiError(res));
   return res.json();
 };
+
+// ---------------------------------------------------------------------------
+// Acción comercial ART (BLOQUE 3, paso 3) - GET
+// /art/accion-comercial/lista (app/api/v1/art_accion_comercial.py del
+// backend, PR #135 ART-73/ART-72/ART-69 + PR #136 ART-76). SOLO LECTURA y
+// admin-only con JWT: la fila lleva CUIT, razón social y teléfono de
+// terceros identificados.
+//
+// ART-47 - NINGÚN PARÁMETRO SE IGNORA EN SILENCIO: este endpoint devuelve
+// 422 ante un nombre de parámetro que no conoce (no lo descarta como hace
+// el default de FastAPI). Por eso los nombres válidos viven acá, en
+// `PARAMS_LISTA_ACCION_COMERCIAL`, y `sanearFiltrosAccionComercial` saca
+// todo lo demás antes de armar el querystring: los filtros de pantalla que
+// el backend no tiene (fuente de la alícuota, con/sin teléfono) se aplican
+// sobre las filas ya traídas y no viajan.
+// ---------------------------------------------------------------------------
+
+const ACCION_COMERCIAL_PATH = '/api/v1/art/accion-comercial/lista';
+
+export const PARAMS_LISTA_ACCION_COMERCIAL = [
+  'dias_ventana', 'tramo', 'provincia', 'aseguradora_actual',
+  'solo_accionables', 'solo_cotizadas', 'solo_elegibles',
+  'limit', 'offset', 'orden', 'formato',
+];
+
+// Tope duro del backend (LIMIT_MAX). La lista son ~161 filas: se piden
+// todas de una y la pantalla no pagina.
+export const LIMIT_MAX_ACCION_COMERCIAL = 500;
+
+// `ventana_asc` = fecha de vencimiento ASC y, a igual fecha, comisión
+// actual estimada DESC (app/services/art_accion_comercial.py::_ordenar).
+// Es EL ORDEN DE LA PANTALLA y lo resuelve el backend: el cliente no
+// reordena.
+export const ORDEN_ACCION_COMERCIAL_DEFAULT = 'ventana_asc';
+
+const sanearFiltrosAccionComercial = (filtros = {}) => {
+  const salida = {};
+  PARAMS_LISTA_ACCION_COMERCIAL.forEach((nombre) => {
+    if (nombre in filtros) salida[nombre] = filtros[nombre];
+  });
+  return salida;
+};
+
+// Devuelve {total, items, resumen} tal cual lo manda el backend. Ningún
+// campo se calcula acá: la fila trae ya resueltos delta_pp, las tres
+// comisiones, la vía de colocación, el gate de permanencia (ART-69) y las
+// compañías descartadas por colocabilidad (ART-76).
+export const obtenerListaAccionComercial = async (token, filtros = {}) => {
+  const res = await fetch(
+    `${API_URL}${ACCION_COMERCIAL_PATH}${buildQuery(sanearFiltrosAccionComercial(filtros))}`,
+    { headers: artHeaders(token) },
+  );
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.json();
+};
+
+// Mismo corte, serializado por el backend (`?formato=csv`). Va por fetch
+// con Authorization y NO como un <a href>: la ruta es admin-only con JWT y
+// un link plano bajaría el 401 adentro del archivo. Mismo contrato que
+// descargarCsvPerformanceCompanias.
+export const descargarCsvAccionComercial = async (token, filtros = {}) => {
+  const res = await fetch(
+    `${API_URL}${ACCION_COMERCIAL_PATH}${buildQuery({ ...sanearFiltrosAccionComercial(filtros), formato: 'csv' })}`,
+    { headers: authHeader(token) },
+  );
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.blob();
+};
