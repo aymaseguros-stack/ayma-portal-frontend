@@ -56,10 +56,31 @@ const MOTIVO_SIN_COMPANIA = {
   },
 };
 
-// CAMBIO 3 del pedido: una dotación estimada que además supera este techo
-// se marca como sospechosa. El umbral es de PANTALLA (no hay campo del
-// backend que lo diga) y sólo cambia una etiqueta: no filtra ni recalcula.
-const DOTACION_SOSPECHOSA_DESDE = 5000;
+// ART-74 (backend PR #139): `dotacion_confianza` es la confianza del ORIGEN
+// de la dotación y la decide el backend a partir de `dotacion_fuente`. La
+// pantalla NO la deduce ni la recalcula: un nivel que no esté acá se muestra
+// crudo, y un null no muestra señal.
+const DOTACION_CONFIANZA = {
+  ALTA: {
+    label: 'confianza ALTA',
+    detalle: 'Origen confirmado (F931).',
+    clase: 'bg-green-500/20 text-green-300',
+  },
+  MEDIA: {
+    label: 'confianza MEDIA',
+    detalle: 'Origen razonable: ventanilla SRT, contrato o padrón ARCA.',
+    clase: 'bg-amber-500/20 text-amber-300',
+  },
+  BAJA: {
+    label: 'confianza BAJA',
+    detalle: 'Origen débil: planilla histórica, rango MiPyME o sin origen identificable.',
+    clase: 'bg-slate-500/20 text-slate-400',
+  },
+};
+
+// ART-74: el techo lo aplica el backend (`dotacion > 5.000`), no la
+// pantalla. Es señal visual y no filtro: la fila no se mueve ni se esconde.
+const TOOLTIP_DOTACION_SOSPECHOSA = 'Dotación >5.000 — verificar contra F931';
 
 const labelClass = 'block text-slate-400 text-xs mb-1';
 const selectClass = 'px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm';
@@ -105,23 +126,41 @@ const CeldaAlicuotaActual = ({ fila }) => {
   );
 };
 
-// CAMBIO 3: dotación estimada (PLANILLA_HISTORICA) y, si además pasa el
-// techo, sospechosa.
+// Dotación: el número, su confianza de origen (ART-74) y las dos marcas que
+// ya existían -estimada cuando viene de la planilla histórica, y la de
+// sospecha cuando el backend la marca-. Todo viene resuelto en la fila.
 const CeldaDotacion = ({ fila }) => {
   if (fila.dotacion === null || fila.dotacion === undefined) {
     return <span className="text-slate-500">Sin dato</span>;
   }
   const estimada = fila.dotacion_fuente === 'PLANILLA_HISTORICA';
-  const sospechosa = estimada && Number(fila.dotacion) > DOTACION_SOSPECHOSA_DESDE;
+  const confianza = DOTACION_CONFIANZA[fila.dotacion_confianza];
   return (
     <div className="space-y-1">
-      <span className="text-slate-200">{numeroAr(fila.dotacion)}</span>
+      <span className="text-slate-200 whitespace-nowrap">
+        {numeroAr(fila.dotacion)}
+        {fila.dotacion_sospechosa === true && (
+          <span className="ml-1 text-red-300" title={TOOLTIP_DOTACION_SOSPECHOSA} aria-label={TOOLTIP_DOTACION_SOSPECHOSA}>
+            ⚠
+          </span>
+        )}
+      </span>
+      {confianza && (
+        <span className={`${badgeBase} block w-fit ${confianza.clase}`} title={confianza.detalle}>
+          {confianza.label}
+        </span>
+      )}
+      {!confianza && fila.dotacion_confianza && (
+        <span className={`${badgeBase} block w-fit bg-slate-600/40 text-slate-300`}>
+          {fila.dotacion_confianza}
+        </span>
+      )}
       {estimada && (
         <span
-          className={`${badgeBase} block w-fit ${sospechosa ? 'bg-red-500/20 text-red-300' : 'bg-yellow-500/20 text-yellow-300'}`}
+          className={`${badgeBase} block w-fit bg-yellow-500/20 text-yellow-300`}
           title={`Fuente: ${fila.dotacion_fuente}`}
         >
-          {sospechosa ? `⚠ sospechosa (> ${numeroAr(DOTACION_SOSPECHOSA_DESDE)})` : 'estimada'}
+          estimada
         </span>
       )}
     </div>

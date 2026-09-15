@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Modal from '../Modal';
 import { obtenerEmpresaArt } from './artCarteraApi';
-import { aseguradoraLabel } from './artCarteraConstants';
+import { aseguradoraLabel, numeroAr } from './artCarteraConstants';
 import { fechaCorta } from '../../utils/fechas';
 
 // Motivos de descarte por colocabilidad (ART-76, PR #136). El texto sale
@@ -10,6 +10,14 @@ import { fechaCorta } from '../../utils/fechas';
 const MOTIVO_DESCARTE = {
   AYMA_NO_COLOCA: 'AYMA no coloca en esta compañía',
   AUTORIZACION_REVOCADA_SSN: 'Autorización revocada por la SSN',
+};
+
+// ART-74 (backend PR #139). Texto largo de la confianza del ORIGEN de la
+// dotación: en el modal hay lugar para decirlo entero, en la fila no.
+const DOTACION_CONFIANZA_TEXTO = {
+  ALTA: 'ALTA — origen confirmado (F931)',
+  MEDIA: 'MEDIA — ventanilla SRT, contrato o padrón ARCA',
+  BAJA: 'BAJA — planilla histórica, rango MiPyME o sin origen identificable',
 };
 
 const Bloque = ({ titulo, children, nota }) => (
@@ -95,6 +103,39 @@ const ArtAccionComercialDetalle = ({ token, fila, onCerrar }) => {
                   ? <span className="text-slate-500 text-base font-normal">Sin dato</span>
                   : `${antiguedad} meses`}
               </p>
+            </Bloque>
+
+            <Bloque
+              titulo="Dotación"
+              nota="La confianza y la marca de sospecha las decide el backend a partir del origen (ART-74): acá se leen, no se recalculan."
+            >
+              <dl className="text-sm space-y-1">
+                <div className="flex gap-2">
+                  <dt className="text-slate-400 w-40 shrink-0">Dotación</dt>
+                  <dd className="text-slate-200">
+                    {fila?.dotacion === null || fila?.dotacion === undefined
+                      ? <span className="text-slate-500">Sin dato</span>
+                      : numeroAr(fila.dotacion)}
+                    {fila?.dotacion_fuente ? ` · fuente ${fila.dotacion_fuente}` : ''}
+                  </dd>
+                </div>
+                <div className="flex gap-2">
+                  <dt className="text-slate-400 w-40 shrink-0">Confianza del origen</dt>
+                  <dd className="text-slate-200">
+                    {fila?.dotacion_confianza
+                      ? (DOTACION_CONFIANZA_TEXTO[fila.dotacion_confianza] || fila.dotacion_confianza)
+                      : <span className="text-slate-500">Sin dato</span>}
+                  </dd>
+                </div>
+                <div className="flex gap-2">
+                  <dt className="text-slate-400 w-40 shrink-0">Dotación sospechosa</dt>
+                  <dd className={fila?.dotacion_sospechosa === true ? 'text-red-300' : 'text-slate-200'}>
+                    {fila?.dotacion_sospechosa === true
+                      ? 'Sí — Dotación >5.000 — verificar contra F931'
+                      : 'No'}
+                  </dd>
+                </div>
+              </dl>
             </Bloque>
 
             <Bloque titulo={`Historial de contratos (${contratos.length})`}>
