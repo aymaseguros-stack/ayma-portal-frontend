@@ -54,7 +54,7 @@ const FICHA = {
   antiguedad_total_meses: 92,
 };
 
-const mockTodo = () => {
+const mockTodo = (overFila = {}) => {
   globalThis.fetch = vi.fn(async (url) => {
     if (String(url).includes('/art/empresas/')) {
       return { ok: true, status: 200, json: async () => FICHA };
@@ -62,13 +62,13 @@ const mockTodo = () => {
     return {
       ok: true,
       status: 200,
-      json: async () => ({ total: 1, items: [FILA], resumen: { cobertura_verificacion: 10, periodo_mercado: '2026-08' } }),
+      json: async () => ({ total: 1, items: [{ ...FILA, ...overFila }], resumen: { cobertura_verificacion: 10, periodo_mercado: '2026-08' } }),
     };
   });
 };
 
-const abrirDetalle = async () => {
-  mockTodo();
+const abrirDetalle = async (overFila = {}) => {
+  mockTodo(overFila);
   render(<ArtAccionComercialBoard token={TOKEN} />);
   fireEvent.click(await screen.findByRole('button', { name: 'ACME SA' }));
 };
@@ -94,6 +94,23 @@ describe('detalle de empresa de acción comercial', () => {
     expect(screen.getByText('MAPFRE ART')).toBeTruthy();
     expect(screen.getByText('ya no opera')).toBeTruthy();
     expect(screen.getByText('vigente')).toBeTruthy();
+  });
+
+  // ART-74: el modal dice el nivel entero y si la dotación está marcada
+  // como sospechosa. Los dos campos salen de la FILA, no de la ficha.
+  it('muestra la confianza de la dotación y la marca de sospecha', async () => {
+    await abrirDetalle({ dotacion: 32000, dotacion_confianza: 'BAJA', dotacion_sospechosa: true });
+
+    expect(await screen.findByText(/BAJA — planilla histórica/)).toBeTruthy();
+    expect(screen.getByText(/Sí — Dotación >5.000 — verificar contra F931/)).toBeTruthy();
+  });
+
+  it('no inventa confianza cuando la fila no la trae', async () => {
+    await abrirDetalle({ dotacion_confianza: null, dotacion_sospechosa: false });
+
+    expect(await screen.findByText('Confianza del origen')).toBeTruthy();
+    expect(screen.getByText('Confianza del origen').closest('div').textContent).toContain('Sin dato');
+    expect(screen.getByText('Dotación sospechosa').closest('div').textContent).toContain('No');
   });
 
   it('muestra las compañías descartadas por colocabilidad con su motivo', async () => {

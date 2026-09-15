@@ -11,7 +11,8 @@
 // empresa no elegible SE VEA -atenuada, con motivo y fecha de
 // habilitación-; que la alícuota de planilla salga marcada como no
 // verificada y la de ventanilla como verificada; que la dotación histórica
-// salga estimada y, pasados los 5.000, sospechosa; que OTRO_PRODUCTOR avise
+// salga estimada, que la confianza y la sospecha de la dotación (ART-74)
+// salgan de la fila y no se recalculen en el cliente; que OTRO_PRODUCTOR avise
 // que es media comisión; que los dos motivos de compañía sugerida nula se
 // distingan; y que el CSV se pida con Authorization y formato=csv.
 import React from 'react';
@@ -169,20 +170,51 @@ describe('ArtAccionComercialBoard', () => {
     expect(screen.getByText(/⚠ no verificada · PLANILLA/)).toBeTruthy();
   });
 
-  it('marca la dotación histórica como estimada y, pasados los 5.000, sospechosa', async () => {
+  it('marca la dotación histórica como estimada', async () => {
     mockLista([
-      fila({ dotacion: 120, dotacion_fuente: 'PLANILLA_HISTORICA' }),
-      fila({ empresa_id: 'e2', razon_social: 'GRANDE SA', dotacion: 9000, dotacion_fuente: 'PLANILLA_HISTORICA' }),
+      fila({ dotacion: 120, dotacion_fuente: 'PLANILLA_HISTORICA', dotacion_confianza: 'BAJA' }),
       fila({ empresa_id: 'e3', razon_social: 'MEDIDA SA', dotacion: 8000, dotacion_fuente: 'SRT' }),
     ]);
     render(<ArtAccionComercialBoard token={TOKEN} />);
-    await screen.findByText('GRANDE SA');
+    await screen.findByText('MEDIDA SA');
 
     expect(screen.getAllByText('estimada')).toHaveLength(1);
-    expect(screen.getByText(/sospechosa/)).toBeTruthy();
-    // La de fuente SRT no se marca aunque supere el techo: el techo sólo
-    // agrava una dotación YA estimada.
     expect(screen.getByText('MEDIDA SA').closest('tr').textContent).not.toContain('estimada');
+  });
+
+  // ART-74: la confianza del origen la manda el backend. La pantalla la
+  // muestra tal cual y, si viene null, no muestra NADA (no inventa un nivel).
+  it('muestra la confianza de la dotación y no inventa señal cuando viene null', async () => {
+    mockLista([
+      fila({ dotacion_confianza: 'ALTA' }),
+      fila({ empresa_id: 'e2', razon_social: 'MEDIA SA', dotacion_confianza: 'MEDIA' }),
+      fila({ empresa_id: 'e3', razon_social: 'BAJA SA', dotacion_confianza: 'BAJA' }),
+      fila({ empresa_id: 'e4', razon_social: 'SIN CONFIANZA SA', dotacion_confianza: null }),
+    ]);
+    render(<ArtAccionComercialBoard token={TOKEN} />);
+    await screen.findByText('SIN CONFIANZA SA');
+
+    expect(screen.getByText('confianza ALTA')).toBeTruthy();
+    expect(screen.getByText('confianza MEDIA')).toBeTruthy();
+    expect(screen.getByText('confianza BAJA')).toBeTruthy();
+    expect(screen.getByText('SIN CONFIANZA SA').closest('tr').textContent).not.toContain('confianza');
+  });
+
+  // ART-74: `dotacion_sospechosa` la decide el backend; la pantalla NO
+  // vuelve a comparar contra 5.000 ni oculta la fila.
+  it('marca la dotación sospechosa sólo cuando el backend lo dice', async () => {
+    mockLista([
+      fila({ empresa_id: 'e1', razon_social: 'EPE', dotacion: 32000, dotacion_sospechosa: true }),
+      fila({ empresa_id: 'e2', razon_social: 'CHICA SA', dotacion: 9000, dotacion_sospechosa: false }),
+      fila({ empresa_id: 'e3', razon_social: 'SIN DOTACION SA', dotacion: null, dotacion_sospechosa: true }),
+    ]);
+    render(<ArtAccionComercialBoard token={TOKEN} />);
+    await screen.findByText('EPE');
+
+    expect(screen.getAllByTitle('Dotación >5.000 — verificar contra F931')).toHaveLength(1);
+    expect(screen.getByText('CHICA SA').closest('tr').textContent).not.toContain('⚠');
+    // Sin dotación no hay número que marcar, aunque la bandera venga true.
+    expect(screen.getByText('SIN DOTACION SA').closest('tr').textContent).not.toContain('⚠');
   });
 
   it('avisa que OTRO_PRODUCTOR es media comisión', async () => {
