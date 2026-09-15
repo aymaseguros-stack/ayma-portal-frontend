@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icon } from '../Icons';
 import {
-  LIMIT_MAX_ACCION_COMERCIAL,
+  ErrorPaginaAccionComercial,
   ORDEN_ACCION_COMERCIAL_DEFAULT,
   descargarCsvAccionComercial,
-  obtenerListaAccionComercial,
+  obtenerListaCompletaAccionComercial,
 } from './artCarteraApi';
 import { aseguradoraLabel, decimalAr, numeroAr, pesosAr } from './artCarteraConstants';
 import { descargarBlobComoArchivo } from './descargaArchivo';
@@ -249,6 +249,11 @@ const ArtAccionComercialBoard = ({ token }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // D-1: la lista se pagina en el cliente. `parcial` guarda el corte cuando
+  // una página intermedia falla; `reintento` vuelve a disparar la carga.
+  const [parcial, setParcial] = useState(null);
+  const [reintento, setReintento] = useState(0);
+  const [progreso, setProgreso] = useState(null);
   const [descargando, setDescargando] = useState(false);
   const [errorCsv, setErrorCsv] = useState(null);
   const [avisoExport, setAvisoExport] = useState(null);
@@ -256,31 +261,53 @@ const ArtAccionComercialBoard = ({ token }) => {
 
   // SÓLO los parámetros que el endpoint conoce: uno que no conozca es 422,
   // no un filtro ignorado (ART-47).
+  // D-5: el `limit` NO va acá. El paginador pone limit/offset en cada página
+  // de la lista, y el export CSV lo ignora del lado del backend: mandarlo era
+  // ruido que hacía creer que el archivo salía cortado en 500.
   const filtrosServidor = useMemo(() => ({
     dias_ventana: VENTANAS.find((v) => v.id === ventana)?.dias ?? 365,
     solo_elegibles: soloElegibles,
     orden: ORDEN_ACCION_COMERCIAL_DEFAULT,
-    limit: LIMIT_MAX_ACCION_COMERCIAL,
   }), [ventana, soloElegibles]);
 
+  // D-1: se piden TODAS las páginas. El backend pagina de a 500 como mucho y
+  // devuelve el `total` real; presentar la primera página como si fuera el
+  // universo hacía que con "Todos" se vieran 500 de 653 empresas.
   useEffect(() => {
     let cancelado = false;
     setLoading(true);
     setError(null);
+    setParcial(null);
+    setData(null);
     (async () => {
       try {
-        const resultado = await obtenerListaAccionComercial(token, filtrosServidor);
+        const resultado = await obtenerListaCompletaAccionComercial(token, filtrosServidor, {
+          onProgreso: ({ items: traidos, total }) => {
+            if (!cancelado) setProgreso({ traidos: traidos.length, total });
+          },
+        });
         if (!cancelado) setData(resultado);
       } catch (err) {
-        if (!cancelado) setError(err.message);
+        if (cancelado) return;
+        if (err instanceof ErrorPaginaAccionComercial) {
+          // Las filas que SÍ llegaron se muestran, pero con el aviso de que
+          // falta gente: una lista corta sin aviso se cuenta como universo.
+          setData({ items: err.items, total: err.total, resumen: err.resumen });
+          setParcial({ traidas: err.items.length, total: err.total, mensaje: err.message });
+        } else {
+          setError(err.message);
+        }
       } finally {
         if (!cancelado) setLoading(false);
       }
     })();
     return () => { cancelado = true; };
-  }, [token, filtrosServidor]);
+  }, [token, filtrosServidor, reintento]);
 
   const items = useMemo(() => (Array.isArray(data?.items) ? data.items : []), [data]);
+
+  // M del contador: el `total` del backend, no las filas que haya en pantalla.
+  const totalBackend = Number.isFinite(data?.total) ? data.total : items.length;
 
   // Los dos filtros que el endpoint no tiene. Se aplican sobre las filas ya
   // traídas y NO tocan ningún valor: eligen qué filas se ven.
@@ -328,7 +355,7 @@ const ArtAccionComercialBoard = ({ token }) => {
           {resumen && (
             <p className="text-slate-500 text-xs mt-1">
               {numeroAr(filas.length)} empresas
-              {filas.length !== items.length ? ` de ${numeroAr(items.length)} traídas` : ''}
+              {filas.length !== totalBackend ? ` de ${numeroAr(totalBackend)}` : ''}
               {' · alícuota verificada en '}
               {decimalAr(resumen.cobertura_verificacion)}% de la lista traída
               {resumen.periodo_mercado ? ` · mercado ${resumen.periodo_mercado}` : ''}
@@ -427,6 +454,34 @@ const ArtAccionComercialBoard = ({ token }) => {
           los tiene. El CSV lo arma el backend, así que sale con el vencimiento y la elegibilidad
           elegidos, pero con todas las fuentes y con y sin teléfono.
         </p>
+      )}
+
+      {loading && (
+        <p role="status" className="text-sm text-slate-300 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2">
+          {progreso && progreso.total > progreso.traidos
+            ? `Cargando empresas: ${numeroAr(progreso.traidos)} de ${numeroAr(progreso.total)}...`
+            : 'Cargando empresas...'}
+        </p>
+      )}
+
+      {parcial && (
+        <div
+          role="alert"
+          className="text-sm text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2 flex items-center justify-between gap-3 flex-wrap"
+        >
+          <span>
+            Se cargaron {numeroAr(parcial.traidas)} de {numeroAr(parcial.total)} empresas — la lista
+            está incompleta, no la uses para armar listados.
+            {parcial.mensaje ? ` (${parcial.mensaje})` : ''}
+          </span>
+          <button
+            type="button"
+            onClick={() => setReintento((n) => n + 1)}
+            className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-sm"
+          >
+            Reintentar
+          </button>
+        </div>
       )}
 
       {error && (
@@ -547,7 +602,7 @@ const ArtAccionComercialBoard = ({ token }) => {
 
       {!loading && (
         <p className="text-xs text-slate-500">
-          {numeroAr(filas.length)} de {numeroAr(items.length)} filas traídas
+          {numeroAr(filas.length)} de {numeroAr(totalBackend)} filas traídas
           {hayFiltroDePantalla ? ' (filtros de pantalla aplicados)' : ''}.
         </p>
       )}

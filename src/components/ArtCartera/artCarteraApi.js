@@ -584,8 +584,9 @@ export const PARAMS_LISTA_ACCION_COMERCIAL = [
   'limit', 'offset', 'orden', 'formato',
 ];
 
-// Tope duro del backend (LIMIT_MAX). La lista son ~161 filas: se piden
-// todas de una y la pantalla no pagina.
+// Tope duro del backend (LIMIT_MAX): 500 filas por pedido. NO es el
+// universo. Con la ventana en "Todos" la lista pasa las 650 empresas, así
+// que el cliente pagina con limit/offset hasta juntar `total` (D-1).
 export const LIMIT_MAX_ACCION_COMERCIAL = 500;
 
 // `ventana_asc` = fecha de vencimiento ASC y, a igual fecha, comisión
@@ -613,6 +614,58 @@ export const obtenerListaAccionComercial = async (token, filtros = {}) => {
   );
   if (!res.ok) throw new Error(await formatApiError(res));
   return res.json();
+};
+
+// Error de una página intermedia: lleva adentro lo que SÍ se trajo, para
+// que la pantalla pueda mostrar las filas parciales diciendo que faltan.
+// Mostrar un tramo como si fuera el universo es el bug que esto evita.
+export class ErrorPaginaAccionComercial extends Error {
+  constructor(mensaje, { items, total, resumen }) {
+    super(mensaje);
+    this.name = 'ErrorPaginaAccionComercial';
+    this.items = items;
+    this.total = total;
+    this.resumen = resumen;
+  }
+}
+
+// Trae TODAS las páginas de la lista: primero limit=500/offset=0 y, mientras
+// las filas juntadas sean menos que el `total` que devuelve el backend,
+// sigue pidiendo con offset creciente. Se concatena en orden de llegada -el
+// orden lo fija el backend (`orden=ventana_asc`) y el cliente no reordena-.
+//
+// `onProgreso` se llama con {items, total} después de cada página para que
+// la pantalla pueda mostrar cuánto lleva. Si una página intermedia falla se
+// lanza ErrorPaginaAccionComercial con lo traído hasta ahí.
+export const obtenerListaCompletaAccionComercial = async (token, filtros = {}, { onProgreso } = {}) => {
+  const limit = LIMIT_MAX_ACCION_COMERCIAL;
+  const primera = await obtenerListaAccionComercial(token, { ...filtros, limit, offset: 0 });
+  const items = Array.isArray(primera.items) ? [...primera.items] : [];
+  const total = Number.isFinite(primera.total) ? primera.total : items.length;
+  const resumen = primera.resumen || null;
+  onProgreso?.({ items: [...items], total });
+
+  while (items.length < total) {
+    let pagina;
+    try {
+      pagina = await obtenerListaAccionComercial(token, { ...filtros, limit, offset: items.length });
+    } catch (err) {
+      throw new ErrorPaginaAccionComercial(err.message, { items, total, resumen });
+    }
+    const nuevos = Array.isArray(pagina.items) ? pagina.items : [];
+    // Página vacía con `total` más alto: el backend no va a dar más. Se corta
+    // acá en vez de girar para siempre, y el faltante queda a la vista.
+    if (nuevos.length === 0) {
+      throw new ErrorPaginaAccionComercial(
+        'El servidor dejó de devolver filas antes de completar la lista.',
+        { items, total, resumen },
+      );
+    }
+    items.push(...nuevos);
+    onProgreso?.({ items: [...items], total });
+  }
+
+  return { ...primera, items, total, resumen };
 };
 
 // ART-80 (backend PR #140): marca con la que el backend cierra un export
