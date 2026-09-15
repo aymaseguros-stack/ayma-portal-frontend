@@ -615,15 +615,83 @@ export const obtenerListaAccionComercial = async (token, filtros = {}) => {
   return res.json();
 };
 
+// ART-80 (backend PR #140): marca con la que el backend cierra un export
+// cortado. Va en la PRIMERA columna de la última fila del CSV.
+export const MARCA_TRUNCADO_EXPORT = '__TRUNCADO__';
+
+// Cuántos bytes del final del CSV se leen para buscar la marca de corte.
+// Sólo se usa cuando las cabeceras no se pueden leer (ver abajo): alcanza
+// con la cola porque la fila de corte es siempre la última.
+const COLA_CSV_BYTES = 4096;
+
+const enteroONull = (valor) => {
+  const n = Number.parseInt(valor, 10);
+  return Number.isFinite(n) ? n : null;
+};
+
+// Lee `X-Export-Filas` / `X-Export-Total` / `X-Export-Truncado`.
+//
+// Devuelve null cuando la cabecera de truncamiento NO está: eso NO es
+// "no truncado", es "no sé". Pasa de verdad en producción - el portal
+// vive en portal.aymaseguros.com.ar y la API en otro origen, y un header
+// propio sólo se puede leer desde JS si el backend lo declara en
+// `Access-Control-Expose-Headers`. Por eso existe el fallback sobre el
+// cuerpo: la fila `__TRUNCADO__` sí viaja adentro del archivo.
+const leerCabecerasExport = (res) => {
+  const get = (nombre) => {
+    try {
+      return res?.headers?.get?.(nombre) ?? null;
+    } catch {
+      return null;
+    }
+  };
+  const truncado = get('X-Export-Truncado');
+  if (truncado === null) return null;
+  return {
+    truncado: String(truncado).toLowerCase() === 'true',
+    filas: enteroONull(get('X-Export-Filas')),
+    total: enteroONull(get('X-Export-Total')),
+  };
+};
+
+// Fallback: la fila de corte que el backend escribe DENTRO del CSV. Su
+// segunda columna dice "se exportaron N de M filas", así que de ahí salen
+// los dos números cuando las cabeceras no llegaron.
+const leerCorteDelCuerpo = async (blob) => {
+  try {
+    const cola = blob.slice(Math.max(0, blob.size - COLA_CSV_BYTES));
+    const texto = await cola.text();
+    if (!texto.includes(MARCA_TRUNCADO_EXPORT)) {
+      return { truncado: false, filas: null, total: null };
+    }
+    const m = texto.match(/se exportaron\s+(\d+)\s+de\s+(\d+)\s+filas/i);
+    return {
+      truncado: true,
+      filas: m ? Number.parseInt(m[1], 10) : null,
+      total: m ? Number.parseInt(m[2], 10) : null,
+    };
+  } catch {
+    return { truncado: false, filas: null, total: null };
+  }
+};
+
 // Mismo corte, serializado por el backend (`?formato=csv`). Va por fetch
 // con Authorization y NO como un <a href>: la ruta es admin-only con JWT y
 // un link plano bajaría el 401 adentro del archivo. Mismo contrato que
 // descargarCsvPerformanceCompanias.
+//
+// ART-80 - EL EXPORT YA NO SE PAGINA: el backend ignora `limit`/`offset`
+// cuando `formato=csv` y exporta el universo entero de los filtros hasta
+// un techo de 10.000 filas. Si ese techo corta, lo declara. Devuelve
+// `{blob, exportacion}` y no el Blob pelado justamente para que la
+// pantalla pueda avisarlo.
 export const descargarCsvAccionComercial = async (token, filtros = {}) => {
   const res = await fetch(
     `${API_URL}${ACCION_COMERCIAL_PATH}${buildQuery({ ...sanearFiltrosAccionComercial(filtros), formato: 'csv' })}`,
     { headers: authHeader(token) },
   );
   if (!res.ok) throw new Error(await formatApiError(res));
-  return res.blob();
+  const blob = await res.blob();
+  const exportacion = leerCabecerasExport(res) || await leerCorteDelCuerpo(blob);
+  return { blob, exportacion };
 };
