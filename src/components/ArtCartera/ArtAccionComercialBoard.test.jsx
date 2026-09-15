@@ -352,7 +352,7 @@ describe('ArtAccionComercialBoard', () => {
     expect(screen.getByText(/2 empresas/)).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText('Razón social o CUIT'), { target: { value: 'otra' } });
-    expect(screen.getByText(/1 empresas de 2 traídas/)).toBeTruthy();
+    expect(screen.getByText(/1 empresas de 2/)).toBeTruthy();
   });
 
   it('avisa cuando el export vino truncado (X-Export-Truncado)', async () => {
@@ -418,6 +418,90 @@ describe('ArtAccionComercialBoard', () => {
       const llamada = globalThis.fetch.mock.calls.find(([u]) => String(u).includes('formato=csv'));
       expect(llamada).toBeTruthy();
       expect(llamada[1].headers.Authorization).toBe(`Bearer ${TOKEN}`);
+    });
+  });
+  // -------------------------------------------------------------------------
+  // D-1: la pantalla tiene que mostrar el MISMO universo que el CSV. El
+  // backend pagina de a 500 como mucho y devuelve el `total` real; pedir una
+  // sola página y presentarla como la lista completa hacía que con "Todos"
+  // se vieran 500 de 653 empresas.
+  // -------------------------------------------------------------------------
+
+  // Backend paginado: `total` fijo y páginas de a `porPagina` según el offset.
+  const mockListaPaginada = (total, { porPagina = 500, fallaOffset = null } = {}) => {
+    globalThis.fetch = vi.fn(async (url) => {
+      const params = new URL(String(url), 'http://localhost').searchParams;
+      const offset = Number(params.get('offset') || 0);
+      if (fallaOffset !== null && offset === fallaOffset) {
+        return { ok: false, status: 502, text: async () => 'Bad Gateway', json: async () => ({}) };
+      }
+      const items = [];
+      for (let i = offset; i < Math.min(offset + porPagina, total); i += 1) {
+        items.push(fila({ empresa_id: `e${i}`, razon_social: `EMPRESA ${i}` }));
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ total, items, resumen: { cobertura_verificacion: 10, periodo_mercado: '2026-08' } }),
+      };
+    });
+  };
+
+  const urlsDeLista = () => globalThis.fetch.mock.calls
+    .map(([u]) => String(u))
+    .filter((u) => !u.includes('formato=csv'));
+
+  it('con total > 500 pide una segunda página y la lista queda completa', async () => {
+    mockListaPaginada(653);
+    render(<ArtAccionComercialBoard token={TOKEN} />);
+
+    await screen.findByText('EMPRESA 652');
+    expect(screen.getByText('EMPRESA 0')).toBeTruthy();
+
+    const offsets = urlsDeLista().map((u) => new URL(u, 'http://localhost').searchParams.get('offset'));
+    expect(offsets).toEqual(['0', '500']);
+    expect(screen.getAllByRole('row').length).toBe(653 + 1); // + encabezado
+  }, 20000);
+
+  it('con total <= 500 hace una sola llamada', async () => {
+    mockListaPaginada(120);
+    render(<ArtAccionComercialBoard token={TOKEN} />);
+    await screen.findByText('EMPRESA 119');
+
+    expect(urlsDeLista().length).toBe(1);
+  });
+
+  it('si falla una página intermedia avisa cuántas faltan y no oculta el faltante', async () => {
+    mockListaPaginada(653, { fallaOffset: 500 });
+    render(<ArtAccionComercialBoard token={TOKEN} />);
+
+    const aviso = await screen.findByRole('alert');
+    expect(aviso.textContent).toContain('500');
+    expect(aviso.textContent).toContain('653');
+    // Las filas que sí llegaron se muestran, pero el pie dice el total real.
+    expect(screen.getByText('EMPRESA 0')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toBeTruthy();
+  }, 20000);
+
+  it('el contador usa el total del backend, no las filas en pantalla', async () => {
+    mockListaPaginada(653, { fallaOffset: 500 });
+    render(<ArtAccionComercialBoard token={TOKEN} />);
+    await screen.findByRole('alert');
+
+    expect(screen.getByText(/500 de 653 filas traídas/)).toBeTruthy();
+  }, 20000);
+
+  it('el export CSV no manda limit (D-5: el backend lo ignora en formato=csv)', async () => {
+    mockLista([fila()]);
+    render(<ArtAccionComercialBoard token={TOKEN} />);
+    await screen.findByText('ACME SA');
+
+    fireEvent.click(screen.getByRole('button', { name: /CSV/ }));
+
+    await waitFor(() => {
+      const llamada = globalThis.fetch.mock.calls.find(([u]) => String(u).includes('formato=csv'));
+      expect(llamada).toBeTruthy();
+      expect(new URL(String(llamada[0]), 'http://localhost').searchParams.get('limit')).toBeNull();
     });
   });
 });
