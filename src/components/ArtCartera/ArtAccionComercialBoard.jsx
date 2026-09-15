@@ -19,6 +19,37 @@ const VENTANAS = [
   { id: '90', label: 'Próximos 90 días', dias: 90 },
 ];
 
+// ART-81: la pantalla abre en 90 días, no en el tope de la ventana.
+// El subtítulo dice "a quién llamar hoy" y arrancar en 365 contradecía eso:
+// eran 646 filas, casi todas con el vencimiento a más de medio año. Las
+// otras opciones -incluida "Todos"- siguen disponibles sin cambios.
+const VENTANA_DEFAULT = '90';
+
+// Búsqueda por razón social O CUIT, sobre las filas YA TRAÍDAS. El endpoint
+// no tiene parámetro de texto (ver PARAMS_LISTA_ACCION_COMERCIAL): buscar
+// server-side sería un 422, no un filtro ignorado (ART-47).
+//
+// Se compara sin mayúsculas ni acentos, y el CUIT sin separadores: en la
+// base conviven "30-71000001-7" y "30710000017" según por dónde entró la
+// empresa, así que un CUIT tipeado con guiones tiene que encontrar los dos.
+const normalizarTextoBusqueda = (valor) => (valor ?? '')
+  .toString()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase()
+  .trim();
+
+const soloDigitos = (valor) => (valor ?? '').toString().replace(/\D/g, '');
+
+const filaCoincideBusqueda = (fila, termino) => {
+  const q = normalizarTextoBusqueda(termino);
+  if (!q) return true;
+  if (normalizarTextoBusqueda(fila.razon_social).includes(q)) return true;
+  const digitos = soloDigitos(termino);
+  if (digitos && soloDigitos(fila.cuit).includes(digitos)) return true;
+  return normalizarTextoBusqueda(fila.cuit).includes(q);
+};
+
 // Fuentes de `alicuota_actual_fuente` que la pantalla filtra. El valor sale
 // de la fila; el endpoint NO tiene parámetro para esto (ver PARAMS_LISTA en
 // app/api/v1/art_accion_comercial.py), así que se filtra sobre lo traído.
@@ -84,6 +115,9 @@ const TOOLTIP_DOTACION_SOSPECHOSA = 'Dotación >5.000 — verificar contra F931'
 
 const labelClass = 'block text-slate-400 text-xs mb-1';
 const selectClass = 'px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm';
+// Mismo lenguaje visual que el buscador de la pestaña "Cartera"
+// (ArtCarteraListado): mismo input y misma lupa adentro.
+const inputClass = 'px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm placeholder-slate-500';
 const thClass = 'text-left px-3 py-2 font-medium whitespace-nowrap';
 const badgeBase = 'inline-block text-[11px] px-1.5 py-0.5 rounded whitespace-nowrap';
 
@@ -208,7 +242,8 @@ const CeldaCompaniaSugerida = ({ fila }) => {
 // comisión actual DESC a igual fecha) y la pantalla no reordena.
 const ArtAccionComercialBoard = ({ token }) => {
   const [soloElegibles, setSoloElegibles] = useState(false);
-  const [ventana, setVentana] = useState('365');
+  const [ventana, setVentana] = useState(VENTANA_DEFAULT);
+  const [busqueda, setBusqueda] = useState('');
   const [fuenteAlicuota, setFuenteAlicuota] = useState('');
   const [telefono, setTelefono] = useState('');
   const [data, setData] = useState(null);
@@ -216,6 +251,7 @@ const ArtAccionComercialBoard = ({ token }) => {
   const [error, setError] = useState(null);
   const [descargando, setDescargando] = useState(false);
   const [errorCsv, setErrorCsv] = useState(null);
+  const [avisoExport, setAvisoExport] = useState(null);
   const [filaDetalle, setFilaDetalle] = useState(null);
 
   // SÓLO los parámetros que el endpoint conoce: uno que no conozca es 422,
@@ -252,17 +288,25 @@ const ArtAccionComercialBoard = ({ token }) => {
     if (fuenteAlicuota && f.alicuota_actual_fuente !== fuenteAlicuota) return false;
     if (telefono === 'con' && !f.telefono_principal) return false;
     if (telefono === 'sin' && f.telefono_principal) return false;
+    if (!filaCoincideBusqueda(f, busqueda)) return false;
     return true;
-  }), [items, fuenteAlicuota, telefono]);
+  }), [items, fuenteAlicuota, telefono, busqueda]);
 
-  const hayFiltroDePantalla = Boolean(fuenteAlicuota || telefono);
+  const hayFiltroDePantalla = Boolean(fuenteAlicuota || telefono || busqueda.trim());
+  // El buscador vacía la tabla por una razón distinta a los otros filtros
+  // (no hay coincidencias para lo tipeado), y el estado vacío lo dice.
+  const sinResultadosDeBusqueda = Boolean(busqueda.trim()) && filas.length === 0;
 
   const exportarCsv = useCallback(async () => {
     setDescargando(true);
     setErrorCsv(null);
+    setAvisoExport(null);
     try {
-      const blob = await descargarCsvAccionComercial(token, filtrosServidor);
+      const { blob, exportacion } = await descargarCsvAccionComercial(token, filtrosServidor);
       descargarBlobComoArchivo(blob, 'accion-comercial-art.csv');
+      // Sólo se avisa cuando el backend DIJO que cortó. Sin truncamiento no
+      // se muestra nada: un cartel en cada descarga se deja de leer.
+      if (exportacion?.truncado) setAvisoExport(exportacion);
     } catch (err) {
       setErrorCsv(err.message);
     } finally {
@@ -283,8 +327,10 @@ const ArtAccionComercialBoard = ({ token }) => {
           </p>
           {resumen && (
             <p className="text-slate-500 text-xs mt-1">
-              {numeroAr(data.total) ?? '0'} empresas · alícuota verificada en{' '}
-              {decimalAr(resumen.cobertura_verificacion)}% de la lista
+              {numeroAr(filas.length)} empresas
+              {filas.length !== items.length ? ` de ${numeroAr(items.length)} traídas` : ''}
+              {' · alícuota verificada en '}
+              {decimalAr(resumen.cobertura_verificacion)}% de la lista traída
               {resumen.periodo_mercado ? ` · mercado ${resumen.periodo_mercado}` : ''}
             </p>
           )}
@@ -302,7 +348,35 @@ const ArtAccionComercialBoard = ({ token }) => {
 
       {errorCsv && <p className="text-sm text-red-300">{errorCsv}</p>}
 
+      {avisoExport && (
+        <p
+          role="status"
+          className="text-sm text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2"
+        >
+          El CSV salió cortado:{' '}
+          {avisoExport.filas !== null && avisoExport.filas !== undefined && avisoExport.total
+            ? `se exportaron ${numeroAr(avisoExport.filas)} de ${numeroAr(avisoExport.total)} filas`
+            : 'no salieron todas las filas'}
+          . Achicá la ventana de vencimiento y volvé a exportar. La última fila del archivo
+          lo dice también (__TRUNCADO__).
+        </p>
+      )}
+
       <div className="bg-slate-800 rounded-2xl border border-slate-700 p-4 flex items-end gap-4 flex-wrap">
+        <div>
+          <label className={labelClass} htmlFor="ac-busqueda">Razón social o CUIT</label>
+          <div className="relative">
+            <Icon name="magnifying-glass" className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <input
+              id="ac-busqueda"
+              type="text"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar..."
+              className={`${inputClass} w-56 pl-9`}
+            />
+          </div>
+        </div>
         <div>
           <label className={labelClass} htmlFor="ac-ventana">Vencimiento</label>
           <select
@@ -383,7 +457,9 @@ const ArtAccionComercialBoard = ({ token }) => {
             {!loading && filas.length === 0 && (
               <tr>
                 <td colSpan={COLUMNAS} className="px-3 py-8 text-center text-slate-500">
-                  Sin empresas para estos filtros.
+                  {sinResultadosDeBusqueda
+                    ? `Sin resultados para "${busqueda.trim()}".`
+                    : 'Sin empresas para estos filtros.'}
                 </td>
               </tr>
             )}

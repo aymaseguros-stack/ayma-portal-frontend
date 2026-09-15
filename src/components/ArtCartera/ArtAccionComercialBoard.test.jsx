@@ -63,10 +63,20 @@ const respuesta = (items) => ({
   },
 });
 
-const mockLista = (items) => {
+// `cabecerasCsv` simula las X-Export-* del backend (ART-80, PR #140).
+// `null` es el caso en que NO se pueden leer -CORS sin
+// Access-Control-Expose-Headers- y la pantalla cae al cuerpo del CSV.
+const mockLista = (items, { cabecerasCsv = {}, cuerpoCsv = 'csv' } = {}) => {
   globalThis.fetch = vi.fn(async (url) => {
     if (String(url).includes('formato=csv')) {
-      return { ok: true, status: 200, blob: async () => new Blob(['csv']) };
+      return {
+        ok: true,
+        status: 200,
+        headers: cabecerasCsv === null
+          ? { get: () => null }
+          : { get: (n) => cabecerasCsv[n] ?? null },
+        blob: async () => new Blob([cuerpoCsv]),
+      };
     }
     return { ok: true, status: 200, json: async () => respuesta(items) };
   });
@@ -121,6 +131,18 @@ describe('ArtAccionComercialBoard', () => {
       const urls = globalThis.fetch.mock.calls.map(([u]) => String(u));
       expect(urls.some((u) => u.includes('solo_elegibles=true'))).toBe(true);
     });
+  });
+
+  it('la ventana arranca en 90 días, no en el tope de 365 (ART-81)', async () => {
+    mockLista([fila()]);
+    render(<ArtAccionComercialBoard token={TOKEN} />);
+    await screen.findByText('ACME SA');
+
+    expect(screen.getByLabelText('Vencimiento').value).toBe('90');
+    expect(new URL(urlDeLaLista()).searchParams.get('dias_ventana')).toBe('90');
+    // "Todos" sigue estando: se cambió el valor inicial, no la lista.
+    const opciones = [...screen.getByLabelText('Vencimiento').options].map((o) => o.value);
+    expect(opciones).toContain('365');
   });
 
   it('el filtro de vencimiento mueve dias_ventana', async () => {
@@ -270,6 +292,119 @@ describe('ArtAccionComercialBoard', () => {
     fireEvent.change(screen.getByLabelText('Teléfono'), { target: { value: 'sin' } });
     expect(screen.getByText('DE PLANILLA SA')).toBeTruthy();
     expect(screen.queryByText('ACME SA')).toBeNull();
+  });
+
+  it('el buscador filtra por razón social parcial, sin mayúsculas ni acentos', async () => {
+    mockLista([
+      fila(),
+      fila({ empresa_id: 'e2', cuit: '30-71000002-5', razon_social: 'LOGÍSTICA DEL SUR SRL' }),
+    ]);
+    render(<ArtAccionComercialBoard token={TOKEN} />);
+    await screen.findByText('ACME SA');
+
+    const pedidos = globalThis.fetch.mock.calls.length;
+    fireEvent.change(screen.getByLabelText('Razón social o CUIT'), { target: { value: 'logistica' } });
+
+    expect(screen.getByText('LOGÍSTICA DEL SUR SRL')).toBeTruthy();
+    expect(screen.queryByText('ACME SA')).toBeNull();
+    // Filtra en el cliente: el endpoint no tiene parámetro de texto (ART-47).
+    expect(globalThis.fetch.mock.calls.length).toBe(pedidos);
+  });
+
+  it('el buscador encuentra por CUIT tipeado con y sin guiones', async () => {
+    mockLista([
+      fila(),
+      fila({ empresa_id: 'e2', cuit: '30710000025', razon_social: 'OTRA SA' }),
+    ]);
+    render(<ArtAccionComercialBoard token={TOKEN} />);
+    await screen.findByText('ACME SA');
+
+    const input = screen.getByLabelText('Razón social o CUIT');
+
+    fireEvent.change(input, { target: { value: '30-71000002-5' } });
+    expect(screen.getByText('OTRA SA')).toBeTruthy();
+    expect(screen.queryByText('ACME SA')).toBeNull();
+
+    fireEvent.change(input, { target: { value: '30710000017' } });
+    expect(screen.getByText('ACME SA')).toBeTruthy();
+    expect(screen.queryByText('OTRA SA')).toBeNull();
+  });
+
+  it('sin coincidencias muestra un estado vacío que dice qué se buscó', async () => {
+    mockLista([fila()]);
+    render(<ArtAccionComercialBoard token={TOKEN} />);
+    await screen.findByText('ACME SA');
+
+    fireEvent.change(screen.getByLabelText('Razón social o CUIT'), { target: { value: 'zzz' } });
+
+    expect(screen.getByText('Sin resultados para "zzz".')).toBeTruthy();
+    expect(screen.queryByText('ACME SA')).toBeNull();
+  });
+
+  it('el contador del encabezado cuenta las filas que quedan tras los filtros', async () => {
+    mockLista([
+      fila(),
+      fila({ empresa_id: 'e2', cuit: '30-71000002-5', razon_social: 'OTRA SA' }),
+    ]);
+    render(<ArtAccionComercialBoard token={TOKEN} />);
+    await screen.findByText('ACME SA');
+
+    expect(screen.getByText(/2 empresas/)).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('Razón social o CUIT'), { target: { value: 'otra' } });
+    expect(screen.getByText(/1 empresas de 2 traídas/)).toBeTruthy();
+  });
+
+  it('avisa cuando el export vino truncado (X-Export-Truncado)', async () => {
+    mockLista([fila()], {
+      cabecerasCsv: {
+        'X-Export-Truncado': 'true',
+        'X-Export-Filas': '10000',
+        'X-Export-Total': '12345',
+      },
+    });
+    render(<ArtAccionComercialBoard token={TOKEN} />);
+    await screen.findByText('ACME SA');
+
+    fireEvent.click(screen.getByRole('button', { name: /CSV/ }));
+
+    const aviso = await screen.findByRole('status');
+    expect(aviso.textContent).toContain('10.000');
+    expect(aviso.textContent).toContain('12.345');
+  });
+
+  it('no avisa nada cuando el export salió completo', async () => {
+    mockLista([fila()], {
+      cabecerasCsv: {
+        'X-Export-Truncado': 'false',
+        'X-Export-Filas': '161',
+        'X-Export-Total': '161',
+      },
+    });
+    render(<ArtAccionComercialBoard token={TOKEN} />);
+    await screen.findByText('ACME SA');
+
+    fireEvent.click(screen.getByRole('button', { name: /CSV/ }));
+
+    await waitFor(() => {
+      expect(globalThis.fetch.mock.calls.some(([u]) => String(u).includes('formato=csv'))).toBe(true);
+    });
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('si las cabeceras no se pueden leer, el aviso sale de la fila __TRUNCADO__ del CSV', async () => {
+    mockLista([fila()], {
+      cabecerasCsv: null,
+      cuerpoCsv: 'cuit,razon_social\n30-71000001-7,ACME SA\n__TRUNCADO__,"EXPORT TRUNCADO: se exportaron 10000 de 12345 filas (techo de seguridad 10000)."\n',
+    });
+    render(<ArtAccionComercialBoard token={TOKEN} />);
+    await screen.findByText('ACME SA');
+
+    fireEvent.click(screen.getByRole('button', { name: /CSV/ }));
+
+    const aviso = await screen.findByRole('status');
+    expect(aviso.textContent).toContain('10.000');
+    expect(aviso.textContent).toContain('12.345');
   });
 
   it('el CSV se pide con Authorization y formato=csv, no como link plano', async () => {
