@@ -14,7 +14,7 @@
     "@tailwindcss/vite": "^4.1.17",
     "axios": "^1.18.0",
     "html2canvas": "^1.4.1",
-    "jspdf": "^3.0.4",
+    "jspdf": "^4.2.1",
     "lucide-react": "^0.554.0",
     "qrcode": "^1.5.4",
     "react": "^19.2.0",
