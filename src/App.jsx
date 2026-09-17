@@ -20,6 +20,8 @@ import TwoFactorLoginStep from './components/Auth/TwoFactorLoginStep';
 import SecurityPanel from './components/Security/SecurityPanel';
 import { normalizeList, formatApiError, authHeader, SESSION_EXPIRED_EVENT } from './utils/api';
 import { fechaCorta } from './utils/fechas';
+import { extraerRol, esRolAdmin } from './utils/roles';
+import { anularLead } from './utils/leadsApi';
 
 // API Configuration
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
@@ -35,16 +37,6 @@ const MOTIVOS_BAJA = [
   'Cancelación voluntaria',
   'Otro'
 ];
-
-// Extrae el rol de usuario en mayúsculas desde distintas fuentes posibles,
-// ya que el backend no es consistente sobre si el campo se llama "role" o "tipo_usuario"
-const extraerRol = (...fuentes) => {
-  for (const fuente of fuentes) {
-    if (fuente) return String(fuente).toUpperCase();
-  }
-  return null;
-};
-const esRolAdmin = (rol) => rol === 'ADMIN' || rol === 'ADMINISTRADOR';
 
 // Persistencia del toggle Dashboard/Mail/CRM (fila 2) entre recargas: qué
 // panel está activo y, dentro de CRM, cuál fue el último sub-tab (fila 3)
@@ -187,6 +179,7 @@ function App() {
     }
   };
   const [convirtiendoLeadId, setConvirtiendoLeadId] = useState(null);
+  const [anulandoLeadId, setAnulandoLeadId] = useState(null);
   // Ficha liviana de actividad de un Lead (timeline unificado), abierta desde
   // el botón "Actividad" de la tabla de Leads.
   const [leadActividadAbierto, setLeadActividadAbierto] = useState(null);
@@ -403,6 +396,36 @@ function App() {
       alert('Error: ' + err.message);
     } finally {
       setConvirtiendoLeadId(null);
+    }
+  };
+
+  // Recarga solo la lista de leads (tras anular, convertir, etc.) sin volver
+  // a pedir todo el dashboard.
+  const cargarLeads = async () => {
+    if (!state.token) return;
+    try {
+      const res = await fetchAPI('/api/v1/leads/', state.token);
+      setState(prev => ({ ...prev, leads: normalizeList(res).items, leadsError: null }));
+    } catch (err) {
+      console.error('Error recargando leads:', err);
+      setState(prev => ({ ...prev, leadsError: err.message }));
+    }
+  };
+
+  // Anular un lead: baja LÓGICA. El lead no desaparece de la lista, queda
+  // marcado como anulado (mismo criterio visual que las propuestas ART
+  // anuladas: badge gris tachado y fila atenuada).
+  const anularLeadConfirmando = async (lead) => {
+    const nombre = lead.nombre || 'este lead';
+    if (!confirm(`¿Anular a ${nombre}? El lead queda marcado como anulado y deja de trabajarse.`)) return;
+    setAnulandoLeadId(lead.id);
+    try {
+      await anularLead(state.token, lead.id, 'Anulado desde el CRM');
+      await cargarLeads();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      setAnulandoLeadId(null);
     }
   };
 
@@ -1337,12 +1360,14 @@ function App() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-700">
-                      {state.leads.map((lead, idx) => (
-                        <tr key={lead.id || idx} className="hover:bg-slate-700/30">
+                      {state.leads.map((lead, idx) => {
+                        const anulado = lead.estado === 'anulado';
+                        return (
+                        <tr key={lead.id || idx} className={`hover:bg-slate-700/30 ${anulado ? 'opacity-60' : ''}`}>
                           <td className="px-4 py-3 text-sm text-slate-400">
                             {fechaCorta(lead.created_at)}
                           </td>
-                          <td className="px-4 py-3 text-sm font-medium">{lead.nombre}</td>
+                          <td className={`px-4 py-3 text-sm font-medium ${anulado ? 'line-through text-slate-500' : ''}`}>{lead.nombre}</td>
                           <td className="px-4 py-3 text-sm">
                             <a href={`https://wa.me/54${lead.telefono}`} target="_blank" rel="noopener noreferrer" 
                                className="text-green-400 hover:text-green-300">
@@ -1365,6 +1390,7 @@ function App() {
                               lead.estado === 'contactado' ? 'bg-yellow-500/20 text-yellow-400' :
                               lead.estado === 'cotizado' ? 'bg-blue-500/20 text-blue-400' :
                               lead.estado === 'cliente' ? 'bg-emerald-500/20 text-emerald-400' :
+                              lead.estado === 'anulado' ? 'bg-slate-600/40 text-slate-300 line-through' :
                               'bg-slate-500/20 text-slate-400'
                             }`}>
                               {lead.estado}
@@ -1381,7 +1407,7 @@ function App() {
                               </button>
                               {lead.persona_id ? (
                                 <span className="text-xs text-slate-500">Ya convertido</span>
-                              ) : (
+                              ) : anulado ? null : (
                                 <button
                                   onClick={() => convertirLeadEnPersona(lead.id)}
                                   disabled={convirtiendoLeadId === lead.id}
@@ -1391,10 +1417,23 @@ function App() {
                                   {convirtiendoLeadId === lead.id ? 'Convirtiendo...' : 'Convertir en persona'}
                                 </button>
                               )}
+                              {anulado ? (
+                                <span className="text-xs text-slate-500">Anulado</span>
+                              ) : (
+                                <button
+                                  onClick={() => anularLeadConfirmando(lead)}
+                                  disabled={anulandoLeadId === lead.id}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-red-500/50 text-red-300 hover:bg-red-500/10 disabled:opacity-50 rounded transition text-sm whitespace-nowrap"
+                                >
+                                  <Icon name="x-mark" size={14} />
+                                  {anulandoLeadId === lead.id ? 'Anulando...' : 'Anular'}
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
