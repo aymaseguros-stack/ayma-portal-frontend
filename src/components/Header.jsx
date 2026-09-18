@@ -3,22 +3,41 @@ import ScoringIndicator from './ScoringIndicator';
 import { SUB_TABS_POR_SECCION, seccionDeTab } from './navTabs';
 
 // Barra superior (D-NAV-1), en este orden:
-//   Dashboard · Mail · CRM | Clientes · Seguros | Denuncia · Soporte
+//   Dashboard · Mail · CRM | Clientes · Seguros ... Denuncia · Soporte
 // Mail, CRM, Clientes y Seguros son admin-only (mismo criterio de permisos
 // que antes: esAdminOAgente). "Seguros" agrupa Pólizas y Siniestros, que
 // dejaron de estar sueltos en la barra. "Cartera ART" ya no es un ítem
 // superior: el módulo completo vive ahora en CRM > Empresas > Universo ART.
-const SECCIONES_SUPERIORES = (admin) => [
+//
+// Las etiquetas, el orden lógico y los permisos no cambian: lo único que se
+// reparte es el layout. Navegación de sección propiamente dicha (arranca
+// pegada al logo) vs. accesos de servicio (Denuncia · Soporte), que viajan
+// con el grupo de la derecha en lugar de quedar flotando en el medio.
+const SECCIONES_IZQUIERDA = (admin) => sinDivisoresColgando([
   { id: 'dashboard', label: 'Dashboard' },
   ...(admin ? [{ id: 'mail', label: 'Mail' }] : []),
   ...(admin ? [{ id: 'crm', label: 'CRM' }] : []),
   { divisor: true, id: 'div-1' },
   ...(admin ? [{ id: 'clientes', label: 'Clientes' }] : []),
   { id: 'seguros', label: 'Seguros' },
-  { divisor: true, id: 'div-2' },
+]);
+
+const SECCIONES_DERECHA = () => [
   { id: 'denuncia', label: 'Denuncia' },
   { id: 'soporte', label: 'Soporte' },
 ];
+
+// Con menos ítems (un CLIENTE no ve Mail/CRM/Clientes) un divisor puede
+// quedar al borde o pegado a otro divisor. Se descartan esos casos para que
+// el bloque no muestre una barra suelta sin nada que separar.
+function sinDivisoresColgando(items) {
+  return items.filter((item, i) => {
+    if (!item.divisor) return true;
+    const anterior = items[i - 1];
+    const siguiente = items[i + 1];
+    return Boolean(anterior) && Boolean(siguiente) && !anterior.divisor && !siguiente.divisor;
+  });
+}
 
 // Padding horizontal ajustado (no la fuente) para que todo entre en una sola
 // fila a 1280/1440px; overflow-x-auto + shrink-0 como red de seguridad si aun
@@ -59,14 +78,20 @@ const Header = ({
   return (
     <header className="bg-slate-800/50 backdrop-blur border-b border-slate-700">
       <div className="max-w-7xl mx-auto px-4">
-        {/* Fila 1: logo + barra superior a la izquierda, badge de rol y Salir
-            a la derecha. flex-wrap: si no entran las dos mitades en una sola
-            línea (~<1024px), el bloque de la derecha pasa a su propia línea
-            en vez de apretar el nav contra la pared. El nav conserva
+        {/* Fila 1: dos bloques y un solo espaciador elástico entre ellos.
+            IZQUIERDA (pegada al logo, separación fija y corta): logo + mail,
+            luego la navegación de secciones. DERECHA (contra el borde):
+            Denuncia · Soporte, el contador de scoring, el badge de rol y
+            Salir. El `ml-auto` del bloque derecho es el único espacio
+            elástico; antes el `justify-between` lo metía en medio del nav y
+            dejaba Denuncia/Soporte flotando.
+            flex-wrap: si no entran las dos mitades en una sola línea
+            (~<1024px), el bloque de la derecha pasa a su propia línea en vez
+            de apretar el nav contra la pared. Los nav conservan
             overflow-x-auto + .nav-scroll como red de seguridad en viewports
             angostos. */}
-        <div className="py-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="py-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div data-testid="header-izquierda" className="flex items-center gap-3 min-w-0">
             <div className="shrink-0">
               <h1 className="text-xl font-bold text-white leading-tight">AYMA</h1>
               {displayName && (
@@ -75,7 +100,7 @@ const Header = ({
             </div>
 
             <nav className="nav-scroll flex items-center gap-1 overflow-x-auto min-w-0">
-              {SECCIONES_SUPERIORES(isAdmin).map((item) =>
+              {SECCIONES_IZQUIERDA(isAdmin).map((item) =>
                 item.divisor ? (
                   <div key={item.id} className="w-px self-stretch bg-slate-700/60 shrink-0 mx-1" />
                 ) : (
@@ -91,7 +116,18 @@ const Header = ({
             </nav>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0 ml-auto">
+          <div data-testid="header-derecha" className="flex items-center gap-3 shrink-0 ml-auto">
+            <nav className="nav-scroll flex items-center gap-1 overflow-x-auto min-w-0">
+              {SECCIONES_DERECHA().map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => onSeccionChange(item.id)}
+                  className={tabButtonClass(seccionActiva === item.id)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </nav>
             {isAdmin && <ScoringIndicator token={token} />}
             {rol && (
               <div className="relative" ref={menuRolRef}>
