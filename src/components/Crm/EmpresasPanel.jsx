@@ -11,6 +11,7 @@ import OportunidadFichaModal from './OportunidadFichaModal';
 import OfertasSugeridas from './OfertasSugeridas';
 import GruposPanel from './GruposPanel';
 import CarteraArtPanel from './CarteraArtPanel';
+import ArtCarteraView from '../ArtCartera/ArtCarteraView';
 import { ArtDatos, ArtHistorial } from './EmpresaArtSection';
 import Timeline from './Timeline';
 import CiiuLabel from '../Ciiu/CiiuLabel';
@@ -33,7 +34,8 @@ const ROLES = ['TITULAR', 'GERENTE', 'RRHH', 'CONTADOR', 'COMPRAS', 'OTRO'];
 const SUB_TABS = [
   { id: 'empresas', label: 'Empresas' },
   { id: 'grupos', label: 'Grupos empresariales' },
-  { id: 'cartera_art', label: 'Cartera ART' },
+  { id: 'universo_art', label: 'Universo ART' },
+  { id: 'cartera_art', label: 'Verificación Contrato SRT' },
 ];
 
 const subTabButtonClass = (active) =>
@@ -362,6 +364,23 @@ const EmpresasPanel = ({
       ))}
     </div>
   );
+
+  // "Universo ART" (D-NAV-1): el módulo ART completo, que antes colgaba del
+  // ítem superior "Cartera ART", ahora es esta sub-pestaña. El id del panel
+  // preexistente ('cartera_art', hoy "Verificación Contrato SRT") no cambia.
+  if (subTab === 'universo_art') {
+    return (
+      <ArtCarteraView
+        token={token}
+        encabezado={(
+          <div className="flex items-center gap-4 flex-wrap">
+            <h2 className="text-2xl font-bold">Empresas</h2>
+            {subTabPills}
+          </div>
+        )}
+      />
+    );
+  }
 
   if (subTab === 'cartera_art') {
     return (

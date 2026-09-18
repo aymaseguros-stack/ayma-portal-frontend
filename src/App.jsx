@@ -4,12 +4,11 @@ import IntelligencePanel from './components/Admin/IntelligencePanel';
 import MarketingStudio from './components/Admin/MarketingStudio';
 import RecuperablesPanel from './components/Admin/RecuperablesPanel';
 import Header from './components/Header';
-import { CRM_TAB_IDS, SINIESTROS_TABS, MAIL_TAB_IDS } from './components/navTabs';
+import { CRM_TAB_IDS, SINIESTROS_TABS, MAIL_TAB_IDS, SECCIONES, seccionDeTab } from './components/navTabs';
 import MailPanel from './components/Mail/MailPanel';
 import PolizasView from './components/PolizasView';
 import PersonasPanel from './components/Crm/PersonasPanel';
 import EmpresasPanel from './components/Crm/EmpresasPanel';
-import ArtCarteraView from './components/ArtCartera/ArtCarteraView';
 import PipelineKanban from './components/Crm/PipelineKanban';
 import OportunidadesPanel from './components/Crm/OportunidadesPanel';
 import AgendaPanel from './components/Crm/AgendaPanel';
@@ -38,19 +37,21 @@ const MOTIVOS_BAJA = [
   'Otro'
 ];
 
-// Persistencia del toggle Dashboard/Mail/CRM (fila 2) entre recargas: qué
-// panel está activo y, dentro de CRM, cuál fue el último sub-tab (fila 3)
-// visitado. Siniestros ya no es parte de este toggle: es su propia vista de
-// fila 1 (ver NAV_TABS en Header.jsx) y siempre abre en "En curso".
-const PANELES_PRINCIPALES_VALIDOS = ['dashboard', 'mail', 'crm'];
+// Persistencia de la navegación entre recargas: qué sección superior está
+// activa (Dashboard · Mail · CRM | Clientes · Seguros | Denuncia · Soporte) y,
+// dentro de las que tienen sub-menú, cuál fue el último sub-tab visitado.
+// La sección activa NO es un estado aparte en tiempo de ejecución: se deriva
+// siempre del activeTab (seccionDeTab). Acá solo se persiste para poder
+// restaurar la pantalla al recargar.
 const PANEL_PRINCIPAL_KEY = 'ayma_panel_principal';
 const ULTIMO_TAB_CRM_KEY = 'ayma_ultimo_tab_crm';
 const ULTIMO_TAB_MAIL_KEY = 'ayma_ultimo_tab_mail';
+const ULTIMO_TAB_SEGUROS_KEY = 'ayma_ultimo_tab_seguros';
 
-const leerPanelPrincipal = () => {
+const leerSeccionGuardada = () => {
   try {
     const guardado = localStorage.getItem(PANEL_PRINCIPAL_KEY);
-    return PANELES_PRINCIPALES_VALIDOS.includes(guardado) ? guardado : 'dashboard';
+    return SECCIONES.includes(guardado) ? guardado : 'dashboard';
   } catch {
     return 'dashboard';
   }
@@ -71,8 +72,16 @@ const leerUltimoTabMail = () => {
     return 'mail-bandeja';
   }
 };
-const guardarPanelPrincipal = (panel) => {
-  try { localStorage.setItem(PANEL_PRINCIPAL_KEY, panel); } catch { /* localStorage no disponible */ }
+const leerUltimoTabSeguros = () => {
+  try {
+    const guardado = localStorage.getItem(ULTIMO_TAB_SEGUROS_KEY);
+    return guardado === 'admin-siniestros' ? guardado : 'polizas';
+  } catch {
+    return 'polizas';
+  }
+};
+const guardarSeccion = (seccion) => {
+  try { localStorage.setItem(PANEL_PRINCIPAL_KEY, seccion); } catch { /* localStorage no disponible */ }
 };
 const guardarUltimoTabCRM = (tab) => {
   try { localStorage.setItem(ULTIMO_TAB_CRM_KEY, tab); } catch { /* localStorage no disponible */ }
@@ -80,17 +89,26 @@ const guardarUltimoTabCRM = (tab) => {
 const guardarUltimoTabMail = (tab) => {
   try { localStorage.setItem(ULTIMO_TAB_MAIL_KEY, tab); } catch { /* localStorage no disponible */ }
 };
+const guardarUltimoTabSeguros = (tab) => {
+  try { localStorage.setItem(ULTIMO_TAB_SEGUROS_KEY, tab); } catch { /* localStorage no disponible */ }
+};
+
+// Tab con el que abre cada sección superior.
+const tabInicialDeSeccion = (seccion) => {
+  if (seccion === 'crm') return leerUltimoTabCRM();
+  if (seccion === 'mail') return leerUltimoTabMail();
+  if (seccion === 'seguros') return leerUltimoTabSeguros();
+  if (seccion === 'clientes') return 'clientes';
+  if (seccion === 'denuncia') return 'siniestro';
+  if (seccion === 'soporte') return 'soporte';
+  return 'dashboard';
+};
 
 // Estado inicial
 const initialState = {
   user: null,
   token: null,
-  activeTab: (() => {
-    const panel = leerPanelPrincipal();
-    if (panel === 'crm') return leerUltimoTabCRM();
-    if (panel === 'mail') return leerUltimoTabMail();
-    return 'dashboard';
-  })(),
+  activeTab: tabInicialDeSeccion(leerSeccionGuardada()),
   polizas: [],
   vehiculos: [],
   clientes: [],
@@ -110,8 +128,6 @@ const initialState = {
 
 function App() {
   const [state, setState] = useState(initialState);
-  // Toggle Dashboard/CRM de la fila 2 del header, persistido entre recargas.
-  const [panelPrincipal, setPanelPrincipal] = useState(leerPanelPrincipal);
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   // Login en dos pasos: cuando /auth/login devuelve requiere_2fa, se guarda
   // el token_temporal acá y se muestra la segunda pantalla en vez del
@@ -490,21 +506,19 @@ function App() {
     if (MAIL_TAB_IDS.includes(tab)) {
       guardarUltimoTabMail(tab);
     }
+    if (tab === 'polizas' || tab === 'admin-siniestros') {
+      guardarUltimoTabSeguros(tab);
+    }
+    const seccion = seccionDeTab(tab);
+    if (seccion) {
+      guardarSeccion(seccion);
+    }
   };
 
-  // Toggle Dashboard/Mail/CRM (fila 2 del header): Dashboard reemplaza el
-  // contenido por el dashboard; Mail y CRM vuelven al último sub-tab que se
-  // haya visitado dentro de cada uno.
-  const cambiarPanelPrincipal = (panel) => {
-    setPanelPrincipal(panel);
-    guardarPanelPrincipal(panel);
-    if (panel === 'dashboard') {
-      setActiveTab('dashboard');
-    } else if (panel === 'crm') {
-      setActiveTab(leerUltimoTabCRM());
-    } else {
-      setActiveTab(leerUltimoTabMail());
-    }
+  // Click en un ítem de la barra superior: la sección abre en su tab inicial
+  // (para Mail, CRM y Seguros, el último sub-tab visitado dentro de cada una).
+  const cambiarSeccion = (seccion) => {
+    setActiveTab(tabInicialDeSeccion(seccion));
   };
 
   // Verificar si es admin. Prioriza el rol devuelto por /api/v1/dashboard/
@@ -700,7 +714,7 @@ function App() {
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
         <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 w-full max-w-md border border-white/20 shadow-2xl">
           <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-white mb-2">Portal AYMA</h1>
+            <h1 className="text-4xl font-bold text-white mb-2">AYMA</h1>
             <p className="text-blue-200">Gestión de Seguros</p>
           </div>
           
@@ -760,8 +774,7 @@ function App() {
         isAdmin={isAdmin()}
         onLogout={handleLogout}
         token={state.token}
-        panelPrincipal={panelPrincipal}
-        onPanelPrincipalChange={cambiarPanelPrincipal}
+        onSeccionChange={cambiarSeccion}
       />
 
       {/* Contenido Principal */}
@@ -1933,11 +1946,6 @@ function App() {
         {/* MAIL (bandeja de correo del portal) */}
         {MAIL_TAB_IDS.includes(state.activeTab) && isAdmin() && (
           <MailPanel token={state.token} subTab={state.activeTab} />
-        )}
-
-        {/* CARTERA ART (Bloque 5) - listado + matriz 15 aseguradoras + leads */}
-        {state.activeTab === 'art-cartera' && isAdmin() && (
-          <ArtCarteraView token={state.token} />
         )}
 
         {/* PIPELINE (CRM Fase 2 - Kanban) */}

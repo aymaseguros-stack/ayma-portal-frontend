@@ -14,13 +14,13 @@ import ArtPerformanceBoard from './ArtPerformanceBoard';
 import ArtAccionComercialBoard from './ArtAccionComercialBoard';
 
 const SUB_TABS = [
-  { id: 'cartera', label: 'Cartera' },
+  { id: 'cartera', label: 'Universo' },
   { id: 'accion-comercial', label: 'Acción comercial' },
   { id: 'desbloqueos', label: 'Desbloqueos' },
   { id: 'tecnica-vencida', label: 'Técnica vencida' },
   { id: 'referencial-tarifas', label: 'Referencial de Tarifas' },
   { id: 'leads-calientes', label: 'Leads Calientes' },
-  { id: 'relevamiento', label: 'Relevamiento' },
+  { id: 'relevamiento', label: 'Relevamiento Tarifa' },
   { id: 'analisis', label: 'Análisis' },
   { id: 'mercado', label: 'Mercado' },
   { id: 'performance', label: 'Performance' },
@@ -58,7 +58,12 @@ const subTabButtonClass = (active) =>
 // (app/api/v1/art_accion_comercial.py) - a quién llamar hoy, con el detalle
 // de empresa en modal sobre la lista y no en pantalla propia, para no perder
 // la fila siguiente mientras se llama.
-const ArtCarteraView = ({ token }) => {
+// `encabezado` lo inyecta EmpresasPanel (título "Empresas" + sus
+// sub-pestañas) porque este módulo pasó a ser la sub-pestaña "Universo ART"
+// de CRM > Empresas (D-NAV-1): dejó de tener un ítem propio en la barra
+// superior. Los ids de sub-tab NO cambian; solo sus etiquetas
+// ("Cartera" -> "Universo", "Relevamiento" -> "Relevamiento Tarifa").
+const ArtCarteraView = ({ token, encabezado = null }) => {
   const [subTab, setSubTab] = useState('cartera');
   const [cuitFicha, setCuitFicha] = useState(null);
   // Grilla de cotización (BLOQUE 1.2): un nivel MÁS ADENTRO de la ficha,
@@ -110,6 +115,7 @@ const ArtCarteraView = ({ token }) => {
 
   return (
     <div className="space-y-6">
+      {encabezado}
       <nav className="flex items-center gap-1 flex-wrap">
         {SUB_TABS.map((tab) => (
           <button
