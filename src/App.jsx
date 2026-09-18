@@ -715,7 +715,7 @@ function App() {
         <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 w-full max-w-md border border-white/20 shadow-2xl">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-white mb-2">AYMA</h1>
-            <p className="text-blue-200">Gestión de Seguros</p>
+            <p className="text-blue-200">Gestión de Riesgos</p>
           </div>
           
           <form onSubmit={handleLogin} className="space-y-4">
