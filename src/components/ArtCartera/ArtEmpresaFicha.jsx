@@ -315,7 +315,7 @@ const ArtEmpresaFicha = ({ token, cuit, onVolver, onAbrirGrilla, onAbrirPropuest
       className="inline-flex items-center gap-1.5 text-slate-400 hover:text-white text-sm transition"
     >
       <Icon name="arrow-left" size={14} />
-      Volver a la cartera
+      Volver al universo
     </button>
   );
 

@@ -75,7 +75,7 @@ const ArtCarteraListado = ({ token, onAbrirFicha }) => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-2xl font-bold">Cartera ART</h2>
+        <h2 className="text-2xl font-bold">Universo ART</h2>
         <p className="text-slate-400 text-sm">{total.toLocaleString('es-AR')} empresas</p>
       </div>
 

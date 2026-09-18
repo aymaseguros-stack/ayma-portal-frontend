@@ -41,3 +41,39 @@ export const MAIL_TABS = [
 ];
 
 export const MAIL_TAB_IDS = MAIL_TABS.map(t => t.id);
+
+// Sub-menú de la entrada superior "Seguros" (D-NAV-1): Pólizas y Siniestros
+// dejan de estar sueltos en la barra superior y pasan a colgar de acá.
+// Siniestros conserva sus propias sub-pestañas dentro de la vista
+// (SINIESTROS_TABS).
+export const SEGUROS_TABS = [
+  { id: 'polizas', label: 'Pólizas' },
+  { id: 'admin-siniestros', label: 'Siniestros' },
+];
+
+export const SEGUROS_TAB_IDS = ['polizas', 'admin-siniestros', 'siniestros-resueltos'];
+
+// Única fuente de verdad de "qué ítem superior está activo": se deriva del
+// activeTab, no de un estado paralelo. Antes había dos estados
+// independientes (panelPrincipal + activeTab) y por eso, estando en
+// Siniestros, CRM seguía resaltado y su submenú seguía visible.
+export const SECCIONES = ['dashboard', 'mail', 'crm', 'clientes', 'seguros', 'denuncia', 'soporte'];
+
+export const seccionDeTab = (tab) => {
+  if (tab === 'dashboard') return 'dashboard';
+  if (MAIL_TAB_IDS.includes(tab)) return 'mail';
+  if (CRM_TAB_IDS.includes(tab)) return 'crm';
+  if (tab === 'clientes') return 'clientes';
+  if (SEGUROS_TAB_IDS.includes(tab)) return 'seguros';
+  if (tab === 'siniestro') return 'denuncia';
+  if (tab === 'soporte') return 'soporte';
+  return null; // 'datos', 'seguridad': no pertenecen a la barra superior
+};
+
+// Sub-menú de fila 2 por sección activa. Dashboard, Clientes, Denuncia y
+// Soporte no tienen sub-menú.
+export const SUB_TABS_POR_SECCION = {
+  mail: MAIL_TABS,
+  crm: CRM_TABS,
+  seguros: SEGUROS_TABS,
+};

@@ -1,14 +1,23 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ScoringIndicator from './ScoringIndicator';
-import { CRM_TABS, MAIL_TABS } from './navTabs';
+import { SUB_TABS_POR_SECCION, seccionDeTab } from './navTabs';
 
-// Nav de fila 1 (junto al toggle): Pólizas / Clientes / Siniestros. "Clientes"
-// y "Siniestros" son admin-only.
-const NAV_TABS = (admin) => [
-  { id: 'polizas', label: 'Pólizas' },
+// Barra superior (D-NAV-1), en este orden:
+//   Dashboard · Mail · CRM | Clientes · Seguros | Denuncia · Soporte
+// Mail, CRM, Clientes y Seguros son admin-only (mismo criterio de permisos
+// que antes: esAdminOAgente). "Seguros" agrupa Pólizas y Siniestros, que
+// dejaron de estar sueltos en la barra. "Cartera ART" ya no es un ítem
+// superior: el módulo completo vive ahora en CRM > Empresas > Universo ART.
+const SECCIONES_SUPERIORES = (admin) => [
+  { id: 'dashboard', label: 'Dashboard' },
+  ...(admin ? [{ id: 'mail', label: 'Mail' }] : []),
+  ...(admin ? [{ id: 'crm', label: 'CRM' }] : []),
+  { divisor: true, id: 'div-1' },
   ...(admin ? [{ id: 'clientes', label: 'Clientes' }] : []),
-  ...(admin ? [{ id: 'admin-siniestros', label: 'Siniestros' }] : []),
-  ...(admin ? [{ id: 'art-cartera', label: 'Cartera ART' }] : []),
+  { id: 'seguros', label: 'Seguros' },
+  { divisor: true, id: 'div-2' },
+  { id: 'denuncia', label: 'Denuncia' },
+  { id: 'soporte', label: 'Soporte' },
 ];
 
 // Padding horizontal ajustado (no la fuente) para que todo entre en una sola
@@ -19,29 +28,19 @@ const tabButtonClass = (active) =>
     active ? 'bg-blue-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
   }`;
 
-const toggleButtonClass = (active) =>
-  `px-2 py-1.5 rounded-md text-sm font-medium whitespace-nowrap transition shrink-0 ${
-    active ? 'bg-blue-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
-  }`;
-
-// Sub-tabs de la fila 2 según el toggle activo de la fila 1. Dashboard no
-// tiene fila 2 (se pinta el dashboard directamente en el contenido).
-// Siniestros no es un toggle: es su propia vista en la fila 1, con
-// sub-pestañas propias (ver navTabs.SINIESTROS_TABS), igual que Pólizas.
-const SUB_TABS_POR_PANEL = {
-  mail: MAIL_TABS,
-  crm: CRM_TABS,
-};
-
-// IDs de la vista Siniestros (fila 1), para resaltar el tab aunque el
-// usuario esté en su sub-pestaña "Resueltos".
-const SINIESTROS_VIEW_IDS = ['admin-siniestros', 'siniestros-resueltos'];
-
 const Header = ({
   displayName, rol, activeTab, setActiveTab, isAdmin, onLogout, token,
-  panelPrincipal, onPanelPrincipalChange,
+  onSeccionChange,
 }) => {
-  const subTabs = isAdmin ? SUB_TABS_POR_PANEL[panelPrincipal] : null;
+  // Un solo estado de "sección activa": se deriva del activeTab. No hay
+  // estado paralelo que pueda quedar desincronizado.
+  const seccionActiva = seccionDeTab(activeTab);
+  // Siniestros sigue siendo admin-only: para un cliente, "Seguros" solo
+  // muestra Pólizas.
+  const subTabsDeSeccion = SUB_TABS_POR_SECCION[seccionActiva] || null;
+  const subTabs = subTabsDeSeccion
+    ? subTabsDeSeccion.filter((t) => isAdmin || t.id === 'polizas')
+    : null;
 
   // Menú del badge de rol: única entrada al día es "Seguridad" (2FA).
   const [menuRolAbierto, setMenuRolAbierto] = useState(false);
@@ -60,17 +59,12 @@ const Header = ({
   return (
     <header className="bg-slate-800/50 backdrop-blur border-b border-slate-700">
       <div className="max-w-7xl mx-auto px-4">
-        {/* Fila 1: logo + toggle Dashboard / Mail / CRM + nav Pólizas /
-            Clientes / Siniestros a la izquierda (separados por un divisor
-            vertical sutil), y a la derecha Denuncia + Soporte + badge de rol
-            + Salir. flex-wrap: si no entran las dos mitades en una sola
-            línea (~<1024px), el bloque de acciones de la derecha pasa a su
-            propia línea en vez de apretar el nav de la izquierda contra la
-            pared - antes eso dejaba "Cartera ART" apretado a un ancho casi
-            nulo dentro de un overflow-x-auto invisible (bug real a ~824px).
-            El nav en sí conserva overflow-x-auto + .nav-scroll (scrollbar
-            visible, no overlay auto-hide) como red de seguridad en
-            viewports angostos donde ni con la línea propia entra entero. */}
+        {/* Fila 1: logo + barra superior a la izquierda, badge de rol y Salir
+            a la derecha. flex-wrap: si no entran las dos mitades en una sola
+            línea (~<1024px), el bloque de la derecha pasa a su propia línea
+            en vez de apretar el nav contra la pared. El nav conserva
+            overflow-x-auto + .nav-scroll como red de seguridad en viewports
+            angostos. */}
         <div className="py-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
           <div className="flex items-center gap-3 min-w-0">
             <div className="shrink-0">
@@ -80,63 +74,24 @@ const Header = ({
               )}
             </div>
 
-            <div className="flex items-center gap-0.5 bg-slate-900/40 rounded-lg p-0.5 shrink-0">
-              <button
-                onClick={() => onPanelPrincipalChange('dashboard')}
-                className={toggleButtonClass(panelPrincipal === 'dashboard')}
-              >
-                Dashboard
-              </button>
-              {isAdmin && (
-                <button
-                  onClick={() => onPanelPrincipalChange('mail')}
-                  className={toggleButtonClass(panelPrincipal === 'mail')}
-                >
-                  Mail
-                </button>
-              )}
-              {isAdmin && (
-                <button
-                  onClick={() => onPanelPrincipalChange('crm')}
-                  className={toggleButtonClass(panelPrincipal === 'crm')}
-                >
-                  CRM
-                </button>
-              )}
-            </div>
-
-            <div className="w-px self-stretch bg-slate-700/60 shrink-0" />
-
             <nav className="nav-scroll flex items-center gap-1 overflow-x-auto min-w-0">
-              {NAV_TABS(isAdmin).map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={tabButtonClass(
-                    tab.id === 'admin-siniestros'
-                      ? SINIESTROS_VIEW_IDS.includes(activeTab)
-                      : activeTab === tab.id
-                  )}
-                >
-                  {tab.label}
-                </button>
-              ))}
+              {SECCIONES_SUPERIORES(isAdmin).map((item) =>
+                item.divisor ? (
+                  <div key={item.id} className="w-px self-stretch bg-slate-700/60 shrink-0 mx-1" />
+                ) : (
+                  <button
+                    key={item.id}
+                    onClick={() => onSeccionChange(item.id)}
+                    className={tabButtonClass(seccionActiva === item.id)}
+                  >
+                    {item.label}
+                  </button>
+                )
+              )}
             </nav>
           </div>
 
           <div className="flex items-center gap-3 shrink-0 ml-auto">
-            <button
-              onClick={() => setActiveTab('siniestro')}
-              className={tabButtonClass(activeTab === 'siniestro')}
-            >
-              Denuncia
-            </button>
-            <button
-              onClick={() => setActiveTab('soporte')}
-              className={tabButtonClass(activeTab === 'soporte')}
-            >
-              Soporte
-            </button>
             {isAdmin && <ScoringIndicator token={token} />}
             {rol && (
               <div className="relative" ref={menuRolRef}>
@@ -169,8 +124,8 @@ const Header = ({
           </div>
         </div>
 
-        {/* Fila 2: sub-tabs del toggle activo, en su propia línea debajo de
-            la fila 1. Dashboard no tiene fila 2. */}
+        {/* Fila 2: sub-menú de la sección activa (Mail, CRM o Seguros), en su
+            propia línea. Fuera de esas secciones no se muestra nada. */}
         {subTabs && (
           <div className="border-t border-slate-700/60 py-2">
             <nav className="nav-scroll flex items-center gap-1 overflow-x-auto">
@@ -178,7 +133,11 @@ const Header = ({
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={tabButtonClass(activeTab === tab.id)}
+                  className={tabButtonClass(
+                    tab.id === 'admin-siniestros'
+                      ? activeTab === 'admin-siniestros' || activeTab === 'siniestros-resueltos'
+                      : activeTab === tab.id
+                  )}
                 >
                   {tab.label}
                 </button>
