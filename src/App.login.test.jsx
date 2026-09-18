@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 //
 // D-NAV-1, punto 1: la pantalla de login dice "AYMA" (antes "Portal AYMA").
+// Retoque de marca: el subtitulo dice "Gestion de Riesgos" (antes "Gestion de Seguros").
 // El header interno no se toca.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -18,6 +19,7 @@ describe('pantalla de login', () => {
     render(<App />);
     expect(screen.getByRole('heading', { name: 'AYMA' })).toBeTruthy();
     expect(screen.queryByText('Portal AYMA')).toBeNull();
-    expect(screen.getByText('Gestión de Seguros')).toBeTruthy();
+    expect(screen.getByText('Gestión de Riesgos')).toBeTruthy();
+    expect(screen.queryByText('Gestión de Seguros')).toBeNull();
   });
 });
