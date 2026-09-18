@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 //
 // D-NAV-1: barra superior reorganizada. Se verifica (a) un solo ítem superior
-// activo a la vez, (b) el submenú del CRM no aparece fuera de CRM, y (c) que
-// todas las pantallas del menú nuevo siguen siendo alcanzables.
+// activo a la vez, (b) el submenú del CRM no aparece fuera de CRM, (c) que
+// todas las pantallas del menú nuevo siguen siendo alcanzables y (d) el
+// reparto de la fila 1 en dos bloques (izquierda pegada al logo, derecha
+// contra el borde). El reparto se mide por estructura del DOM, no por píxeles:
+// jsdom no hace layout.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
@@ -116,5 +119,60 @@ describe('alcanzabilidad', () => {
 
     CRM_TABS.forEach(t => fireEvent.click(screen.getAllByText(t.label)[0]));
     expect(tabs).toEqual(CRM_TABS.map(t => t.id));
+  });
+});
+
+describe('reparto de la fila 1 en dos bloques', () => {
+  const bloques = () => ({
+    izquierda: screen.getByTestId('header-izquierda'),
+    derecha: screen.getByTestId('header-derecha'),
+  });
+  const enBloque = (bloque, label) =>
+    Array.from(bloque.querySelectorAll('button')).some((b) => b.textContent === label);
+
+  it('Clientes y Seguros viven en el bloque izquierdo, junto al logo', () => {
+    pintar('dashboard');
+    const { izquierda, derecha } = bloques();
+    expect(izquierda.querySelector('h1').textContent).toBe('AYMA');
+    ['Dashboard', 'Mail', 'CRM', 'Clientes', 'Seguros'].forEach((label) => {
+      expect(enBloque(izquierda, label)).toBe(true);
+      expect(enBloque(derecha, label)).toBe(false);
+    });
+  });
+
+  it('Denuncia y Soporte viven en el bloque derecho, con Salir', () => {
+    pintar('dashboard');
+    const { izquierda, derecha } = bloques();
+    ['Denuncia', 'Soporte', 'Salir'].forEach((label) => {
+      expect(enBloque(derecha, label)).toBe(true);
+      expect(enBloque(izquierda, label)).toBe(false);
+    });
+  });
+
+  it('el único espacio elástico está entre los dos bloques', () => {
+    pintar('dashboard');
+    const { izquierda, derecha } = bloques();
+    // El ml-auto del bloque derecho es el que empuja: la fila no usa
+    // justify-between, que repartiría el hueco dentro del nav izquierdo.
+    expect(derecha.className).toContain('ml-auto');
+    expect(izquierda.parentElement.className).not.toContain('justify-between');
+  });
+
+  it('un CLIENTE mantiene el reparto con menos ítems y sin divisor colgando', () => {
+    pintar('polizas', { isAdmin: false, rol: 'cliente' });
+    const { izquierda, derecha } = bloques();
+    ['Dashboard', 'Seguros'].forEach((l) => expect(enBloque(izquierda, l)).toBe(true));
+    ['Mail', 'CRM', 'Clientes'].forEach((l) => expect(enBloque(izquierda, l)).toBe(false));
+    ['Denuncia', 'Soporte'].forEach((l) => expect(enBloque(derecha, l)).toBe(true));
+
+    // Ningún divisor al borde del nav ni pegado a otro divisor.
+    const nav = izquierda.querySelector('nav');
+    const hijos = Array.from(nav.children);
+    const esDivisor = (el) => el.tagName !== 'BUTTON';
+    expect(esDivisor(hijos[0])).toBe(false);
+    expect(esDivisor(hijos[hijos.length - 1])).toBe(false);
+    hijos.forEach((el, i) => {
+      if (esDivisor(el)) expect(esDivisor(hijos[i + 1])).toBe(false);
+    });
   });
 });
