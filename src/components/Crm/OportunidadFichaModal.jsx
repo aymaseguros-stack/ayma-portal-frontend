@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Icon } from '../Icons';
 import Modal from '../Modal';
 import { Dato } from './FichaHelpers';
@@ -13,10 +13,16 @@ import CotizacionEntregadaModal from './CotizacionEntregadaModal';
 import TransicionEstadoModal from './TransicionEstadoModal';
 import {
   ESTADO_CRM_BADGE, CANALES_VALIDOS, MOTIVOS_PERDIDA_VALIDOS,
-  ACTO_A_ESTADO, formatMoneda,
+  ACTO_A_ESTADO, ACTO_LABEL, formatMoneda,
 } from './oportunidadConstants';
+import { interaccionesQueParecenActo } from './actosAMano';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
+
+// Dónde se ofrece "Registrar cotización entregada". El acto COTIZACION lleva
+// a POTENCIAL, así que los estados desde los que se entrega una cotización por
+// primera vez son DATO y PROSPECTO: ahí es la acción principal del día a día.
+const ESTADOS_QUE_COTIZAN = ['DATO', 'PROSPECTO'];
 
 const FICHA_TABS = [
   { id: 'datos', label: 'Datos' },
@@ -60,6 +66,7 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
   // `estado_crm`: el estado se deriva del acto registrado. Lo único explícito
   // son LOOP y RECUPERABLE, cada uno con sus campos obligatorios.
   const [mostrarCotizacion, setMostrarCotizacion] = useState(false);
+  const botonCotizacionRef = useRef(null);
   const [transicionDestino, setTransicionDestino] = useState(null);
   const [avisoPipeline, setAvisoPipeline] = useState(null);
 
@@ -273,6 +280,17 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
 
   const cerrada = detalle && detalle.resultado !== 'EN_CURSO';
   const esCliente = detalle?.estado_crm === 'CLIENTE';
+  const puedeCotizar = !cerrada && ESTADOS_QUE_COTIZAN.includes(detalle?.estado_crm);
+
+  // Interacciones cuyo asunto delata un acto escrito a mano (ver actosAMano.js).
+  // NO se convierten solas: el aviso lleva al botón y decide la persona.
+  const actosEscritosAMano = interaccionesQueParecenActo(detalle?.interacciones);
+  const irAlBotonDeCotizacion = () => {
+    const boton = botonCotizacionRef.current;
+    if (!boton) return;
+    boton.scrollIntoView({ block: 'center' });
+    boton.focus();
+  };
 
   return (
     <Modal
@@ -323,6 +341,36 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
 
           {duplicadosAdjuntos.length > 0 && <AvisoDuplicadosAdjuntos duplicados={duplicadosAdjuntos} />}
 
+          {puedeCotizar && actosEscritosAMano.length > 0 && (
+            <div className="bg-amber-500/15 border border-amber-500/40 text-amber-200 px-4 py-3 rounded-lg text-sm space-y-2">
+              <p>
+                Hay {actosEscritosAMano.length} interacción(es) con un asunto de acto escrito a mano
+                {' '}({actosEscritosAMano.map((x) => ACTO_LABEL[x.acto] || x.acto).filter((v, i, a) => a.indexOf(v) === i).join(', ')}).
+                {' '}Una interacción suma +2 y NO mueve el estado: para que la cotización cuente
+                hay que registrarla con el botón <strong>Registrar cotización entregada</strong>,
+                que guarda compañía y premio, mueve la oportunidad a POTENCIAL y programa el seguimiento.
+              </p>
+              <ul className="list-disc list-inside text-amber-300/80 text-xs">
+                {actosEscritosAMano.slice(0, 3).map((x) => (
+                  <li key={x.interaccion.id}>
+                    {x.interaccion.asunto}
+                    {x.interaccion.fecha && <span className="text-amber-300/60"> · {fechaHora(x.interaccion.fecha)}</span>}
+                  </li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                onClick={irAlBotonDeCotizacion}
+                className="text-amber-100 underline hover:text-white text-sm"
+              >
+                Ir a "Registrar cotización entregada"
+              </button>
+              <p className="text-amber-300/60 text-xs">
+                La interacción NO se convierte sola: si era sólo una nota, dejala como está.
+              </p>
+            </div>
+          )}
+
           {avisoPipeline && (
             <div className="bg-blue-500/15 border border-blue-500/40 text-blue-200 px-4 py-2 rounded-lg text-sm">
               {avisoPipeline}
@@ -335,7 +383,15 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
             </div>
           )}
 
-          <div className="flex items-center justify-between flex-wrap gap-3">
+          {/* Tabs y acciones en DOS filas. Iban en una sola
+              (`justify-between`) con la fila de botones en un `flex gap-2`
+              SIN `flex-wrap`, dentro de un modal `max-w-3xl` cuyo contenedor
+              es `overflow-y-auto` (o sea, recortado en horizontal): con cinco
+              botones la fila medía más que el modal y los del medio - entre
+              ellos "Registrar cotización entregada" - quedaban fuera de la
+              parte visible. El botón estaba en el bundle y en el DOM; no se
+              veía. */}
+          <div className="space-y-3">
             <div className="flex gap-1 overflow-x-auto">
               {FICHA_TABS.map(t => (
                 <button
@@ -352,26 +408,31 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
                 </button>
               ))}
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => { setErrorAccion(null); setMostrarInteraccion(true); }}
-                className="inline-flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition text-sm"
+                className="inline-flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition text-sm whitespace-nowrap"
               >
                 <Icon name="chat-bubble" />
                 Registrar interacción
               </button>
+              {/* Al lado de "Registrar interacción" a propósito: es la acción
+                  del día a día y va donde el usuario ya está mirando. */}
+              {puedeCotizar && (
+                <button
+                  ref={botonCotizacionRef}
+                  onClick={() => { setErrorAccion(null); setAvisoPipeline(null); setMostrarCotizacion(true); }}
+                  className="inline-flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg transition text-sm whitespace-nowrap"
+                >
+                  <Icon name="document-text" />
+                  Registrar cotización entregada
+                </button>
+              )}
               {!cerrada && (
                 <>
                   <button
-                    onClick={() => { setErrorAccion(null); setAvisoPipeline(null); setMostrarCotizacion(true); }}
-                    className="inline-flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg transition text-sm"
-                  >
-                    <Icon name="document-text" />
-                    Registrar cotización entregada
-                  </button>
-                  <button
                     onClick={() => { setErrorAccion(null); setAvisoPipeline(null); setTransicionDestino('LOOP'); }}
-                    className="inline-flex items-center gap-2 px-3 py-2 bg-yellow-600/80 hover:bg-yellow-600 rounded-lg transition text-sm"
+                    className="inline-flex items-center gap-2 px-3 py-2 bg-yellow-600/80 hover:bg-yellow-600 rounded-lg transition text-sm whitespace-nowrap"
                   >
                     <Icon name="clock" />
                     Pasar a LOOP
@@ -381,7 +442,7 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
                   {esCliente && (
                     <button
                       onClick={() => { setErrorAccion(null); setAvisoPipeline(null); setTransicionDestino('RECUPERABLE'); }}
-                      className="inline-flex items-center gap-2 px-3 py-2 bg-orange-600/80 hover:bg-orange-600 rounded-lg transition text-sm"
+                      className="inline-flex items-center gap-2 px-3 py-2 bg-orange-600/80 hover:bg-orange-600 rounded-lg transition text-sm whitespace-nowrap"
                     >
                       <Icon name="exclamation-triangle" />
                       Marcar recuperable
@@ -389,7 +450,7 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
                   )}
                   <button
                     onClick={() => { setErrorAccion(null); setMostrarCierre(true); }}
-                    className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition text-sm"
+                    className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition text-sm whitespace-nowrap"
                   >
                     <Icon name="check-badge" />
                     Cerrar oportunidad
