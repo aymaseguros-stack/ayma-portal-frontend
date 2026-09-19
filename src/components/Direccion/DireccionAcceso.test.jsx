@@ -11,7 +11,7 @@ import { CRM_TABS, DIRECCION_TABS, SUB_TABS_POR_SECCION, seccionDeTab } from '..
 
 vi.mock('../ScoringIndicator', () => ({ default: () => null }));
 
-const ITEMS_SUPERIORES = ['Dashboard', 'Mail', 'CRM', 'Clientes', 'Seguros', 'Dirección', 'Denuncia', 'Soporte'];
+const ITEMS_SUPERIORES = ['Dashboard', 'Mail', 'CRM', 'Dirección', 'Clientes', 'Seguros', 'Denuncia', 'Soporte'];
 const activo = (boton) => boton.className.includes('bg-blue-600');
 
 const pintar = (activeTab, props = {}) =>
@@ -33,13 +33,13 @@ beforeEach(() => { globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, js
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe('entrada superior "Dirección"', () => {
-  it('es visible para ADMIN, después de Seguros', () => {
+  it('es visible para ADMIN, inmediatamente después del toggle Dashboard/Mail/CRM', () => {
     pintar('dashboard');
     const labels = screen.getAllByRole('button')
       .map(b => b.textContent)
       .filter(t => ITEMS_SUPERIORES.includes(t));
     expect(labels).toEqual(ITEMS_SUPERIORES);
-    expect(labels.indexOf('Dirección')).toBe(labels.indexOf('Seguros') + 1);
+    expect(labels.indexOf('Dirección')).toBe(labels.indexOf('CRM') + 1);
   });
 
   // isAdmin=false cubre a EMPLEADO, CLIENTE y AGENTE por igual: el Header
