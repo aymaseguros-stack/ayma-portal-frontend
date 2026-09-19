@@ -4,8 +4,12 @@ import IntelligencePanel from './components/Admin/IntelligencePanel';
 import MarketingStudio from './components/Admin/MarketingStudio';
 import RecuperablesPanel from './components/Admin/RecuperablesPanel';
 import Header from './components/Header';
-import { CRM_TAB_IDS, SINIESTROS_TABS, MAIL_TAB_IDS, SECCIONES, seccionDeTab } from './components/navTabs';
+import { CRM_TAB_IDS, SINIESTROS_TABS, MAIL_TAB_IDS, DIRECCION_TAB_IDS, SECCIONES, seccionDeTab } from './components/navTabs';
 import MailPanel from './components/Mail/MailPanel';
+import DireccionTablero from './components/Direccion/DireccionTablero';
+import DireccionGerencias from './components/Direccion/DireccionGerencias';
+import DireccionProveedores from './components/Direccion/DireccionProveedores';
+import DireccionSeguridad from './components/Direccion/DireccionSeguridad';
 import PolizasView from './components/PolizasView';
 import PersonasPanel from './components/Crm/PersonasPanel';
 import EmpresasPanel from './components/Crm/EmpresasPanel';
@@ -47,6 +51,7 @@ const PANEL_PRINCIPAL_KEY = 'ayma_panel_principal';
 const ULTIMO_TAB_CRM_KEY = 'ayma_ultimo_tab_crm';
 const ULTIMO_TAB_MAIL_KEY = 'ayma_ultimo_tab_mail';
 const ULTIMO_TAB_SEGUROS_KEY = 'ayma_ultimo_tab_seguros';
+const ULTIMO_TAB_DIRECCION_KEY = 'ayma_ultimo_tab_direccion';
 
 const leerSeccionGuardada = () => {
   try {
@@ -80,6 +85,14 @@ const leerUltimoTabSeguros = () => {
     return 'polizas';
   }
 };
+const leerUltimoTabDireccion = () => {
+  try {
+    const guardado = localStorage.getItem(ULTIMO_TAB_DIRECCION_KEY);
+    return DIRECCION_TAB_IDS.includes(guardado) ? guardado : 'direccion-tablero';
+  } catch {
+    return 'direccion-tablero';
+  }
+};
 const guardarSeccion = (seccion) => {
   try { localStorage.setItem(PANEL_PRINCIPAL_KEY, seccion); } catch { /* localStorage no disponible */ }
 };
@@ -92,12 +105,16 @@ const guardarUltimoTabMail = (tab) => {
 const guardarUltimoTabSeguros = (tab) => {
   try { localStorage.setItem(ULTIMO_TAB_SEGUROS_KEY, tab); } catch { /* localStorage no disponible */ }
 };
+const guardarUltimoTabDireccion = (tab) => {
+  try { localStorage.setItem(ULTIMO_TAB_DIRECCION_KEY, tab); } catch { /* localStorage no disponible */ }
+};
 
 // Tab con el que abre cada sección superior.
 const tabInicialDeSeccion = (seccion) => {
   if (seccion === 'crm') return leerUltimoTabCRM();
   if (seccion === 'mail') return leerUltimoTabMail();
   if (seccion === 'seguros') return leerUltimoTabSeguros();
+  if (seccion === 'direccion') return leerUltimoTabDireccion();
   if (seccion === 'clientes') return 'clientes';
   if (seccion === 'denuncia') return 'siniestro';
   if (seccion === 'soporte') return 'soporte';
@@ -158,6 +175,11 @@ function App() {
   const [ticketEnviado, setTicketEnviado] = useState(null);
 
   // Estados para admin de siniestros
+  // Dirección: código de la gerencia cuya ficha está abierta (null = listado).
+  // Vive acá y no dentro del panel para que el click en una tarjeta del
+  // Tablero pueda abrir la ficha al saltar al sub-tab Gerencias.
+  const [gerenciaAbierta, setGerenciaAbierta] = useState(null);
+
   const [siniestrosAdmin, setSiniestrosAdmin] = useState([]);
   const [siniestroSeleccionado, setSiniestroSeleccionado] = useState(null);
   const [nuevoEstado, setNuevoEstado] = useState('');
@@ -508,6 +530,9 @@ function App() {
     }
     if (tab === 'polizas' || tab === 'admin-siniestros') {
       guardarUltimoTabSeguros(tab);
+    }
+    if (DIRECCION_TAB_IDS.includes(tab)) {
+      guardarUltimoTabDireccion(tab);
     }
     const seccion = seccionDeTab(tab);
     if (seccion) {
@@ -1999,6 +2024,34 @@ function App() {
         {/* INTELLIGENCE PANEL */}
         {state.activeTab === 'intelligence' && isAdmin() && (
           <IntelligencePanel token={state.token} />
+        )}
+
+        {/* DIRECCIÓN (ADMIN-only, igual que el router del backend, que cuelga
+            entero de require_admin). El gate de isAdmin() acá es el mismo que
+            usan CRM/Clientes/Mail: sin él, un rol no-admin que llegue al tab
+            por localStorage vería la pantalla pedir datos y comerse un 403. */}
+        {state.activeTab === 'direccion-tablero' && isAdmin() && (
+          <DireccionTablero
+            token={state.token}
+            onAbrirGerencia={(codigo) => { setGerenciaAbierta(codigo); setActiveTab('direccion-gerencias'); }}
+          />
+        )}
+
+        {state.activeTab === 'direccion-gerencias' && isAdmin() && (
+          <DireccionGerencias
+            token={state.token}
+            codigoAbierto={gerenciaAbierta}
+            onAbrirGerencia={setGerenciaAbierta}
+            onCerrarFicha={() => setGerenciaAbierta(null)}
+          />
+        )}
+
+        {state.activeTab === 'direccion-proveedores' && isAdmin() && (
+          <DireccionProveedores token={state.token} />
+        )}
+
+        {state.activeTab === 'direccion-seguridad' && isAdmin() && (
+          <DireccionSeguridad token={state.token} />
         )}
 
       </main>

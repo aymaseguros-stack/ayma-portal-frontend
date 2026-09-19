@@ -53,11 +53,24 @@ export const SEGUROS_TABS = [
 
 export const SEGUROS_TAB_IDS = ['polizas', 'admin-siniestros', 'siniestros-resueltos'];
 
+// Sub-menú de la entrada superior "Dirección" (ADMIN-only). Módulo de
+// gobierno interno: el tablero de la empresa, la ficha de cada gerencia, el
+// padrón de proveedores y el estado de seguridad. Es aditivo: no toca las
+// secciones ni los tabs que ya existían.
+export const DIRECCION_TABS = [
+  { id: 'direccion-tablero', label: 'Tablero' },
+  { id: 'direccion-gerencias', label: 'Gerencias' },
+  { id: 'direccion-proveedores', label: 'Proveedores' },
+  { id: 'direccion-seguridad', label: 'Seguridad' },
+];
+
+export const DIRECCION_TAB_IDS = DIRECCION_TABS.map(t => t.id);
+
 // Única fuente de verdad de "qué ítem superior está activo": se deriva del
 // activeTab, no de un estado paralelo. Antes había dos estados
 // independientes (panelPrincipal + activeTab) y por eso, estando en
 // Siniestros, CRM seguía resaltado y su submenú seguía visible.
-export const SECCIONES = ['dashboard', 'mail', 'crm', 'clientes', 'seguros', 'denuncia', 'soporte'];
+export const SECCIONES = ['dashboard', 'mail', 'crm', 'clientes', 'seguros', 'direccion', 'denuncia', 'soporte'];
 
 export const seccionDeTab = (tab) => {
   if (tab === 'dashboard') return 'dashboard';
@@ -65,6 +78,7 @@ export const seccionDeTab = (tab) => {
   if (CRM_TAB_IDS.includes(tab)) return 'crm';
   if (tab === 'clientes') return 'clientes';
   if (SEGUROS_TAB_IDS.includes(tab)) return 'seguros';
+  if (DIRECCION_TAB_IDS.includes(tab)) return 'direccion';
   if (tab === 'siniestro') return 'denuncia';
   if (tab === 'soporte') return 'soporte';
   return null; // 'datos', 'seguridad': no pertenecen a la barra superior
@@ -76,4 +90,5 @@ export const SUB_TABS_POR_SECCION = {
   mail: MAIL_TABS,
   crm: CRM_TABS,
   seguros: SEGUROS_TABS,
+  direccion: DIRECCION_TABS,
 };

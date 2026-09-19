@@ -38,8 +38,8 @@ describe('submenús', () => {
     expect(SEGUROS_TABS.map(t => t.label)).toEqual(['Pólizas', 'Siniestros']);
   });
 
-  it('solo Mail, CRM y Seguros tienen submenú', () => {
-    expect(Object.keys(SUB_TABS_POR_SECCION).sort()).toEqual(['crm', 'mail', 'seguros']);
+  it('solo Mail, CRM, Seguros y Dirección tienen submenú', () => {
+    expect(Object.keys(SUB_TABS_POR_SECCION).sort()).toEqual(['crm', 'direccion', 'mail', 'seguros']);
     ['dashboard', 'clientes', 'denuncia', 'soporte'].forEach(s => {
       expect(SUB_TABS_POR_SECCION[s]).toBeUndefined();
     });
