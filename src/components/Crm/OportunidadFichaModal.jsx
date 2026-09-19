@@ -9,9 +9,11 @@ import DocumentosTab from './DocumentosTab';
 import { SelectorAdjuntos, AvisoSubidaFallida, AvisoDuplicadosAdjuntos } from './AdjuntosUI';
 import { subirAdjuntos } from './adjuntosApi';
 import { nombreDeEmpresa, contactosDeEmpresa, etiquetaTitularConReferencia } from './empresasApi';
+import CotizacionEntregadaModal from './CotizacionEntregadaModal';
+import TransicionEstadoModal from './TransicionEstadoModal';
 import {
   ESTADO_CRM_BADGE, CANALES_VALIDOS, MOTIVOS_PERDIDA_VALIDOS,
-  formatMoneda,
+  ACTO_A_ESTADO, formatMoneda,
 } from './oportunidadConstants';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
@@ -53,6 +55,13 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
   const [refQuery, setRefQuery] = useState('');
   const [refVinculadas, setRefVinculadas] = useState([]);
   const [guardandoReferencia, setGuardandoReferencia] = useState(false);
+
+  // Pipeline dirigido por actos (backend PR #176). Acá NO hay un selector de
+  // `estado_crm`: el estado se deriva del acto registrado. Lo único explícito
+  // son LOOP y RECUPERABLE, cada uno con sus campos obligatorios.
+  const [mostrarCotizacion, setMostrarCotizacion] = useState(false);
+  const [transicionDestino, setTransicionDestino] = useState(null);
+  const [avisoPipeline, setAvisoPipeline] = useState(null);
 
   const [mostrarCierre, setMostrarCierre] = useState(false);
   const [cierreForm, setCierreForm] = useState({ resultado: 'GANADA', motivo_perdida: '', motivo_perdida_detalle: '', compania_ganadora: '' });
@@ -242,7 +251,28 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
     }
   };
 
+  // Tras registrar el acto se RECARGA la ficha desde el backend en vez de
+  // pintar el estado que devolvió la respuesta: el estado es del servidor, y
+  // una ficha que se cree su propio estado es cómo volvería a ser una opinión.
+  const refrescarTrasPipeline = async (respuesta, textoBase) => {
+    const partes = [textoBase];
+    if (respuesta?.idempotente) partes.push('(ya estaba registrada con la misma clave)');
+    if (Number(respuesta?.puntos) > 0) partes.push(`+${Number(respuesta.puntos)} puntos`);
+    if (respuesta?.seguimiento_id) partes.push('primer seguimiento programado a +24 h');
+    if (respuesta?.seguimientos_cancelados > 0) {
+      partes.push(`${respuesta.seguimientos_cancelados} seguimiento(s) cancelado(s)`);
+    }
+    if (respuesta?.detalle) partes.push(respuesta.detalle);
+    setAvisoPipeline(partes.filter(Boolean).join(' · '));
+    setMostrarCotizacion(false);
+    setTransicionDestino(null);
+    await cargarDetalle();
+    setTimelineRefreshKey((k) => k + 1);
+    onChanged?.();
+  };
+
   const cerrada = detalle && detalle.resultado !== 'EN_CURSO';
+  const esCliente = detalle?.estado_crm === 'CLIENTE';
 
   return (
     <Modal
@@ -293,6 +323,12 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
 
           {duplicadosAdjuntos.length > 0 && <AvisoDuplicadosAdjuntos duplicados={duplicadosAdjuntos} />}
 
+          {avisoPipeline && (
+            <div className="bg-blue-500/15 border border-blue-500/40 text-blue-200 px-4 py-2 rounded-lg text-sm">
+              {avisoPipeline}
+            </div>
+          )}
+
           {puntosGanados !== null && (
             <div className="bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 px-4 py-2 rounded-lg text-sm">
               +{puntosGanados} puntos de scoring por esta interacción
@@ -325,13 +361,40 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
                 Registrar interacción
               </button>
               {!cerrada && (
-                <button
-                  onClick={() => { setErrorAccion(null); setMostrarCierre(true); }}
-                  className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition text-sm"
-                >
-                  <Icon name="check-badge" />
-                  Cerrar oportunidad
-                </button>
+                <>
+                  <button
+                    onClick={() => { setErrorAccion(null); setAvisoPipeline(null); setMostrarCotizacion(true); }}
+                    className="inline-flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg transition text-sm"
+                  >
+                    <Icon name="document-text" />
+                    Registrar cotización entregada
+                  </button>
+                  <button
+                    onClick={() => { setErrorAccion(null); setAvisoPipeline(null); setTransicionDestino('LOOP'); }}
+                    className="inline-flex items-center gap-2 px-3 py-2 bg-yellow-600/80 hover:bg-yellow-600 rounded-lg transition text-sm"
+                  >
+                    <Icon name="clock" />
+                    Pasar a LOOP
+                  </button>
+                  {/* RECUPERABLE es la baja de un CLIENTE y sólo se alcanza desde
+                      ahí: ofrecerlo en otro estado sería un 409 asegurado. */}
+                  {esCliente && (
+                    <button
+                      onClick={() => { setErrorAccion(null); setAvisoPipeline(null); setTransicionDestino('RECUPERABLE'); }}
+                      className="inline-flex items-center gap-2 px-3 py-2 bg-orange-600/80 hover:bg-orange-600 rounded-lg transition text-sm"
+                    >
+                      <Icon name="exclamation-triangle" />
+                      Marcar recuperable
+                    </button>
+                  )}
+                  <button
+                    onClick={() => { setErrorAccion(null); setMostrarCierre(true); }}
+                    className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition text-sm"
+                  >
+                    <Icon name="check-badge" />
+                    Cerrar oportunidad
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -351,6 +414,18 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
                 </>
               )}
               <Dato label="Notas" valor={detalle.notas} full />
+              {/* El estado NO es un campo editable: se deja a la vista de qué
+                  acto sale cada etapa, que es lo que reemplaza al desplegable. */}
+              <div className="md:col-span-2 text-xs text-slate-500 border-t border-slate-700/60 pt-3">
+                El estado se deriva del acto registrado:{' '}
+                {Object.entries(ACTO_A_ESTADO).map(([acto, estado], i) => (
+                  <span key={acto}>
+                    {i > 0 && ' · '}
+                    <span className="text-slate-400">{acto}</span> → {estado}
+                  </span>
+                ))}
+                . LOOP y RECUPERABLE son las únicas dos que se piden a mano.
+              </div>
             </div>
           )}
 
@@ -523,6 +598,27 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* Sub-modal: cotización entregada (acto COTIZACION -> POTENCIAL) */}
+      {mostrarCotizacion && detalle && (
+        <CotizacionEntregadaModal
+          token={token}
+          oportunidad={{ id: oportunidadId }}
+          onCerrar={() => setMostrarCotizacion(false)}
+          onRegistrada={(r) => refrescarTrasPipeline(r, 'Cotización entregada registrada')}
+        />
+      )}
+
+      {/* Sub-modal: LOOP / RECUPERABLE */}
+      {transicionDestino && detalle && (
+        <TransicionEstadoModal
+          token={token}
+          oportunidad={{ id: oportunidadId }}
+          destino={transicionDestino}
+          onCerrar={() => setTransicionDestino(null)}
+          onAplicada={(r) => refrescarTrasPipeline(r, `Estado: ${r.estado_anterior} → ${r.estado_crm}`)}
+        />
       )}
 
       {/* Sub-modal: cerrar oportunidad */}

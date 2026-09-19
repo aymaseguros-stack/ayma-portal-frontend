@@ -3,10 +3,11 @@ import { Icon } from '../Icons';
 import { authHeader, formatApiError } from '../../utils/api';
 import AltaEncadenada from './AltaEncadenada';
 import OportunidadFichaModal from './OportunidadFichaModal';
+import TransicionEstadoModal from './TransicionEstadoModal';
 import { nombreDeEmpresa, etiquetaTitularConReferencia } from './empresasApi';
 import {
   ESTADOS_CRM_ORDEN, ESTADO_CRM_LABEL, ESTADO_CRM_BADGE, TRACKS_VALIDOS,
-  formatMoneda, diasDesde, estaVencida,
+  ESTADOS_EXPLICITOS, formatMoneda, diasDesde, estaVencida,
 } from './oportunidadConstants';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
@@ -38,7 +39,8 @@ const OportunidadCard = ({ token, o, onDragStart, onClick }) => {
       draggable
       onDragStart={(e) => onDragStart(e, o)}
       onClick={() => onClick(o.id)}
-      className="bg-slate-800 border border-slate-700 rounded-lg p-3 cursor-grab active:cursor-grabbing hover:border-blue-500/60 transition space-y-2"
+      title="Abrir la ficha. Arrastrar sólo sirve para LOOP y RECUPERABLE: el resto del embudo se mueve registrando el acto."
+      className="bg-slate-800 border border-slate-700 rounded-lg p-3 cursor-pointer hover:border-blue-500/60 transition space-y-2"
     >
       <div className="flex items-start justify-between gap-2">
         <span className="font-medium text-sm truncate">{titulo || 'Sin vincular'}</span>
@@ -68,6 +70,8 @@ const PipelineKanban = ({ token }) => {
   const [mostrarNueva, setMostrarNueva] = useState(false);
   const [oportunidadAbierta, setOportunidadAbierta] = useState(null);
   const [arrastrando, setArrastrando] = useState(null);
+  const [transicion, setTransicion] = useState(null);
+  const [aviso, setAviso] = useState(null);
 
   const headers = { ...authHeader(token), 'Content-Type': 'application/json' };
 
@@ -116,41 +120,33 @@ const PipelineKanban = ({ token }) => {
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  const onDrop = async (estadoDestino) => {
-    if (!arrastrando || arrastrando.estado_crm === estadoDestino) { setArrastrando(null); return; }
+  // EL KANBAN YA NO ESCRIBE EL ESTADO DEL EMBUDO.
+  //
+  // Antes, soltar una tarjeta en otra columna hacía
+  // `PATCH /crm/oportunidades/{id}/estado` con el estado de la columna: el
+  // estado era literalmente lo que alguien arrastró. Desde el PR #176 del
+  // backend ese PATCH pasa por la máquina de transiciones y contesta 409
+  // diciendo que el estado se deriva del acto - así que arrastrar a PROSPECTO,
+  // POTENCIAL o CLIENTE sólo podía producir un cartel de error.
+  //
+  // Se quedan las DOS salidas laterales, que sí son explícitas: soltar en LOOP
+  // o RECUPERABLE abre el modal que pide sus campos obligatorios. No hay
+  // optimistic update: el estado lo confirma el backend y después se recarga
+  // el pipeline.
+  const onDrop = (estadoDestino) => {
     const oportunidad = arrastrando;
-    const estadoOrigen = oportunidad.estado_crm;
     setArrastrando(null);
+    if (!oportunidad || oportunidad.estado_crm === estadoDestino) return;
 
-    // Optimistic update, con snapshot para poder revertir si el PATCH falla.
-    const snapshot = columnas;
-    setColumnas(prev => {
-      const next = { ...prev };
-      const colOrigen = next[estadoOrigen] || columnaVacia(estadoOrigen);
-      const colDestino = next[estadoDestino] || columnaVacia(estadoDestino);
-      const items = colOrigen.oportunidades.filter(o => o.id !== oportunidad.id);
-      const actualizada = { ...oportunidad, estado_crm: estadoDestino };
-      next[estadoOrigen] = { ...colOrigen, oportunidades: items, cantidad: items.length };
-      next[estadoDestino] = {
-        ...colDestino,
-        oportunidades: [actualizada, ...colDestino.oportunidades],
-        cantidad: colDestino.oportunidades.length + 1,
-      };
-      return next;
-    });
-
-    try {
-      const res = await fetch(`${API_URL}/api/v1/crm/oportunidades/${oportunidad.id}/estado`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({ estado_crm: estadoDestino }),
-      });
-      if (!res.ok) throw new Error(await formatApiError(res));
-    } catch (err) {
-      console.error('Error moviendo oportunidad, revirtiendo:', err);
-      setColumnas(snapshot);
-      alert('No se pudo mover la oportunidad: ' + err.message);
+    if (!ESTADOS_EXPLICITOS.includes(estadoDestino)) {
+      setAviso(
+        `${ESTADO_CRM_LABEL[estadoDestino] || estadoDestino} no se asigna a mano: se deriva del acto. ` +
+        'Abrí la ficha y registrá la cotización entregada o la emisión.'
+      );
+      return;
     }
+    setAviso(null);
+    setTransicion({ oportunidad, destino: estadoDestino });
   };
 
   return (
@@ -202,6 +198,13 @@ const PipelineKanban = ({ token }) => {
         <div className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-2 rounded-lg text-sm">{error}</div>
       )}
 
+      {aviso && (
+        <div className="bg-amber-500/15 border border-amber-500/40 text-amber-200 px-4 py-2 rounded-lg text-sm flex items-start gap-2">
+          <Icon name="exclamation-triangle" className="mt-0.5 shrink-0" />
+          <span>{aviso}</span>
+        </div>
+      )}
+
       {loading ? (
         <p className="text-slate-400 text-center py-8">Cargando pipeline...</p>
       ) : (
@@ -243,6 +246,16 @@ const PipelineKanban = ({ token }) => {
           raiz={{ tipo: 'oportunidad', preset: null }}
           onCerrar={() => setMostrarNueva(false)}
           onResuelto={() => { setMostrarNueva(false); cargarPipeline(); }}
+        />
+      )}
+
+      {transicion && (
+        <TransicionEstadoModal
+          token={token}
+          oportunidad={transicion.oportunidad}
+          destino={transicion.destino}
+          onCerrar={() => setTransicion(null)}
+          onAplicada={() => { setTransicion(null); cargarPipeline(); }}
         />
       )}
 

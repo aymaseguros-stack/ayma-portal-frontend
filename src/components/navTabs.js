@@ -8,6 +8,11 @@ export const CRM_TABS = [
   { id: 'crm', label: 'Pipeline' },
   { id: 'oportunidades', label: 'Oportunidades' },
   { id: 'agenda', label: 'Agenda' },
+  // Seguimientos de hoy (backend PR #176): la cadencia +24 h / +72 h / +7 d
+  // desde la cotización entregada. Va pegado a Agenda porque es lo mismo que
+  // se mira a la mañana, y es una PESTAÑA del CRM: la navegación está
+  // congelada, no se suma una ruta nueva.
+  { id: 'seguimientos', label: 'Seguimientos de hoy' },
   { id: 'personas', label: 'Personas' },
   { id: 'empresas', label: 'Empresas' },
   { id: 'leads', label: 'Leads' },
