@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   CRM_TAB_IDS,
+  DIRECCION_TABS,
+  DIRECCION_TAB_IDS,
   MAIL_TAB_IDS,
   SEGUROS_TABS,
   SEGUROS_TAB_IDS,
@@ -43,5 +45,20 @@ describe('submenús', () => {
     ['dashboard', 'clientes', 'denuncia', 'soporte'].forEach(s => {
       expect(SUB_TABS_POR_SECCION[s]).toBeUndefined();
     });
+  });
+});
+
+// F-11: FINANZAS entra al submenú de Dirección. Es ADITIVO: las cuatro
+// entradas que ya existían conservan su id y su orden relativo.
+describe('submenú de Dirección', () => {
+  it('es Tablero · Gerencias · Proveedores · Finanzas · Seguridad', () => {
+    expect(DIRECCION_TABS.map(t => t.label)).toEqual([
+      'Tablero', 'Gerencias', 'Proveedores', 'Finanzas', 'Seguridad',
+    ]);
+  });
+
+  it('el tab de Finanzas pertenece a la sección Dirección', () => {
+    expect(DIRECCION_TAB_IDS).toContain('direccion-finanzas');
+    expect(seccionDeTab('direccion-finanzas')).toBe('direccion');
   });
 });

@@ -71,19 +71,43 @@ describe('subida', () => {
     expect(url).toContain('/api/v1/crm/adjuntos');
     expect(opts.headers.Authorization).toBe('Bearer tok');
     expect(opts.body.get('interaccion_id')).toBe('i-1');
-    expect(opts.body.get('categoria')).toBe('OTRO');
+    expect(opts.body.get('categorias')).toBe('OTRO');
     expect(opts.body.get('oportunidad_id')).toBeNull();
   });
 
-  it('un request por categoría: el endpoint acepta una sola por subida', async () => {
+  it('UN solo request con `categorias` paralela, en el mismo orden que los archivos', async () => {
     globalThis.fetch.mockResolvedValue({ ok: true, status: 201, json: async () => ({ adjuntos: [], duplicados: [] }) });
     const { aceptados } = await validarSeleccion([archivo('a.pdf', PDF), archivo('b.png', PNG)], []);
     aceptados[0].categoria = 'F931';
     aceptados[1].categoria = 'POLIZA';
     await subirAdjuntos('tok', aceptados, { interaccion_id: 'i-1' });
 
-    const categorias = globalThis.fetch.mock.calls.map(([, o]) => o.body.get('categoria'));
-    expect(categorias.sort()).toEqual(['F931', 'POLIZA']);
+    // Un request, no uno por categoría: el backend no persiste nada si un
+    // archivo del lote falla, y esa garantía sólo vale dentro de un request.
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    const [, opts] = globalThis.fetch.mock.calls[0];
+    // El orden importa: `categorias[i]` es la categoría de `archivos[i]`.
+    expect(opts.body.getAll('archivos').map((f) => f.name)).toEqual(['a.pdf', 'b.png']);
+    expect(opts.body.getAll('categorias')).toEqual(['F931', 'POLIZA']);
+  });
+
+  it('manda una categoría por archivo aunque todas sean la misma (longitud exacta o 422)', async () => {
+    globalThis.fetch.mockResolvedValue({ ok: true, status: 201, json: async () => ({ adjuntos: [], duplicados: [] }) });
+    const { aceptados } = await validarSeleccion(
+      [archivo('a.pdf', PDF), archivo('b.png', PNG), archivo('c.jpg', JPG)], []);
+    await subirAdjuntos('tok', aceptados, { interaccion_id: 'i-1' });
+
+    const [, opts] = globalThis.fetch.mock.calls[0];
+    expect(opts.body.getAll('archivos')).toHaveLength(3);
+    expect(opts.body.getAll('categorias')).toEqual(['OTRO', 'OTRO', 'OTRO']);
+  });
+
+  it('un error del backend en el lote no deja una subida a medias: es un solo request', async () => {
+    globalThis.fetch.mockResolvedValue({ ok: false, status: 422, json: async () => ({ detail: 'categorias[1] inválida' }) });
+    const { aceptados } = await validarSeleccion([archivo('a.pdf', PDF), archivo('b.png', PNG)], []);
+    await expect(subirAdjuntos('tok', aceptados, { interaccion_id: 'i-1' }))
+      .rejects.toThrow(/categorias\[1\] inválida/);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 
   it('propaga el aviso de duplicado del backend', async () => {

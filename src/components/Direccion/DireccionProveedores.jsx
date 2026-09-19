@@ -61,6 +61,7 @@ const ListaProveedores = ({ token, onAbrir }) => {
   const [items, setItems] = useState([]);
   const [alertas, setAlertas] = useState([]);
   const [tipo, setTipo] = useState('');
+  const [rubro, setRubro] = useState('');
   const [estado, setEstado] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -71,10 +72,20 @@ const ListaProveedores = ({ token, onAbrir }) => {
   const cargar = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      setItems(await listarProveedores(token, { estado: estado || undefined }));
+      // Los tres filtros los resuelve el BACKEND
+      // (GET /direccion/proveedores?estado=&tipo=&rubro_presupuesto=). Antes
+      // `tipo` se filtraba en el cliente sobre la página ya traída: con el
+      // limit por default eso significa filtrar sobre los primeros N y
+      // mostrar "ninguno coincide" cuando el que se busca está en la página
+      // siguiente.
+      setItems(await listarProveedores(token, {
+        estado: estado || undefined,
+        tipo: tipo || undefined,
+        rubro_presupuesto: rubro || undefined,
+      }));
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
-  }, [token, estado]);
+  }, [token, estado, tipo, rubro]);
 
   const cargarAlertas = useCallback(async () => {
     setErrorAlertas(null);
@@ -85,8 +96,7 @@ const ListaProveedores = ({ token, onAbrir }) => {
   useEffect(() => { cargar(); }, [cargar]);
   useEffect(() => { cargarAlertas(); }, [cargarAlertas]);
 
-  // El filtro por tipo es local: el backend solo filtra por estado.
-  const visibles = tipo ? items.filter((p) => p.tipo === tipo) : items;
+  const hayFiltro = Boolean(tipo || estado || rubro);
 
   const confirmarBaja = async () => {
     try {
@@ -131,6 +141,12 @@ const ListaProveedores = ({ token, onAbrir }) => {
             {TIPOS_PROVEEDOR.map((t) => <option key={t} value={t}>{etiqueta(t)}</option>)}
           </select>
         </Campo>
+        <Campo label="Rubro de presupuesto">
+          <select className={inputClase + ' min-w-[190px]'} value={rubro} onChange={(e) => setRubro(e.target.value)}>
+            <option value="">Todos</option>
+            {RUBROS_PRESUPUESTO.map((r) => <option key={r} value={r}>{etiqueta(r)}</option>)}
+          </select>
+        </Campo>
         <Campo label="Estado">
           <select className={inputClase + ' min-w-[160px]'} value={estado} onChange={(e) => setEstado(e.target.value)}>
             <option value="">Todos</option>
@@ -145,18 +161,18 @@ const ListaProveedores = ({ token, onAbrir }) => {
       <Panel>
         {loading ? (
           <Cargando texto="Cargando proveedores…" />
-        ) : error ? null : visibles.length === 0 ? (
+        ) : error ? null : items.length === 0 ? (
           <EstadoVacio
             icono="building-office"
-            titulo={items.length === 0 ? 'Todavía no hay proveedores. Cargá el primero' : 'Ningún proveedor coincide con el filtro'}
-            detalle={items.length === 0 ? 'Acá va todo lo que se paga: herramientas, profesionales, locaciones.' : 'Probá con otro tipo o estado.'}
-            accion={items.length === 0
+            titulo={hayFiltro ? 'Ningún proveedor coincide con el filtro' : 'Todavía no hay proveedores. Cargá el primero'}
+            detalle={hayFiltro ? 'Probá con otro tipo, rubro o estado.' : 'Acá va todo lo que se paga: herramientas, profesionales, locaciones.'}
+            accion={!hayFiltro
               ? <button className={botonPrimario} onClick={() => setModalAlta(true)}>Cargar el primero</button>
               : null}
           />
         ) : (
           <Tabla columnas={['Proveedor', 'Tipo', 'Estado', 'Costo mensual', 'Rubro', 'Renovación', 'Trabajo asignado', '']}>
-            {visibles.map((p) => (
+            {items.map((p) => (
               <tr key={p.id} className={p.costo_mensual && !p.trabajo_asignado ? 'bg-red-500/10' : ''}>
                 <td className="px-4 py-2.5">
                   <button className="text-white hover:text-blue-300 font-medium text-left" onClick={() => onAbrir(p.id)}>
