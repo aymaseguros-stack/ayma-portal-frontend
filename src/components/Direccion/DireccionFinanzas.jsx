@@ -10,6 +10,9 @@ import {
   listarComisiones, listarGastos, resumenPresupuesto, seriePresupuesto, sumarMontos,
 } from './finanzasApi';
 import { listarProveedores } from './direccionApi';
+import { obtenerEstado } from './facturacionApi';
+import DireccionFacturacion from './DireccionFacturacion';
+import ModalFacturarComision from './ModalFacturarComision';
 import {
   MONEDAS, RUBROS_PRESUPUESTO, etiqueta, fechaCorta, formatearMonto,
 } from './direccionConstantes';
@@ -41,6 +44,7 @@ const TABS = [
   { id: 'presupuesto', label: 'Presupuesto' },
   { id: 'gastos', label: 'Gastos' },
   { id: 'comisiones', label: 'Comisiones liquidadas' },
+  { id: 'facturacion', label: 'Facturación' },
 ];
 
 const tabClase = (activo) =>
@@ -84,6 +88,7 @@ const DireccionFinanzas = ({ token, tabInicial = 'presupuesto' }) => {
       {tab === 'presupuesto' && <TabPresupuesto token={token} periodo={periodo} onPeriodo={setPeriodo} />}
       {tab === 'gastos' && <TabGastos token={token} periodo={periodo} onPeriodo={setPeriodo} />}
       {tab === 'comisiones' && <TabComisiones token={token} periodo={periodo} onPeriodo={setPeriodo} />}
+      {tab === 'facturacion' && <DireccionFacturacion token={token} />}
     </div>
   );
 };
@@ -996,6 +1001,23 @@ const TabComisiones = ({ token, periodo, onPeriodo }) => {
   const [error, setError] = useState(null);
   const [modalAlta, setModalAlta] = useState(false);
   const [aAnular, setAAnular] = useState(null);
+  const [aFacturar, setAFacturar] = useState(null);
+  // Ambiente de facturación (GET /facturas/estado). Se pide UNA vez y sólo
+  // para dos cosas: saber si el botón "Emitir Factura C" tiene sentido
+  // (módulo prendido) y poder gritar el ambiente en la confirmación. Si
+  // falla, el botón no se ofrece: emitir sin saber el ambiente no.
+  const [estadoFact, setEstadoFact] = useState(null);
+
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const e = await obtenerEstado(token);
+        if (vivo) setEstadoFact(e);
+      } catch { if (vivo) setEstadoFact(null); }
+    })();
+    return () => { vivo = false; };
+  }, [token]);
 
   // Igual que los gastos: las anuladas siguen a la vista.
   const cargar = useCallback(async () => {
@@ -1042,7 +1064,7 @@ const TabComisiones = ({ token, periodo, onPeriodo }) => {
           />
         ) : (
           <>
-            <Tabla columnas={['Compañía', 'Ramo', 'Monto', 'Fuente', 'Comprobante', 'Notas', '']}>
+            <Tabla columnas={['Compañía', 'Ramo', 'Monto', 'Fuente', 'Factura a la compañía', 'Comprobante', 'Notas', '']}>
               {comisiones.map((c) => {
                 const anulada = Boolean(c.anulado_en);
                 return (
@@ -1060,6 +1082,33 @@ const TabComisiones = ({ token, periodo, onPeriodo }) => {
                       {formatearMonto(c.monto, c.moneda)}
                     </td>
                     <td className="px-4 py-2.5 text-slate-400 text-xs">{etiqueta(c.fuente)}</td>
+                    {/* La factura que se le emitió a la compañía. Los tres
+                        campos vienen de `facturas`, no duplicados acá. */}
+                    <td className="px-4 py-2.5 text-xs">
+                      {c.factura_numero || c.factura_id ? (
+                        <>
+                          <span className="text-white">{c.factura_numero || '(sin número)'}</span>
+                          <span className="block text-slate-400">{etiqueta(c.factura_estado)}</span>
+                          <span className="block text-slate-500 font-mono">CAE {c.factura_cae || '—'}</span>
+                        </>
+                      ) : anulada ? (
+                        <span className="text-slate-600">—</span>
+                      ) : (
+                        <>
+                          <button
+                            className="text-blue-300 hover:text-blue-200 disabled:text-slate-600 disabled:cursor-not-allowed"
+                            disabled={!estadoFact?.habilitado}
+                            title={estadoFact?.habilitado ? undefined : 'La facturación electrónica está apagada'}
+                            onClick={() => setAFacturar(c)}
+                          >
+                            Emitir Factura C
+                          </button>
+                          {c.factura_liberada_motivo && (
+                            <span className="block text-yellow-200/80 mt-1">{c.factura_liberada_motivo}</span>
+                          )}
+                        </>
+                      )}
+                    </td>
                     <td className="px-4 py-2.5">
                       {c.comprobante_url_drive ? (
                         <a href={c.comprobante_url_drive} target="_blank" rel="noopener noreferrer"
@@ -1091,6 +1140,16 @@ const TabComisiones = ({ token, periodo, onPeriodo }) => {
           </>
         )}
       </Panel>
+
+      {aFacturar && (
+        <ModalFacturarComision
+          token={token}
+          comision={aFacturar}
+          ambiente={estadoFact?.ambiente}
+          onCerrar={() => setAFacturar(null)}
+          onEmitida={cargar}
+        />
+      )}
 
       {modalAlta && (
         <ModalComision

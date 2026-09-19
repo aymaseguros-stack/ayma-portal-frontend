@@ -8,6 +8,7 @@ import {
 import {
   Badge, Cargando, ChipSemaforo, ErrorCarga, EstadoVacio, Panel, PuntoSemaforo, Tabla,
 } from './DireccionComunes';
+import ModalImportarSemilla from './ModalImportarSemilla';
 
 // Pantalla 1 del módulo DIRECCIÓN: el estado de la empresa en una pantalla.
 // GET /api/v1/direccion/tablero (TableroOut). Todo lo que se muestra acá
@@ -16,6 +17,7 @@ const DireccionTablero = ({ token, onAbrirGerencia }) => {
   const [datos, setDatos] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [importar, setImportar] = useState(false);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -37,16 +39,22 @@ const DireccionTablero = ({ token, onAbrirGerencia }) => {
   if (error && !loading) {
     return (
       <div className="space-y-6">
-        <Encabezado onRefrescar={cargar} />
+        <Encabezado onRefrescar={cargar} onImportar={() => setImportar(true)} />
         <ErrorCarga mensaje={error} que="el tablero de Dirección" onReintentar={cargar} />
+        {importar && (
+          <ModalImportarSemilla token={token} onCerrar={() => setImportar(false)} onImportado={cargar} />
+        )}
       </div>
     );
   }
   if (loading && !datos) {
     return (
       <div className="space-y-6">
-        <Encabezado onRefrescar={cargar} />
+        <Encabezado onRefrescar={cargar} onImportar={() => setImportar(true)} />
         <Cargando texto="Cargando el tablero…" />
+        {importar && (
+          <ModalImportarSemilla token={token} onCerrar={() => setImportar(false)} onImportado={cargar} />
+        )}
       </div>
     );
   }
@@ -70,6 +78,7 @@ const DireccionTablero = ({ token, onAbrirGerencia }) => {
     <div className="space-y-6">
       <Encabezado
         onRefrescar={cargar}
+        onImportar={() => setImportar(true)}
         semaforo={semaforoGlobalMostrado(datos.semaforo_global, gerencias)}
         cargando={loading}
       />
@@ -262,6 +271,10 @@ const DireccionTablero = ({ token, onAbrirGerencia }) => {
           </>
         )}
       </Panel>
+
+      {importar && (
+        <ModalImportarSemilla token={token} onCerrar={() => setImportar(false)} onImportado={cargar} />
+      )}
     </div>
   );
 };
@@ -273,7 +286,7 @@ const Metrica = ({ etiqueta: texto, valor, alerta }) => (
   </div>
 );
 
-const Encabezado = ({ onRefrescar, semaforo, cargando }) => (
+const Encabezado = ({ onRefrescar, onImportar, semaforo, cargando }) => (
   <div className="flex items-center justify-between flex-wrap gap-3">
     <div>
       <h2 className="text-2xl font-bold">Tablero de Dirección</h2>
@@ -281,6 +294,14 @@ const Encabezado = ({ onRefrescar, semaforo, cargando }) => (
     </div>
     <div className="flex items-center gap-3">
       {semaforo && <ChipSemaforo color={semaforo} />}
+      {/* Carga inicial de la semilla. Siempre pasa por la corrida en seco
+          (ver ModalImportarSemilla): no hay forma de escribir de una. */}
+      <button
+        onClick={onImportar}
+        className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm transition flex items-center gap-2"
+      >
+        <Icon name="document-text" size={16} /> Importar semilla
+      </button>
       <button
         onClick={onRefrescar}
         disabled={cargando}
