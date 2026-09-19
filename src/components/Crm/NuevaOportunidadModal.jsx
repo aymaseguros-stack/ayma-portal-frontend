@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Icon } from '../Icons';
 import Modal from '../Modal';
 import { authHeader } from '../../utils/api';
 import { TRACKS_VALIDOS, ETAPAS_SAIDA_VALIDAS } from './oportunidadConstants';
+import { etiquetaEmpresa, etiquetaPersona } from './altaEncadenada';
+import { BotonAnidar } from './altaEncadenadaUI';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -12,8 +14,17 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onr
 // Grupos, o el chip de "producto faltante"): { persona_id | empresa_id |
 // grupo_id, nombre, track? }. Sin `preset` (alta desde el Pipeline) se
 // busca la persona o empresa a mano.
-const NuevaOportunidadModal = ({ token, preset = null, onClose, onCreated }) => {
+//
+// Alta encadenada (aditivo): con `puedeAnidar` aparecen los botones
+// "+ Nueva persona" / "+ Nueva empresa" al lado del selector, y la entidad que
+// se cree en ese nivel vuelve por `inyeccion` ya seleccionada acá. Sin esos
+// props el modal se comporta igual que antes.
+const NuevaOportunidadModal = ({
+  token, preset = null, onClose, onCreated,
+  puedeAnidar = false, onAnidar, inyeccion = null, zClass = 'z-50',
+}) => {
   const [entidad, setEntidad] = useState(preset);
+  const inyeccionAplicada = useRef(null);
   const [buscarQuery, setBuscarQuery] = useState('');
   const [buscando, setBuscando] = useState(false);
   const [resultados, setResultados] = useState({ personas: [], empresas: [] });
@@ -54,8 +65,28 @@ const NuevaOportunidadModal = ({ token, preset = null, onClose, onCreated }) => 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buscarQuery]);
 
-  const elegirPersona = (p) => setEntidad({ persona_id: p.id, nombre: `${p.nombre} ${p.apellido || ''}`.trim() });
-  const elegirEmpresa = (e) => setEntidad({ empresa_id: e.id, nombre: e.razon_social });
+  const elegirPersona = (p) => setEntidad({ persona_id: p.id, nombre: etiquetaPersona(p), registro: p });
+  const elegirEmpresa = (e) => setEntidad({ empresa_id: e.id, nombre: etiquetaEmpresa(e), registro: e });
+
+  // Una entidad creada en el nivel de arriba queda seleccionada acá.
+  useEffect(() => {
+    if (!inyeccion) return;
+    if (inyeccionAplicada.current === inyeccion.seq) return;
+    inyeccionAplicada.current = inyeccion.seq;
+    if (inyeccion.tipo === 'empresa') elegirEmpresa(inyeccion.entidad);
+    else elegirPersona(inyeccion.entidad);
+  }, [inyeccion]);
+
+  // Si ya hay una entidad elegida, el nivel nuevo nace precargado con ella:
+  // la persona que se cree desde una oportunidad con empresa elegida arranca
+  // vinculada a esa empresa, y al revés.
+  const anidar = (tipo) => () => {
+    const registro = entidad?.registro;
+    const contexto = {};
+    if (tipo === 'persona' && entidad?.empresa_id && registro) contexto.empresa = registro;
+    if (tipo === 'empresa' && entidad?.persona_id && registro) contexto.persona = registro;
+    onAnidar?.(tipo, contexto);
+  };
 
   const guardar = async (e) => {
     e.preventDefault();
@@ -102,7 +133,7 @@ const NuevaOportunidadModal = ({ token, preset = null, onClose, onCreated }) => 
   };
 
   return (
-    <Modal title="Nueva oportunidad" onClose={onClose} maxWidth="max-w-lg">
+    <Modal title="Nueva oportunidad" onClose={onClose} maxWidth="max-w-lg" zClass={zClass}>
       <form onSubmit={guardar} className="space-y-5">
         {preset ? (
           <div className="bg-slate-700/30 rounded-lg px-3 py-2 text-sm text-slate-300">
@@ -110,7 +141,15 @@ const NuevaOportunidadModal = ({ token, preset = null, onClose, onCreated }) => 
           </div>
         ) : (
           <div>
-            <label className="block text-slate-400 text-sm mb-2">Vincular a *</label>
+            <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+              <label className="text-slate-400 text-sm">Vincular a *</label>
+              {puedeAnidar && (
+                <div className="flex gap-2">
+                  <BotonAnidar tipo="persona" onClick={anidar('persona')} disabled={guardando} />
+                  <BotonAnidar tipo="empresa" onClick={anidar('empresa')} disabled={guardando} />
+                </div>
+              )}
+            </div>
             {entidad ? (
               <div className="flex items-center justify-between bg-blue-600/20 border border-blue-500/40 rounded-lg px-3 py-2">
                 <span className="text-sm">{entidad.nombre}</span>

@@ -7,6 +7,7 @@ import { Dato, ListaSimple } from './FichaHelpers';
 import { esCuitValido, formatearCuit } from '../../utils/cuit';
 import { normalizeList, formatApiError, authHeader } from '../../utils/api';
 import NuevaOportunidadModal from './NuevaOportunidadModal';
+import AltaEncadenada from './AltaEncadenada';
 import OportunidadFichaModal from './OportunidadFichaModal';
 import OfertasSugeridas from './OfertasSugeridas';
 import GruposPanel from './GruposPanel';
@@ -15,7 +16,7 @@ import ArtCarteraView from '../ArtCartera/ArtCarteraView';
 import { ArtDatos, ArtHistorial } from './EmpresaArtSection';
 import Timeline from './Timeline';
 import CiiuLabel from '../Ciiu/CiiuLabel';
-import CiiuBuscador from '../Ciiu/CiiuBuscador';
+import CiiuCampoExtra from '../Ciiu/CiiuCampoExtra';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -43,47 +44,6 @@ const subTabButtonClass = (active) =>
     active ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
   }`;
 
-// Buscador de catálogo colgado del campo `ciiu_codigo` del formulario de
-// empresa (bloque D3). Acá SÍ escribe: `ciiu_codigo` es un campo editable de
-// la empresa del CRM (EmpresaUpdate del backend), a diferencia de
-// `empresas.ciiu` de la cartera ART, que lo cargan los backfills de padrón.
-//
-// Elegir una actividad completa los TRES campos de la sección en un solo
-// cambio - código, descripción y sección salen de la misma fila del catálogo,
-// y dejar la descripción vieja al lado de un código nuevo es peor que no
-// tener descripción.
-const CiiuCampoExtra = ({ token, valor, setValores }) => {
-  const [abierto, setAbierto] = useState(false);
-  return (
-    <div className="mt-2">
-      <button
-        type="button"
-        onClick={() => setAbierto((prev) => !prev)}
-        className="text-blue-400 hover:text-blue-300 text-xs underline"
-      >
-        {abierto ? 'cerrar buscador' : 'cambiar'}
-      </button>
-      {abierto && (
-        <div className="mt-2">
-          <CiiuBuscador
-            token={token}
-            valorInicial={valor}
-            onCerrar={() => setAbierto(false)}
-            onElegir={(item) => {
-              setValores({
-                ciiu_codigo: item.codigo,
-                ciiu_descripcion: item.descripcion,
-                ciiu_seccion: item.seccion || '',
-              });
-              setAbierto(false);
-            }}
-          />
-        </div>
-      )}
-    </div>
-  );
-};
-
 const EmpresasPanel = ({
   token, abrirFichaIdInicial, onFichaAbierta, abrirGrupoFichaIdInicial, onGrupoFichaAbierta,
 }) => {
@@ -100,10 +60,7 @@ const EmpresasPanel = ({
   const [error, setError] = useState(null);
 
   const [mostrarNueva, setMostrarNueva] = useState(false);
-  const [nuevaForm, setNuevaForm] = useState(EMPRESA_INITIAL_FORM);
   const [guardando, setGuardando] = useState(false);
-  const [errorForm, setErrorForm] = useState(null);
-  const [cuitInvalido, setCuitInvalido] = useState(false);
 
   const [fichaId, setFichaId] = useState(null);
   const [ficha, setFicha] = useState(null);
@@ -192,46 +149,6 @@ const EmpresasPanel = ({
     const cuit = values.cuit;
     if (!cuit || !cuit.trim()) { setInvalido(false); return; }
     setInvalido(!esCuitValido(cuit));
-  };
-
-  const crearEmpresa = async (e) => {
-    e.preventDefault();
-    if (!nuevaForm.razon_social?.trim()) {
-      setErrorForm('La razón social es obligatoria');
-      return;
-    }
-    if (nuevaForm.cuit && !esCuitValido(nuevaForm.cuit)) {
-      setErrorForm('El CUIT ingresado no es válido (dígito verificador incorrecto)');
-      return;
-    }
-    setGuardando(true);
-    setErrorForm(null);
-    try {
-      const payload = Object.fromEntries(
-        Object.entries(nuevaForm).map(([k, v]) => {
-          if (k === 'cuit' && v) return [k, formatearCuit(v)];
-          return [k, v === '' ? null : v];
-        })
-      );
-      const res = await fetch(`${API_URL}/api/v1/crm/empresas`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail?.[0]?.msg || err.detail || 'No se pudo crear la empresa');
-      }
-      const creada = await res.json();
-      setMostrarNueva(false);
-      setNuevaForm(EMPRESA_INITIAL_FORM);
-      cargarEmpresas();
-      abrirFicha(creada.id);
-    } catch (err) {
-      setErrorForm(err.message);
-    } finally {
-      setGuardando(false);
-    }
   };
 
   // Trae (o refresca) la ficha sin tocar la pestaña/edición actual.
@@ -432,7 +349,7 @@ const EmpresasPanel = ({
           {subTabPills}
         </div>
         <button
-          onClick={() => { setNuevaForm(EMPRESA_INITIAL_FORM); setErrorForm(null); setCuitInvalido(false); setMostrarNueva(true); }}
+          onClick={() => setMostrarNueva(true)}
           className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition text-sm font-medium"
         >
           <Icon name="plus" />
@@ -493,40 +410,19 @@ const EmpresasPanel = ({
         </div>
       </div>
 
-      {/* Modal: Nueva empresa */}
+      {/* Alta de empresa, encadenable: "+ Nueva persona" crea la persona
+          encima y vuelve con ella ya enlazada como contacto. */}
       {mostrarNueva && (
-        <Modal title="Nueva empresa" onClose={() => setMostrarNueva(false)} maxWidth="max-w-3xl">
-          <form onSubmit={crearEmpresa} className="space-y-6">
-            <FieldForm
-              sections={EMPRESA_FIELD_SECTIONS}
-              values={nuevaForm}
-              onChange={handleCuitChange(nuevaForm, setNuevaForm, setCuitInvalido)}
-              errors={cuitInvalido ? { cuit: 'CUIT inválido (dígito verificador incorrecto)' } : {}}
-              extras={extrasCiiu}
-            />
-            {errorForm && (
-              <div className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-2 rounded-lg text-sm">
-                {errorForm}
-              </div>
-            )}
-            <div className="flex gap-4 pt-2">
-              <button
-                type="button"
-                onClick={() => setMostrarNueva(false)}
-                className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 rounded-lg transition"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={guardando || cuitInvalido}
-                className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg font-semibold transition"
-              >
-                {guardando ? 'Guardando...' : 'Crear empresa'}
-              </button>
-            </div>
-          </form>
-        </Modal>
+        <AltaEncadenada
+          token={token}
+          raiz={{ tipo: 'empresa' }}
+          onCerrar={() => setMostrarNueva(false)}
+          onResuelto={(creada) => {
+            setMostrarNueva(false);
+            cargarEmpresas();
+            abrirFicha(creada.id);
+          }}
+        />
       )}
 
       {/* Ficha 360 */}
