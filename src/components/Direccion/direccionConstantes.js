@@ -34,12 +34,36 @@ export const CLASES_SEMAFORO = {
   ROJO: 'bg-red-500/20 text-red-300 border-red-500/40',
   AMARILLO: 'bg-yellow-500/20 text-yellow-200 border-yellow-500/40',
   VERDE: 'bg-green-500/20 text-green-300 border-green-500/40',
+  // GRIS es un cuarto color que SÓLO existe en el front: el backend no lo
+  // emite. La regla que lo produce es la del tablero (ver más abajo).
+  GRIS: 'bg-slate-600/50 text-slate-300 border-slate-500/50',
 };
 
 export const PUNTO_SEMAFORO = {
   ROJO: 'bg-red-500',
   AMARILLO: 'bg-yellow-400',
   VERDE: 'bg-green-500',
+  GRIS: 'bg-slate-500',
+};
+
+// Una gerencia SIN FRENTES ABIERTOS Y SIN DECISIONES ABIERTAS no está en
+// verde: está sin cargar. El backend la marca VERDE porque su regla es "no
+// hay nada bloqueado", y "nada bloqueado" y "nada registrado" se ven igual
+// en un punto verde. Verde significa "lo miramos y está bien"; para eso
+// tiene que haber algo que mirar.
+export const SIN_FRENTES = 'Sin frentes cargados';
+
+export const gerenciaSinCargar = (g) =>
+  !Number(g?.frentes_abiertos) && !Number(g?.decisiones_abiertas);
+
+export const semaforoDeGerencia = (g) => (gerenciaSinCargar(g) ? 'GRIS' : g?.semaforo);
+
+// El semáforo global tampoco puede decir VERDE si TODAS las gerencias están
+// en gris: sería el tablero entero afirmando que la empresa está bien
+// cuando no hay una sola cosa cargada.
+export const semaforoGlobalMostrado = (semaforoBackend, gerencias = []) => {
+  if (gerencias.length > 0 && gerencias.every(gerenciaSinCargar)) return 'GRIS';
+  return semaforoBackend;
 };
 
 export const CLASES_ESTADO = {

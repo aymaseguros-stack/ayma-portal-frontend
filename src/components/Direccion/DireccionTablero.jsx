@@ -1,7 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Icon } from '../Icons';
 import { obtenerTablero } from './direccionApi';
-import { diasDesde, fechaCorta, formatearMonto } from './direccionConstantes';
+import {
+  SIN_FRENTES, diasDesde, fechaCorta, formatearMonto, gerenciaSinCargar,
+  semaforoDeGerencia, semaforoGlobalMostrado,
+} from './direccionConstantes';
 import {
   Badge, Cargando, ChipSemaforo, ErrorCarga, EstadoVacio, Panel, PuntoSemaforo, Tabla,
 } from './DireccionComunes';
@@ -65,7 +68,11 @@ const DireccionTablero = ({ token, onAbrirGerencia }) => {
 
   return (
     <div className="space-y-6">
-      <Encabezado onRefrescar={cargar} semaforo={datos.semaforo_global} cargando={loading} />
+      <Encabezado
+        onRefrescar={cargar}
+        semaforo={semaforoGlobalMostrado(datos.semaforo_global, gerencias)}
+        cargando={loading}
+      />
 
       {/* Tarjetas por gerencia */}
       {gerencias.length === 0 ? (
@@ -78,7 +85,9 @@ const DireccionTablero = ({ token, onAbrirGerencia }) => {
         </Panel>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {gerencias.map((g) => (
+          {gerencias.map((g) => {
+            const sinCargar = gerenciaSinCargar(g);
+            return (
             <button
               key={g.codigo}
               type="button"
@@ -90,14 +99,19 @@ const DireccionTablero = ({ token, onAbrirGerencia }) => {
                   <p className="text-xs text-slate-500">{g.codigo}</p>
                   <p className="font-semibold text-white truncate">{g.nombre}</p>
                 </div>
-                <PuntoSemaforo color={g.semaforo} />
+                <PuntoSemaforo color={semaforoDeGerencia(g)} />
               </div>
               <div className="grid grid-cols-3 gap-2 mt-4 text-center">
                 <Metrica etiqueta="Frentes" valor={g.frentes_abiertos} />
                 <Metrica etiqueta="Bloqueados" valor={g.frentes_bloqueados} alerta={g.frentes_bloqueados > 0} />
                 <Metrica etiqueta="Decisiones" valor={g.decisiones_abiertas} alerta={g.decisiones_abiertas > 0} />
               </div>
-              {(g.motivos || []).length > 0 && (
+              {/* Sin frentes ni decisiones no se muestran los motivos del
+                  backend (que dirían "todo en orden"): se dice que no hay
+                  nada cargado, que es lo que pasa de verdad. */}
+              {sinCargar ? (
+                <p className="mt-3 text-[11px] text-slate-400">{SIN_FRENTES}</p>
+              ) : (g.motivos || []).length > 0 && (
                 <ul className="mt-3 space-y-1">
                   {g.motivos.slice(0, 3).map((m, i) => (
                     <li key={i} className="text-[11px] text-slate-400 truncate">• {m}</li>
@@ -105,7 +119,8 @@ const DireccionTablero = ({ token, onAbrirGerencia }) => {
                 </ul>
               )}
             </button>
-          ))}
+            );
+          })}
         </div>
       )}
 

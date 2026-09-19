@@ -61,6 +61,10 @@ export const DIRECCION_TABS = [
   { id: 'direccion-tablero', label: 'Tablero' },
   { id: 'direccion-gerencias', label: 'Gerencias' },
   { id: 'direccion-proveedores', label: 'Proveedores' },
+  // FINANZAS (F-11): presupuesto, gastos y comisiones liquidadas. Va entre
+  // Proveedores y Seguridad porque lee del padrón de proveedores (el costo
+  // mensual de cada uno es el gasto recurrente del mes).
+  { id: 'direccion-finanzas', label: 'Finanzas' },
   { id: 'direccion-seguridad', label: 'Seguridad' },
 ];
 

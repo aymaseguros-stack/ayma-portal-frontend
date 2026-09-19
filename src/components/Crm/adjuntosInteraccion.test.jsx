@@ -80,7 +80,8 @@ describe('adjuntos al registrar una interacción', () => {
     const subida = llamadas.findIndex(l => l.metodo === 'POST' && l.url.includes('/crm/adjuntos'));
     expect(interaccion).toBeLessThan(subida);
     expect(postsAdjuntos()[0].body.get('interaccion_id')).toBe('i-1');
-    expect(postsAdjuntos()[0].body.get('categoria')).toBe('F931');
+    // Lista paralela `categorias`: una por archivo, en el mismo orden.
+    expect(postsAdjuntos()[0].body.getAll('categorias')).toEqual(['F931']);
   });
 
   it('rechaza el archivo inválido con el motivo exacto y no lo sube', async () => {

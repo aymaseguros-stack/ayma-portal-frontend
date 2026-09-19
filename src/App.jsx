@@ -9,10 +9,12 @@ import MailPanel from './components/Mail/MailPanel';
 import DireccionTablero from './components/Direccion/DireccionTablero';
 import DireccionGerencias from './components/Direccion/DireccionGerencias';
 import DireccionProveedores from './components/Direccion/DireccionProveedores';
+import DireccionFinanzas from './components/Direccion/DireccionFinanzas';
 import DireccionSeguridad from './components/Direccion/DireccionSeguridad';
 import PolizasView from './components/PolizasView';
 import PersonasPanel from './components/Crm/PersonasPanel';
 import EmpresasPanel from './components/Crm/EmpresasPanel';
+import ResumenDireccion from './components/Admin/ResumenDireccion';
 import PipelineKanban from './components/Crm/PipelineKanban';
 import OportunidadesPanel from './components/Crm/OportunidadesPanel';
 import AgendaPanel from './components/Crm/AgendaPanel';
@@ -542,6 +544,11 @@ function App() {
 
   // Click en un ítem de la barra superior: la sección abre en su tab inicial
   // (para Mail, CRM y Seguros, el último sub-tab visitado dentro de cada una).
+  // Sub-pestaña con la que abrir Empresas, y pestaña con la que abrir
+  // Finanzas, cuando la navegación viene de una tarjeta del Dashboard.
+  const [empresasSubTabAAbrir, setEmpresasSubTabAAbrir] = useState(null);
+  const [finanzasTabInicial, setFinanzasTabInicial] = useState('presupuesto');
+
   const cambiarSeccion = (seccion) => {
     setActiveTab(tabInicialDeSeccion(seccion));
   };
@@ -809,6 +816,19 @@ function App() {
         {state.activeTab === 'dashboard' && (
           <div className="space-y-8">
             <h2 className="text-2xl font-bold">Dashboard</h2>
+
+            {/* Resumen de Dirección: SÓLO ADMIN. El endpoint cuelga de
+                require_admin, así que para cualquier otro rol el dashboard
+                queda exactamente como estaba (las tarjetas de abajo). */}
+            {isAdmin() && (
+              <ResumenDireccion
+                token={state.token}
+                onIrSiniestros={() => setActiveTab('admin-siniestros')}
+                onIrUniversoArt={() => { setEmpresasSubTabAAbrir('universo_art'); setActiveTab('empresas'); }}
+                onIrComisiones={() => { setFinanzasTabInicial('comisiones'); setActiveTab('direccion-finanzas'); }}
+                onIrComercios={() => setActiveTab('oportunidades')}
+              />
+            )}
             
             {/* Tarjetas de Resumen */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -2008,6 +2028,8 @@ function App() {
             onFichaAbierta={() => setEmpresaFichaAAbrir(null)}
             abrirGrupoFichaIdInicial={grupoFichaEmpresarialAAbrir}
             onGrupoFichaAbierta={() => setGrupoFichaEmpresarialAAbrir(null)}
+            subTabInicial={empresasSubTabAAbrir}
+            onSubTabAbierto={() => setEmpresasSubTabAAbrir(null)}
           />
         )}
 
@@ -2048,6 +2070,14 @@ function App() {
 
         {state.activeTab === 'direccion-proveedores' && isAdmin() && (
           <DireccionProveedores token={state.token} />
+        )}
+
+        {/* `key` fuerza el remonte cuando la navegación pide otra pestaña (la
+            tarjeta de Comisiones del Dashboard entra por "Comisiones
+            liquidadas"): la pestaña activa es estado interno de la pantalla, y
+            remontarla es más simple que sincronizarla con un efecto. */}
+        {state.activeTab === 'direccion-finanzas' && isAdmin() && (
+          <DireccionFinanzas key={finanzasTabInicial} token={state.token} tabInicial={finanzasTabInicial} />
         )}
 
         {state.activeTab === 'direccion-seguridad' && isAdmin() && (

@@ -48,8 +48,21 @@ const subTabButtonClass = (active) =>
 
 const EmpresasPanel = ({
   token, abrirFichaIdInicial, onFichaAbierta, abrirGrupoFichaIdInicial, onGrupoFichaAbierta,
+  subTabInicial, onSubTabAbierto,
 }) => {
-  const [subTab, setSubTab] = useState('empresas');
+  // `subTabInicial` deja que otra pantalla abra Empresas directamente en una
+  // sub-pestaña (el bloque ART del Dashboard entra por "Universo ART"). Se
+  // consume una sola vez y se avisa, igual que abrirFichaIdInicial: si no,
+  // volver a Empresas a mano reabriría siempre la misma sub-pestaña.
+  const [subTab, setSubTab] = useState(
+    SUB_TABS.some((t) => t.id === subTabInicial) ? subTabInicial : 'empresas',
+  );
+
+  useEffect(() => {
+    if (!subTabInicial || !SUB_TABS.some((t) => t.id === subTabInicial)) return;
+    setSubTab(subTabInicial);
+    onSubTabAbierto?.();
+  }, [subTabInicial, onSubTabAbierto]);
   const [grupoFichaIdParaAbrir, setGrupoFichaIdParaAbrir] = useState(null);
 
   // El mismo `extras` para el alta y la edición: son el mismo formulario.

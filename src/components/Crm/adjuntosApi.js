@@ -11,10 +11,15 @@
 //    son datos personales (Ley 25.326) y el backend solo los entrega por un
 //    stream con el token de sesión. Acá se hace fetch + blob + objectURL
 //    efímero.
-// 3. **El agrupado por categoría en la subida.** El endpoint recibe UNA
-//    categoría por request, así que un lote con categorías distintas se manda
-//    en un request por categoría. Por eso la validación es previa y total: si
-//    un archivo del lote es inválido no sale ningún request.
+// 3. **La subida del lote en UN SOLO request.** El endpoint acepta
+//    `categorias`: una lista PARALELA a `archivos`, un valor por archivo y en
+//    el mismo orden (app/api/v1/crm_adjuntos.py::_resolver_categorias). Antes
+//    se mandaba un request por grupo de categoría, y eso rompía la garantía
+//    del endpoint: el backend no persiste nada si un archivo del lote falla,
+//    pero con tres requests el tercero podía fallar dejando los seis archivos
+//    de los dos primeros ya subidos a Drive. Con un request, "todo o nada"
+//    vuelve a valer para el lote entero. Por eso la validación previa es
+//    total: si un archivo es inválido no sale ningún request.
 import { authHeader, formatApiError } from '../../utils/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
@@ -109,34 +114,27 @@ const entidadesForm = (entidades) => Object.entries(entidades || {})
 // Sube el lote. `elegidos` son ítems de validarSeleccion (con su categoría) y
 // `entidades` las FKs: alcanza con interaccion_id, el backend hereda
 // oportunidad/persona/empresa de ahí (no duplicar esa lógica acá).
-// Devuelve { adjuntos, duplicados } acumulado de todos los requests.
+// Devuelve { adjuntos, duplicados } del único request del lote.
 export const subirAdjuntos = async (token, elegidos, entidades) => {
-  const porCategoria = new Map();
+  const body = new FormData();
+  // Las dos listas van en el MISMO orden: el backend exige exactamente un
+  // valor de `categorias` por archivo y contesta 422 si las longitudes no
+  // coinciden. Una lista más corta "completada" con el default es cómo un
+  // DNI termina archivado como OTRO sin que nadie se entere.
   for (const item of elegidos) {
-    const categoria = item.categoria || CATEGORIA_DEFAULT;
-    if (!porCategoria.has(categoria)) porCategoria.set(categoria, []);
-    porCategoria.get(categoria).push(item);
+    body.append('archivos', item.archivo, item.nombre);
+    body.append('categorias', item.categoria || CATEGORIA_DEFAULT);
   }
+  for (const [campo, valor] of entidadesForm(entidades)) body.append(campo, valor);
 
-  const adjuntos = [];
-  const duplicados = [];
-  for (const [categoria, items] of porCategoria) {
-    const body = new FormData();
-    for (const item of items) body.append('archivos', item.archivo, item.nombre);
-    body.append('categoria', categoria);
-    for (const [campo, valor] of entidadesForm(entidades)) body.append(campo, valor);
-
-    const res = await fetch(`${API_URL}/api/v1/crm/adjuntos`, {
-      method: 'POST',
-      headers: authHeader(token),
-      body,
-    });
-    if (!res.ok) throw new Error(await formatApiError(res));
-    const data = await res.json();
-    adjuntos.push(...(data.adjuntos || []));
-    duplicados.push(...(data.duplicados || []));
-  }
-  return { adjuntos, duplicados };
+  const res = await fetch(`${API_URL}/api/v1/crm/adjuntos`, {
+    method: 'POST',
+    headers: authHeader(token),
+    body,
+  });
+  if (!res.ok) throw new Error(await formatApiError(res));
+  const data = await res.json();
+  return { adjuntos: data.adjuntos || [], duplicados: data.duplicados || [] };
 };
 
 export const listarAdjuntos = async (token, filtros) => {
