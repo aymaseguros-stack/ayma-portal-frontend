@@ -2,13 +2,15 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icon } from '../Icons';
 import Modal from '../Modal';
 import {
-  anularFactura, descargarPdf, emitirFactura, listarFacturas, obtenerEstado,
-  obtenerParametros, prefillEmpresa, reconciliarFactura, resumenMensual,
+  anularFactura, buscarReceptores, descargarPdf, descartarFactura, emitirFactura,
+  listarFacturas, obtenerEstado, obtenerParametros, reconciliarFactura,
+  resumenMensual,
 } from './facturacionApi';
 import {
   CONCEPTOS, CONDICIONES_IVA, CONSUMIDOR_FINAL, ESTADO_AUTORIZADA,
-  ESTADO_ERROR_COMUNICACION, ESTADOS_FACTURA, RECEPTOR_VACIO, TIPOS_DOCUMENTO,
-  claseAmbiente, detalleAmbiente, detalleParaCopiar, esProduccion,
+  ESTADO_DESCARTADA, ESTADO_ERROR_COMUNICACION, ESTADOS_FACTURA,
+  RECEPTOR_VACIO, TIPOS_DOCUMENTO,
+  claseAmbiente, detalleAmbiente, detalleParaCopiar, esDescartable, esProduccion,
   exigePeriodoDeServicio, nuevaClaveIdempotencia, textoAmbiente, totalDeItems,
 } from './facturacionConstantes';
 import { etiqueta, fechaCorta, formatearMonto } from './direccionConstantes';
@@ -61,6 +63,9 @@ export const BadgeEstadoFactura = ({ estado }) => {
     ERROR_COMUNICACION: 'bg-orange-500/20 text-orange-200',
     ENVIANDO: 'bg-yellow-500/20 text-yellow-200',
     BORRADOR: 'bg-slate-700/60 text-slate-300',
+    // Gris apagado: una descartada no compite por atención con un
+    // comprobante de verdad.
+    DESCARTADA: 'bg-slate-800 text-slate-500',
   };
   return (
     <span className={`px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${clases[estado] || 'bg-slate-700/60 text-slate-300'}`}>
@@ -427,7 +432,12 @@ const ResumenDelMes = ({ token, refrescar }) => {
 
 // --- Listado ---------------------------------------------------------------
 
-const FILTRO_INICIAL = { estado: '', desde: '', hasta: '', documento: '' };
+// `incluir_descartadas` arranca en false, igual que el default del backend:
+// una DESCARTADA no es un comprobante y no tiene por qué aparecer sin que
+// alguien la pida.
+const FILTRO_INICIAL = {
+  estado: '', desde: '', hasta: '', documento: '', incluir_descartadas: false,
+};
 
 const ListaFacturas = ({ token, refrescar, onCambio }) => {
   const [filtros, setFiltros] = useState(FILTRO_INICIAL);
@@ -477,6 +487,20 @@ const ListaFacturas = ({ token, refrescar, onCambio }) => {
           <input className={inputClase} value={filtros.documento} placeholder="CUIT, con o sin guiones"
             onChange={(e) => setFiltros({ ...filtros, documento: e.target.value })} />
         </Campo>
+        {/* EL FILTRO EXPLÍCITO. Sin él el operador no tiene cómo llegar a
+            una descartada, y "no se ve" no puede significar "no existe": la
+            fila está, con su motivo. Pedir el estado DESCARTADA ya las trae
+            sin tildar nada, así que el checkbox queda desactivado ahí para
+            no ofrecer una combinación que no cambia nada. */}
+        <label className="flex items-center gap-2 text-xs text-slate-300 pb-2 cursor-pointer">
+          <input
+            type="checkbox" className="accent-blue-500"
+            checked={filtros.incluir_descartadas || filtros.estado === ESTADO_DESCARTADA}
+            disabled={filtros.estado === ESTADO_DESCARTADA}
+            onChange={(e) => setFiltros({ ...filtros, incluir_descartadas: e.target.checked })}
+          />
+          Incluir descartadas
+        </label>
         <button className={botonSecundario} onClick={() => setFiltros(FILTRO_INICIAL)}>Limpiar</button>
       </div>
 
@@ -492,13 +516,27 @@ const ListaFacturas = ({ token, refrescar, onCambio }) => {
       ) : (
         <Tabla columnas={['Fecha', 'Tipo', 'Número', 'Receptor', 'Total', 'Estado', 'Ambiente', 'CAE', '']}>
           {items.map((f) => (
-            <tr key={f.id} className={f.anulada_en ? 'opacity-60' : ''}>
+            // Descartada: EN GRIS Y CON SU MOTIVO. Verla apagada sin saber
+            // por qué está apagada es peor que no verla.
+            <tr
+              key={f.id}
+              data-descartada={f.estado === ESTADO_DESCARTADA ? 'si' : undefined}
+              className={f.estado === ESTADO_DESCARTADA
+                ? 'opacity-50 text-slate-500'
+                : (f.anulada_en ? 'opacity-60' : '')}
+            >
               <td className="px-4 py-2.5 text-slate-300 whitespace-nowrap">{fechaCorta(f.fecha_comprobante)}</td>
               <td className="px-4 py-2.5 text-slate-300">{etiqueta(f.tipo_comprobante)}</td>
               <td className={`px-4 py-2.5 text-white ${f.anulada_en ? 'line-through' : ''}`}>
                 {f.numero_completo || '—'}
                 {f.anulada_en && (
                   <span className="block text-red-300 text-[11px] no-underline">Anulada el {fechaCorta(f.anulada_en)}</span>
+                )}
+                {f.estado === ESTADO_DESCARTADA && (
+                  <span className="block text-slate-500 text-[11px] no-underline">
+                    Descartada{f.descartada_en ? ` el ${fechaCorta(f.descartada_en)}` : ''}
+                    {f.motivo_descarte ? `: ${f.motivo_descarte}` : ''}
+                  </span>
                 )}
               </td>
               <td className="px-4 py-2.5 text-slate-200">
@@ -538,6 +576,8 @@ export const AccionesComprobante = ({ token, factura, onCambio, onError }) => {
   const [trabajando, setTrabajando] = useState(null);
   const [motivo, setMotivo] = useState('');
   const [confirmarAnular, setConfirmarAnular] = useState(false);
+  const [confirmarDescartar, setConfirmarDescartar] = useState(false);
+  const [motivoDescarte, setMotivoDescarte] = useState('');
 
   const bajar = async () => {
     setTrabajando('pdf');
@@ -563,7 +603,28 @@ export const AccionesComprobante = ({ token, factura, onCambio, onError }) => {
     finally { setTrabajando(null); }
   };
 
+  // DESCARTAR NO ES BORRAR, y el 409 con `reconciliado` es el caso que
+  // justifica todo el mecanismo: ARCA SÍ lo tenía y se adoptó su CAE. Ese
+  // 409 NO se muestra como un error rojo -no falló nada, el comprobante
+  // quedó AUTORIZADA- y obliga a recargar el detalle.
+  const descartar = async () => {
+    setTrabajando('descartar');
+    try {
+      const res = await descartarFactura(token, factura.id, motivoDescarte);
+      setConfirmarDescartar(false);
+      onCambio(res);
+    } catch (err) {
+      if (err.reconciliado) {
+        setConfirmarDescartar(false);
+        onCambio({ detalle: err.message });
+      } else {
+        onError(err.message);
+      }
+    } finally { setTrabajando(null); }
+  };
+
   const esError = factura.estado === ESTADO_ERROR_COMUNICACION;
+  const puedeDescartarse = esDescartable(factura);
 
   return (
     <div className="space-y-3">
@@ -589,6 +650,15 @@ export const AccionesComprobante = ({ token, factura, onCambio, onError }) => {
             Anular
           </button>
         )}
+
+        {/* Sólo para una tentativa sin CAE. Secundario y NUNCA rojo: el
+            botón caro de esta pantalla es Anular, que emite ante ARCA;
+            descartar no toca ARCA más que para preguntarle. */}
+        {puedeDescartarse && (
+          <button className={botonSecundario} onClick={() => setConfirmarDescartar(true)}>
+            Descartar
+          </button>
+        )}
       </div>
 
       {esError && (
@@ -596,6 +666,44 @@ export const AccionesComprobante = ({ token, factura, onCambio, onError }) => {
           ARCA no contestó y PUDO HABER AUTORIZADO este comprobante. No se reintenta: “Reconciliar” le
           pregunta a ARCA qué pasó con el número que se intentó y adopta su CAE si lo tiene.
         </p>
+      )}
+
+      {confirmarDescartar && (
+        <div className="bg-slate-700/40 border border-slate-600 rounded-lg p-3 space-y-3">
+          <p className="text-slate-100 text-sm font-medium">
+            Descartar {factura.numero_completo || 'el intento sin número'}
+          </p>
+          {/* LO QUE HAY QUE DECIR ANTES DE QUE APRIETE, y en este orden:
+              primero que se le pregunta a ARCA, después que si ARCA lo
+              tiene no se descarta. Al revés, el operador lee "no se
+              descarta" como una advertencia de que puede fallar, en vez de
+              como la garantía que es. */}
+          <p className="text-slate-300 text-xs">
+            Primero se le <strong>consulta a ARCA</strong> por este número.
+            Si ARCA lo tiene autorizado, <strong>no se descarta</strong>: se adopta su CAE y el
+            comprobante queda AUTORIZADA. Sólo si ARCA no lo tiene se marca como descartada.
+          </p>
+          <p className="text-slate-400 text-xs">
+            No se borra nada: la fila queda con el motivo, quién y cuándo. Deja de contarse en el
+            resumen y sale del listado salvo que tildes “Incluir descartadas”. El número vuelve a
+            quedar libre.
+          </p>
+          <Campo label="Motivo (queda guardado en el comprobante)">
+            <input className={inputClase} value={motivoDescarte} minLength={3}
+              onChange={(e) => setMotivoDescarte(e.target.value)}
+              placeholder="Intento fallido: quedó colgado por el bug de lock" />
+          </Campo>
+          <div className="flex gap-2 justify-end">
+            <button className={botonSecundario} onClick={() => setConfirmarDescartar(false)}>Cancelar</button>
+            <button
+              className={botonPrimario + ' disabled:opacity-50'}
+              disabled={motivoDescarte.trim().length < 3 || trabajando === 'descartar'}
+              onClick={descartar}
+            >
+              {trabajando === 'descartar' ? 'Consultando a ARCA…' : 'Consultar a ARCA y descartar'}
+            </button>
+          </div>
+        </div>
       )}
 
       {confirmarAnular && (
@@ -745,7 +853,6 @@ const ModalNuevaFactura = ({ token, ambiente, onCerrar, onEmitida }) => {
     fecha_vencimiento_pago: '',
   });
   const [observaciones, setObservaciones] = useState('');
-  const [empresaId, setEmpresaId] = useState(null);
   const [error, setError] = useState(null);
   const [apagado, setApagado] = useState(null);
   const [enviando, setEnviando] = useState(false);
@@ -786,7 +893,12 @@ const ModalNuevaFactura = ({ token, ambiente, onCerrar, onEmitida }) => {
     fecha_servicio_hasta: pideFechas ? (fechas.fecha_servicio_hasta || null) : null,
     fecha_vencimiento_pago: pideFechas ? (fechas.fecha_vencimiento_pago || null) : null,
     observaciones: observaciones || null,
-    empresa_id: empresaId,
+    // `empresa_id` REFERENCIA `empresas` DEL CRM, y el receptor de este
+    // formulario ahora sale del padrón de PROVEEDORES: mandar el id de un
+    // proveedor acá sería una clave foránea a la tabla equivocada. Queda
+    // null, que es la verdad - y no cambia nada de lo que se declara ante
+    // ARCA, que es el snapshot fiscal y no la referencia al CRM.
+    empresa_id: null,
   });
 
   const emitir = async () => {
@@ -813,10 +925,7 @@ const ModalNuevaFactura = ({ token, ambiente, onCerrar, onEmitida }) => {
             <strong className="text-slate-200"> Factura C</strong>, sin IVA discriminado.
           </p>
 
-          <FormReceptor
-            token={token} receptor={receptor}
-            onCambiar={(r, id) => { setReceptor(r); setEmpresaId(id ?? null); }}
-          />
+          <FormReceptor token={token} receptor={receptor} onCambiar={setReceptor} />
 
           <div className="border-t border-slate-700 pt-4 space-y-3">
             <p className="text-slate-300 text-sm font-medium">Detalle</p>
@@ -977,13 +1086,26 @@ const ModalNuevaFactura = ({ token, ambiente, onCerrar, onEmitida }) => {
 
 // --- Receptor --------------------------------------------------------------
 
-// Tres caminos: buscar una empresa del CRM (y prefillear), cargar a mano, o
-// el atajo Consumidor Final. Los datos SIEMPRE viajan completos: el backend
-// no adivina la condición frente al IVA de nadie.
+// A QUIÉN LE FACTURA AYMA: LAS COMPAÑÍAS, NO EL CRM.
+//
+// Este buscador consultaba /api/v1/crm/buscar, o sea las EMPRESAS CLIENTE:
+// las PyMEs a las que AYMA les vende seguros. A ésas no se les factura - su
+// comprobante lo emite la compañía. AYMA le factura a las ASEGURADORAS y
+// ART las comisiones que le liquidan, y ésas están en el padrón de
+// PROVEEDORES de Dirección, que es donde vive su CUIT.
+//
+// Siguen existiendo los otros dos caminos, y por eso el buscador es UNO de
+// tres y no el único: el atajo Consumidor Final y la carga a mano, que es
+// la que sirve para un receptor que no está en ningún padrón.
+//
+// EL QUE NO TIENE CUIT SE MUESTRA IGUAL, marcado, y se puede elegir: el
+// operador lo tipea a mano acá y se le sugiere cargarlo en Proveedores para
+// la próxima. Esconderlo haría creer que la compañía no está cargada y
+// llevaría a cargarla duplicada.
 const FormReceptor = ({ token, receptor, onCambiar }) => {
   const [busqueda, setBusqueda] = useState('');
   const [candidatos, setCandidatos] = useState(null);
-  const [faltantes, setFaltantes] = useState([]);
+  const [sinCuit, setSinCuit] = useState(null);
   const [buscando, setBuscando] = useState(false);
   const [errorBusqueda, setErrorBusqueda] = useState(null);
 
@@ -991,32 +1113,26 @@ const FormReceptor = ({ token, receptor, onCambiar }) => {
     if (!busqueda.trim()) return;
     setBuscando(true); setErrorBusqueda(null);
     try {
-      const res = await fetch(
-        `${API_URL.replace(/\/$/, '')}/api/v1/crm/buscar?q=${encodeURIComponent(busqueda.trim())}`,
-        { headers: authHeader(token) },
-      );
-      if (!res.ok) throw new Error(`No se pudo buscar (HTTP ${res.status})`);
-      const data = await res.json();
-      setCandidatos(data?.empresas || []);
+      setCandidatos(await buscarReceptores(token, busqueda.trim()) || []);
     } catch (err) { setErrorBusqueda(err.message); setCandidatos([]); }
     finally { setBuscando(false); }
   };
 
-  const usarEmpresa = async (empresa) => {
-    try {
-      const data = await prefillEmpresa(token, empresa.id);
-      const propuesto = data?.receptor || {};
-      setFaltantes(data?.faltantes || []);
-      onCambiar({
-        tipo_documento: propuesto.tipo_documento || 'CUIT',
-        numero_documento: propuesto.numero_documento || '',
-        razon_social: propuesto.razon_social || empresa.razon_social || '',
-        condicion_iva: propuesto.condicion_iva || '',
-        domicilio: propuesto.domicilio || '',
-        email: propuesto.email || '',
-      }, empresa.id);
-      setCandidatos(null);
-    } catch (err) { setErrorBusqueda(err.message); }
+  // El backend manda el snapshot YA ARMADO. No se recompone acá: un
+  // segundo armado es un segundo lugar donde se puede colar un default
+  // distinto, y la condición frente al IVA no admite dos versiones.
+  const usarCompania = (compania) => {
+    const propuesto = compania.receptor || {};
+    onCambiar({
+      tipo_documento: propuesto.tipo_documento || 'CUIT',
+      numero_documento: propuesto.numero_documento || '',
+      razon_social: propuesto.razon_social || compania.nombre || '',
+      condicion_iva: propuesto.condicion_iva || '',
+      domicilio: propuesto.domicilio || '',
+      email: propuesto.email || '',
+    });
+    setSinCuit(compania.falta_cuit ? compania : null);
+    setCandidatos(null);
   };
 
   const set = (campo) => (e) => onCambiar({ ...receptor, [campo]: e.target.value });
@@ -1026,15 +1142,15 @@ const FormReceptor = ({ token, receptor, onCambiar }) => {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-slate-300 text-sm font-medium">Receptor</p>
         <button type="button" className={botonSecundario + ' text-xs py-1'}
-          onClick={() => { onCambiar({ ...CONSUMIDOR_FINAL }, null); setFaltantes([]); }}>
+          onClick={() => { onCambiar({ ...CONSUMIDOR_FINAL }, null); setSinCuit(null); }}>
           Consumidor Final
         </button>
       </div>
 
       <div className="flex gap-2 items-end">
-        <Campo label="Buscar empresa del CRM">
+        <Campo label="Buscar compañía (aseguradora o ART)">
           <input
-            className={inputClase} value={busqueda} placeholder="Razón social o CUIT"
+            className={inputClase} value={busqueda} placeholder="Nombre o CUIT, con o sin guiones"
             onChange={(e) => setBusqueda(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); buscar(); } }}
           />
@@ -1047,15 +1163,20 @@ const FormReceptor = ({ token, receptor, onCambiar }) => {
       {errorBusqueda && <p className="text-red-300 text-xs">{errorBusqueda}</p>}
       {candidatos !== null && (
         candidatos.length === 0 ? (
-          <p className="text-slate-500 text-xs">Sin resultados. Cargá los datos a mano.</p>
+          <p className="text-slate-500 text-xs">
+            Ninguna compañía con ese nombre o CUIT en Proveedores. Cargala en
+            Dirección &gt; Proveedores, o completá los datos a mano acá abajo.
+          </p>
         ) : (
           <ul className="border border-slate-700 rounded-lg divide-y divide-slate-700">
-            {candidatos.map((e) => (
-              <li key={e.id}>
+            {candidatos.map((c) => (
+              <li key={c.id}>
                 <button type="button" className="w-full text-left px-3 py-2 hover:bg-slate-700/40"
-                  onClick={() => usarEmpresa(e)}>
-                  <span className="text-slate-100 text-sm">{e.razon_social}</span>
-                  <span className="block text-slate-500 text-[11px]">{e.cuit || 'sin CUIT cargado'}</span>
+                  onClick={() => usarCompania(c)}>
+                  <span className="text-slate-100 text-sm">{c.nombre}</span>
+                  <span className="block text-slate-500 text-[11px]">
+                    {etiqueta(c.tipo)} · {c.cuit || 'SIN CUIT CARGADO'}
+                  </span>
                 </button>
               </li>
             ))}
@@ -1063,11 +1184,14 @@ const FormReceptor = ({ token, receptor, onCambiar }) => {
         )
       )}
 
-      {/* El prefill devuelve None en lo que no hay. NO se rellena con un
-          valor plausible: la condición frente al IVA se confirma a mano. */}
-      {faltantes.length > 0 && (
+      {/* El backend NO inventa el CUIT: sin documento del receptor no hay
+          comprobante. Se pide acá y se dice dónde dejarlo cargado para que
+          no haya que volver a tipearlo. */}
+      {sinCuit && (
         <p role="alert" className="text-yellow-200 text-xs">
-          El CRM no tiene cargado: <strong>{faltantes.join(', ')}</strong>. Completalo acá abajo: estos datos no se adivinan.
+          <strong>{sinCuit.nombre}</strong> no tiene CUIT cargado en Proveedores. Escribilo acá
+          abajo para poder emitir, y completalo en <strong>Dirección &gt; Proveedores</strong> así la
+          próxima vez sale solo.
         </p>
       )}
 

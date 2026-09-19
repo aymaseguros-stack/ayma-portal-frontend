@@ -67,6 +67,13 @@ const errorDeRespuesta = async (res) => {
       err.candidatos = detalle.proveedores_candidatos;
     }
     if (detalle.error === 'arca_no_respondio') err.arca = detalle;
+    // El 409 del descarte: `reconciliado` significa que ARCA SÍ tenía el
+    // comprobante y que se adoptó su CAE. La pantalla tiene que refrescar,
+    // no sólo mostrar el error: lo que se iba a tirar quedó AUTORIZADA.
+    if (detalle.error === 'operacion_no_permitida') {
+      err.motivo = detalle.motivo;
+      err.reconciliado = Boolean(detalle.reconciliado);
+    }
   }
   if (res.status === 503) {
     err.apagado = true;
@@ -116,6 +123,21 @@ export const resumenMensual = (token, anio, mes) =>
 export const prefillEmpresa = (token, empresaId) =>
   pedir(token, `/prefill/empresa/${encodeURIComponent(empresaId)}`);
 
+// A QUIÉN LE FACTURA AYMA: las compañías del padrón de PROVEEDORES.
+//
+// NO ES EL CRM, Y ES EL ARREGLO. El buscador del receptor consultaba
+// /api/v1/crm/buscar, o sea las EMPRESAS CLIENTE: las PyMEs a las que AYMA
+// les vende seguros. A ésas no se les factura - su comprobante lo emite la
+// compañía. AYMA le factura a las ASEGURADORAS y ART las comisiones que le
+// liquidan, y ésas viven en Dirección > Proveedores.
+//
+// Cada fila trae el snapshot fiscal ya armado en `receptor`, listo para
+// mandarlo en el POST, y `falta_cuit` marcado cuando el padrón no lo tiene:
+// sin documento del receptor no hay comprobante, y NI EL BACKEND NI ESTA
+// CAPA lo inventan. Se pide a mano y se sugiere completarlo en Proveedores.
+export const buscarReceptores = (token, q) =>
+  pedir(token, '/receptores', { query: { q } });
+
 // --- Anulación y reconciliación -------------------------------------------
 // "Anular" EMITE UNA NOTA DE CRÉDITO y devuelve ESA nota, no la factura.
 export const anularFactura = (token, id, motivo) =>
@@ -126,6 +148,15 @@ export const anularFactura = (token, id, motivo) =>
 // comprobante, que es un problema fiscal, no un problema de UX.
 export const reconciliarFactura = (token, id) =>
   pedir(token, `/${encodeURIComponent(id)}/reconciliar`, { metodo: 'POST' });
+
+// TAMPOCO ES UN BORRADO. Marca DESCARTADA una tentativa que nunca obtuvo
+// CAE, y el backend le PREGUNTA A ARCA primero: si ARCA lo tiene, no
+// descarta nada -adopta su CAE- y contesta 409 con `reconciliado=true`. La
+// fila nunca se borra. Por eso la pantalla tiene que avisarlo ANTES de que
+// el operador apriete, y volver a cargar el comprobante DESPUÉS: puede
+// haber quedado AUTORIZADA.
+export const descartarFactura = (token, id, motivo) =>
+  pedir(token, `/${encodeURIComponent(id)}/descartar`, { metodo: 'POST', cuerpo: { motivo } });
 
 // --- PDF ------------------------------------------------------------------
 // Descarga AUTENTICADA: fetch con Bearer -> blob -> object URL efímera que

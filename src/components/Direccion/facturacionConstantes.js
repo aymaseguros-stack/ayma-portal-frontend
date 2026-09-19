@@ -29,9 +29,14 @@ export const exigePeriodoDeServicio = (concepto) => CONCEPTOS_CON_PERIODO.includ
 export const ESTADO_AUTORIZADA = 'AUTORIZADA';
 export const ESTADO_RECHAZADA = 'RECHAZADA';
 export const ESTADO_ERROR_COMUNICACION = 'ERROR_COMUNICACION';
+export const ESTADO_ENVIANDO = 'ENVIANDO';
+// Una tentativa que nunca obtuvo CAE y que YA se verificó contra ARCA. No
+// es un borrado: la fila existe, con su motivo. No se cuenta como
+// comprobante y no se lista salvo que se la pida.
+export const ESTADO_DESCARTADA = 'DESCARTADA';
 export const ESTADOS_FACTURA = [
-  'BORRADOR', 'ENVIANDO', ESTADO_AUTORIZADA, ESTADO_RECHAZADA,
-  ESTADO_ERROR_COMUNICACION,
+  'BORRADOR', ESTADO_ENVIANDO, ESTADO_AUTORIZADA, ESTADO_RECHAZADA,
+  ESTADO_ERROR_COMUNICACION, ESTADO_DESCARTADA,
 ];
 
 export const CLASES_ESTADO_FACTURA = {
@@ -40,7 +45,22 @@ export const CLASES_ESTADO_FACTURA = {
   ERROR_COMUNICACION: 'bg-orange-500/20 text-orange-200',
   ENVIANDO: 'bg-yellow-500/20 text-yellow-200',
   BORRADOR: 'bg-slate-700/60 text-slate-300',
+  // GRIS, y a propósito el más apagado de la paleta: una descartada no
+  // compite por atención con un comprobante.
+  DESCARTADA: 'bg-slate-800 text-slate-500 border border-slate-700',
 };
+
+// Si el comprobante ES CANDIDATO a descartarse. Necesaria, no suficiente:
+// la palabra final la tiene ARCA y la pregunta la hace el backend. El
+// backend ya manda `descartable` calculado; esto es el respaldo para una
+// respuesta vieja que todavía no lo traiga.
+export const esDescartable = (factura) => (
+  factura?.descartable ?? (
+    [ESTADO_ENVIANDO, ESTADO_ERROR_COMUNICACION].includes(factura?.estado)
+    && !factura?.cae
+    && !factura?.anulada_en
+  )
+);
 
 // EL AMBIENTE SE GRITA, NO SE SUSURRA. Un comprobante de homologación no
 // tiene validez fiscal y uno de producción es irreversible: confundirlos es
