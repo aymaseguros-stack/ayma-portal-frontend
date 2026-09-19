@@ -101,3 +101,10 @@ export const buscarDuplicados = async ({ tipo, form, buscar }) => {
 
   return [...porId.values()];
 };
+
+// Roles posibles de un vínculo persona-empresa (los mismos que ofrece la ficha
+// de empresa en "Vincular persona"). Sin default: el rol es obligatorio y lo
+// elige quien vincula.
+export const ROLES_VINCULO = ['TITULAR', 'GERENTE', 'RRHH', 'CONTADOR', 'COMPRAS', 'OTRO'];
+
+export const VINCULO_INICIAL = { rol: '', es_decisor: false, es_contacto_principal: false };

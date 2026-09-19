@@ -4,6 +4,8 @@ import { CANAL_ICON } from './oportunidadConstants';
 import { obtenerTimeline, obtenerEmail } from '../Mail/mailApi';
 import { fechaHora } from '../../utils/fechas';
 import ComposeModal from '../Mail/ComposeModal';
+import { listarAdjuntos, agruparPorInteraccion } from './adjuntosApi';
+import { FilaAdjunto } from './AdjuntosUI';
 
 const iconoPorItem = (item) => {
   if (item.tipo === 'tarea') return 'flag';
@@ -25,6 +27,18 @@ const Timeline = ({ token, tipo, id, destinatarioEmail, oportunidadId }) => {
   const [expandidoId, setExpandidoId] = useState(null);
   const [cuerpos, setCuerpos] = useState({});
   const [compose, setCompose] = useState(false);
+  // Adjuntos por interacción. El endpoint del timeline no los trae (devuelve
+  // TimelineItem plano), así que se piden aparte a /crm/adjuntos filtrando por
+  // la misma entidad y se agrupan por interaccion_id. Que falle no rompe el
+  // timeline: los adjuntos son aditivos.
+  const [adjuntosPorInteraccion, setAdjuntosPorInteraccion] = useState({});
+
+  const cargarAdjuntos = () => {
+    if (!['persona', 'empresa', 'oportunidad'].includes(tipo)) return;
+    listarAdjuntos(token, { [`${tipo}_id`]: id })
+      .then((lista) => setAdjuntosPorInteraccion(agruparPorInteraccion(lista)))
+      .catch((err) => console.error('Error cargando adjuntos del timeline:', err));
+  };
 
   const cargar = () => {
     setLoading(true);
@@ -36,7 +50,7 @@ const Timeline = ({ token, tipo, id, destinatarioEmail, oportunidadId }) => {
   };
 
   useEffect(() => {
-    if (tipo && id) cargar();
+    if (tipo && id) { cargar(); cargarAdjuntos(); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tipo, id]);
 
@@ -100,6 +114,13 @@ const Timeline = ({ token, tipo, id, destinatarioEmail, oportunidadId }) => {
                     <Icon name="chevron-down" size={14} className={`shrink-0 mt-1 transition-transform ${expandido ? 'rotate-180' : ''}`} />
                   )}
                 </div>
+                {(adjuntosPorInteraccion[item.id] || []).length > 0 && item.tipo === 'interaccion' && (
+                  <div className="mt-2 pt-2 border-t border-slate-600/60 divide-y divide-slate-700/60">
+                    {adjuntosPorInteraccion[item.id].map((a) => (
+                      <FilaAdjunto key={a.id} token={token} adjunto={a} compacto />
+                    ))}
+                  </div>
+                )}
                 {expandido && (
                   <div className="mt-3 pt-3 border-t border-slate-600 text-sm">
                     {cuerpos[item.id]?.loading ? (

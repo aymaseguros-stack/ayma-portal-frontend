@@ -2,9 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { Icon } from '../Icons';
 import Modal from '../Modal';
 import { Dato } from './FichaHelpers';
-import { authHeader } from '../../utils/api';
+import { authHeader, formatApiError } from '../../utils/api';
 import { fechaCorta, fechaHora } from '../../utils/fechas';
 import Timeline from './Timeline';
+import DocumentosTab from './DocumentosTab';
+import { SelectorAdjuntos, AvisoSubidaFallida, AvisoDuplicadosAdjuntos } from './AdjuntosUI';
+import { subirAdjuntos } from './adjuntosApi';
+import { nombreDeEmpresa, contactosDeEmpresa, etiquetaTitularConReferencia } from './empresasApi';
 import {
   ESTADO_CRM_BADGE, CANALES_VALIDOS, MOTIVOS_PERDIDA_VALIDOS,
   formatMoneda,
@@ -16,6 +20,7 @@ const FICHA_TABS = [
   { id: 'datos', label: 'Datos' },
   { id: 'timeline', label: 'Timeline' },
   { id: 'tareas', label: 'Tareas' },
+  { id: 'documentos', label: 'Documentos' },
 ];
 
 // Ficha de una oportunidad puntual: datos, timeline unificado (interacciones +
@@ -31,6 +36,23 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
   const [interaccionForm, setInteraccionForm] = useState({ canal: 'LLAMADA', direccion: 'OUT', asunto: '', resumen: '' });
   const [guardandoInteraccion, setGuardandoInteraccion] = useState(false);
   const [puntosGanados, setPuntosGanados] = useState(null);
+
+  // Adjuntos de la interacción: se eligen en el modal pero se suben DESPUÉS
+  // de que la interacción existe (hace falta su id). Si esa subida falla, la
+  // interacción ya está guardada y no se pierde: queda el pendiente para
+  // reintentar el lote entero.
+  const [adjuntosElegidos, setAdjuntosElegidos] = useState([]);
+  const [subidaPendiente, setSubidaPendiente] = useState(null);
+  const [duplicadosAdjuntos, setDuplicadosAdjuntos] = useState([]);
+  const [reintentando, setReintentando] = useState(false);
+
+  // Empresa titular + persona de referencia.
+  const [nombreEmpresa, setNombreEmpresa] = useState(null);
+  const [mostrarReferencia, setMostrarReferencia] = useState(false);
+  const [refResultados, setRefResultados] = useState([]);
+  const [refQuery, setRefQuery] = useState('');
+  const [refVinculadas, setRefVinculadas] = useState([]);
+  const [guardandoReferencia, setGuardandoReferencia] = useState(false);
 
   const [mostrarCierre, setMostrarCierre] = useState(false);
   const [cierreForm, setCierreForm] = useState({ resultado: 'GANADA', motivo_perdida: '', motivo_perdida_detalle: '', compania_ganadora: '' });
@@ -50,6 +72,77 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
     cargarDetalle().finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [oportunidadId]);
+
+  useEffect(() => {
+    if (!detalle?.empresa_id) return undefined;
+    let vigente = true;
+    nombreDeEmpresa(token, detalle.empresa_id).then((n) => { if (vigente) setNombreEmpresa(n); });
+    contactosDeEmpresa(token, detalle.empresa_id).then((l) => { if (vigente) setRefVinculadas(l); });
+    return () => { vigente = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detalle?.empresa_id]);
+
+  useEffect(() => {
+    if (!refQuery.trim()) { setRefResultados([]); return; }
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/v1/crm/buscar?q=${encodeURIComponent(refQuery)}`, { headers: authHeader(token) });
+        if (!res.ok) throw new Error('Error ' + res.status);
+        const data = await res.json();
+        setRefResultados(data.personas || []);
+      } catch (err) {
+        console.error('Error buscando contacto de referencia:', err);
+        setRefResultados([]);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refQuery]);
+
+  // El backend acepta persona_id en PATCH /crm/oportunidades/{id}
+  // (OportunidadUpdate), así que el contacto de referencia se puede agregar o
+  // cambiar sobre una oportunidad ya creada sin tocar la empresa titular.
+  const guardarReferencia = async (persona) => {
+    setGuardandoReferencia(true);
+    setErrorAccion(null);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/crm/oportunidades/${oportunidadId}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ persona_id: persona ? persona.id : null }),
+      });
+      if (!res.ok) throw new Error(await formatApiError(res));
+      setMostrarReferencia(false);
+      setRefQuery('');
+      await cargarDetalle();
+      onChanged?.();
+    } catch (err) {
+      setErrorAccion(err.message);
+    } finally {
+      setGuardandoReferencia(false);
+    }
+  };
+
+  // Un lote pendiente se reintenta entero: la subida es atómica por lote.
+  const subirLote = async (interaccionId, elegidos) => {
+    const { duplicados } = await subirAdjuntos(token, elegidos, { interaccion_id: interaccionId });
+    setDuplicadosAdjuntos(duplicados);
+  };
+
+  const reintentarSubida = async () => {
+    if (!subidaPendiente) return;
+    setReintentando(true);
+    try {
+      await subirLote(subidaPendiente.interaccionId, subidaPendiente.elegidos);
+      setSubidaPendiente(null);
+      await cargarDetalle();
+      setTimelineRefreshKey(k => k + 1);
+    } catch (err) {
+      setSubidaPendiente(prev => ({ ...prev, mensaje: err.message }));
+    } finally {
+      setReintentando(false);
+    }
+  };
 
   const registrarInteraccion = async (e) => {
     e.preventDefault();
@@ -75,6 +168,22 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
       setPuntosGanados(Number(creada.puntos_scoring || 0));
       setMostrarInteraccion(false);
       setInteraccionForm({ canal: 'LLAMADA', direccion: 'OUT', asunto: '', resumen: '' });
+      setDuplicadosAdjuntos([]);
+      setSubidaPendiente(null);
+
+      // Primero la interacción, después sus adjuntos con ese id. El backend
+      // hereda oportunidad/persona/empresa de la interacción: no se duplica
+      // esa lógica acá.
+      if (adjuntosElegidos.length > 0) {
+        const lote = adjuntosElegidos;
+        setAdjuntosElegidos([]);
+        try {
+          await subirLote(creada.id, lote);
+        } catch (errSubida) {
+          setSubidaPendiente({ interaccionId: creada.id, elegidos: lote, mensaje: errSubida.message });
+        }
+      }
+
       await cargarDetalle();
       setTimelineRefreshKey(k => k + 1);
       onChanged?.();
@@ -160,6 +269,30 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
             <span className="ml-auto font-semibold">{formatMoneda(detalle.prima_estimada)}</span>
           </div>
 
+          {detalle.empresa_id && (
+            <div className="flex flex-wrap items-center gap-2 text-sm text-slate-300">
+              <Icon name="building-office" className="text-slate-400" />
+              <span>{etiquetaTitularConReferencia(nombreEmpresa, detalle.persona_id ? detalle.nombre_vinculado : null) || 'Empresa'}</span>
+              <button
+                type="button"
+                onClick={() => { setErrorAccion(null); setMostrarReferencia(true); }}
+                className="text-blue-400 hover:text-blue-300 text-xs underline"
+              >
+                {detalle.persona_id ? 'Cambiar contacto de referencia' : 'Agregar contacto de referencia'}
+              </button>
+            </div>
+          )}
+
+          {subidaPendiente && (
+            <AvisoSubidaFallida
+              mensaje={subidaPendiente.mensaje}
+              onReintentar={reintentarSubida}
+              reintentando={reintentando}
+            />
+          )}
+
+          {duplicadosAdjuntos.length > 0 && <AvisoDuplicadosAdjuntos duplicados={duplicadosAdjuntos} />}
+
           {puntosGanados !== null && (
             <div className="bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 px-4 py-2 rounded-lg text-sm">
               +{puntosGanados} puntos de scoring por esta interacción
@@ -177,6 +310,9 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
                   }`}
                 >
                   {t.label}
+                  {t.id === 'documentos' && detalle.adjuntos_count > 0 && (
+                    <span className="ml-2 px-1.5 py-0.5 bg-slate-600 rounded text-xs">{detalle.adjuntos_count}</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -226,6 +362,14 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
               id={oportunidadId}
               destinatarioEmail={detalle.email}
               oportunidadId={oportunidadId}
+            />
+          )}
+
+          {tab === 'documentos' && (
+            <DocumentosTab
+              token={token}
+              filtro={{ oportunidad_id: oportunidadId }}
+              onCambio={async () => { await cargarDetalle(); onChanged?.(); }}
             />
           )}
 
@@ -303,6 +447,12 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
                 className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm"
               />
             </div>
+            <SelectorAdjuntos
+              elegidos={adjuntosElegidos}
+              onElegidos={setAdjuntosElegidos}
+              deshabilitado={guardandoInteraccion}
+            />
+
             {errorAccion && (
               <div className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-2 rounded-lg text-sm">{errorAccion}</div>
             )}
@@ -315,6 +465,63 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* Sub-modal: contacto de referencia */}
+      {mostrarReferencia && (
+        <Modal title="Contacto de referencia" onClose={() => setMostrarReferencia(false)} maxWidth="max-w-md" zClass="z-[60]">
+          <div className="space-y-4">
+            <p className="text-slate-400 text-sm">
+              La empresa sigue siendo la titular de la oportunidad; la persona es la referencia.
+            </p>
+            <div className="relative">
+              <Icon name="magnifying-glass" className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input
+                type="text"
+                value={refQuery}
+                onChange={(e) => setRefQuery(e.target.value)}
+                placeholder="Buscar persona..."
+                className="w-full pl-9 pr-4 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-white placeholder-slate-500 text-sm"
+              />
+            </div>
+            <div className="max-h-56 overflow-y-auto border border-slate-700 rounded-lg divide-y divide-slate-700">
+              {(refQuery.trim() ? refResultados : refVinculadas).length === 0 ? (
+                <p className="text-slate-500 text-sm p-3">{refQuery.trim() ? 'Sin resultados' : 'Esta empresa no tiene personas vinculadas'}</p>
+              ) : (
+                (refQuery.trim() ? refResultados : refVinculadas).map((p) => (
+                  <button
+                    type="button"
+                    key={p.id}
+                    disabled={guardandoReferencia}
+                    onClick={() => guardarReferencia(p)}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-slate-700/60 transition disabled:opacity-50"
+                  >
+                    <span className="font-medium">{p.nombre} {p.apellido || ''}</span>
+                    {p.rol && <span className="text-slate-500 ml-2 text-xs">{p.rol}</span>}
+                  </button>
+                ))
+              )}
+            </div>
+            {errorAccion && (
+              <div className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-2 rounded-lg text-sm">{errorAccion}</div>
+            )}
+            <div className="flex gap-4 pt-2">
+              <button type="button" onClick={() => setMostrarReferencia(false)} className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 rounded-lg transition">
+                Cancelar
+              </button>
+              {detalle?.persona_id && (
+                <button
+                  type="button"
+                  disabled={guardandoReferencia}
+                  onClick={() => guardarReferencia(null)}
+                  className="flex-1 py-3 bg-slate-700 hover:bg-red-600/40 disabled:opacity-50 rounded-lg transition"
+                >
+                  Quitar referencia
+                </button>
+              )}
+            </div>
+          </div>
         </Modal>
       )}
 

@@ -58,6 +58,11 @@ const boton = (contenedor, texto) => {
 const tieneBoton = (contenedor, texto) =>
   [...contenedor.querySelectorAll('button')].some((x) => x.textContent.trim() === texto);
 
+// Desde este PR el rol del vínculo es obligatorio y no tiene default: los
+// flujos encadenados que enlazan persona-empresa tienen que elegirlo.
+const elegirRol = (contenedor, rol = 'TITULAR') =>
+  fireEvent.change(campo(contenedor, 'Rol del vínculo *'), { target: { value: rol } });
+
 const posts = (fragmento) => llamadas.filter((l) => l.metodo === 'POST' && l.url.includes(fragmento));
 
 describe('flujos simples', () => {
@@ -105,11 +110,15 @@ describe('flujos simples', () => {
 
     const persona = modal('Nueva persona');
     escribir(persona, 'Nombre *', 'Ana');
+    elegirRol(persona, 'CONTADOR');
     fireEvent.click(boton(persona, 'Crear persona'));
     await waitFor(() => expect(onResuelto).toHaveBeenCalled());
 
     const vinculo = posts('/crm/vinculos')[0];
-    expect(vinculo.body).toMatchObject({ persona_id: 'p-nueva', empresa_id: 'e-nueva', es_contacto_principal: true });
+    expect(vinculo.body).toMatchObject({
+      persona_id: 'p-nueva', empresa_id: 'e-nueva', rol: 'CONTADOR',
+      es_decisor: false, es_contacto_principal: false,
+    });
   });
 
   it('empresa -> nueva persona: queda enlazada como contacto', async () => {
@@ -125,11 +134,12 @@ describe('flujos simples', () => {
 
     const empresa = modal('Nueva empresa');
     escribir(empresa, 'Razón social *', 'ACME SRL');
+    elegirRol(empresa, 'GERENTE');
     fireEvent.click(boton(empresa, 'Crear empresa'));
     await waitFor(() => expect(onResuelto).toHaveBeenCalled());
 
     expect(posts('/crm/vinculos')[0].body).toMatchObject({
-      persona_id: 'p-nueva', empresa_id: 'e-nueva', es_contacto_principal: true,
+      persona_id: 'p-nueva', empresa_id: 'e-nueva', rol: 'GERENTE',
     });
   });
 });
@@ -153,6 +163,7 @@ describe('encadenado de tres niveles', () => {
     await waitFor(() => expect(modal('Nueva persona').textContent).toContain('ACME SRL'));
     const persona = modal('Nueva persona');
     escribir(persona, 'Nombre *', 'Ana');
+    elegirRol(persona);
     fireEvent.click(boton(persona, 'Crear persona'));
     await waitFor(() => expect(screen.queryByText('Nueva persona', { selector: 'h3' })).toBeNull());
 
@@ -242,9 +253,17 @@ describe('precarga cruzada', () => {
     const persona = modal('Nueva persona');
     expect(persona.textContent).toContain('ACME SRL');
     escribir(persona, 'Nombre *', 'Ana');
+    elegirRol(persona, 'RRHH');
     fireEvent.click(boton(persona, 'Crear persona'));
     await waitFor(() => expect(posts('/crm/vinculos')).toHaveLength(1));
-    expect(posts('/crm/vinculos')[0].body).toMatchObject({ persona_id: 'p-nueva', empresa_id: 'e-existente' });
+    expect(posts('/crm/vinculos')[0].body).toMatchObject({
+      persona_id: 'p-nueva', empresa_id: 'e-existente', rol: 'RRHH',
+    });
+
+    // La empresa sigue siendo la titular de la oportunidad: la persona creada
+    // acá es el contacto de referencia (esto corrige el PR #57, donde el slot
+    // de entidad saltaba a la persona).
+    await waitFor(() => expect(modal('Nueva oportunidad').textContent).toContain('ACME SRL'));
   });
 
   it('la empresa abierta desde una oportunidad con persona elegida nace con esa persona', async () => {
@@ -265,9 +284,12 @@ describe('precarga cruzada', () => {
     expect(empresa.textContent).toContain('Ana Díaz');
 
     escribir(empresa, 'Razón social *', 'ACME SRL');
+    elegirRol(empresa, 'COMPRAS');
     fireEvent.click(boton(empresa, 'Crear empresa'));
     await waitFor(() => expect(posts('/crm/vinculos')).toHaveLength(1));
-    expect(posts('/crm/vinculos')[0].body).toMatchObject({ persona_id: 'p-existente', empresa_id: 'e-nueva' });
+    expect(posts('/crm/vinculos')[0].body).toMatchObject({
+      persona_id: 'p-existente', empresa_id: 'e-nueva', rol: 'COMPRAS',
+    });
   });
 });
 
@@ -312,5 +334,52 @@ describe('aviso de duplicado', () => {
 
     fireEvent.click(screen.getByText('Crear de todas formas'));
     await waitFor(() => expect(posts('/crm/personas')).toHaveLength(1));
+  });
+});
+
+describe('rol del vínculo', () => {
+  it('es obligatorio y no tiene valor por defecto', async () => {
+    render(<AltaEncadenada token="t" raiz={{ tipo: 'empresa' }} onResuelto={() => {}} onCerrar={() => {}} />);
+    fireEvent.click(boton(modal('Nueva empresa'), 'Nueva persona'));
+    escribir(modal('Nueva persona'), 'Nombre *', 'Ana');
+    fireEvent.click(boton(modal('Nueva persona'), 'Crear persona'));
+    await waitFor(() => expect(screen.queryByText('Nueva persona', { selector: 'h3' })).toBeNull());
+    // El rol aparece recién cuando la persona creada arriba ya está enlazada.
+    await waitFor(() => expect(modal('Nueva empresa').textContent).toContain('Ana'));
+
+    const empresa = modal('Nueva empresa');
+    expect(campo(empresa, 'Rol del vínculo *').value).toBe('');
+    expect(boton(empresa, 'Crear empresa').disabled).toBe(true);
+
+    escribir(empresa, 'Razón social *', 'ACME SRL');
+    fireEvent.click(boton(empresa, 'Crear empresa'));
+    expect(posts('/crm/empresas')).toHaveLength(0);
+
+    fireEvent.change(campo(empresa, 'Rol del vínculo *'), { target: { value: 'RRHH' } });
+    fireEvent.click(boton(empresa, 'Crear empresa'));
+    await waitFor(() => expect(posts('/crm/vinculos')).toHaveLength(1));
+    expect(posts('/crm/vinculos')[0].body.rol).toBe('RRHH');
+  });
+
+  it('"Es quien decide" y "Contacto principal" viajan como los marcó el usuario', async () => {
+    render(<AltaEncadenada token="t" raiz={{ tipo: 'persona' }} onResuelto={() => {}} onCerrar={() => {}} />);
+    fireEvent.click(boton(modal('Nueva persona'), 'Nueva empresa'));
+    escribir(modal('Nueva empresa'), 'Razón social *', 'ACME SRL');
+    fireEvent.click(boton(modal('Nueva empresa'), 'Crear empresa'));
+    await waitFor(() => expect(screen.queryByText('Nueva empresa', { selector: 'h3' })).toBeNull());
+    await waitFor(() => expect(modal('Nueva persona').textContent).toContain('ACME SRL'));
+
+    const persona = modal('Nueva persona');
+    escribir(persona, 'Nombre *', 'Ana');
+    fireEvent.change(campo(persona, 'Rol del vínculo *'), { target: { value: 'TITULAR' } });
+    const checks = [...persona.querySelectorAll('input[type="checkbox"]')];
+    fireEvent.click(checks[0]);
+    fireEvent.click(checks[1]);
+    fireEvent.click(boton(persona, 'Crear persona'));
+
+    await waitFor(() => expect(posts('/crm/vinculos')).toHaveLength(1));
+    expect(posts('/crm/vinculos')[0].body).toMatchObject({
+      rol: 'TITULAR', es_decisor: true, es_contacto_principal: true,
+    });
   });
 });
