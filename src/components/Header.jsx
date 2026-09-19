@@ -3,11 +3,14 @@ import ScoringIndicator from './ScoringIndicator';
 import { SUB_TABS_POR_SECCION, seccionDeTab } from './navTabs';
 
 // Barra superior (D-NAV-1), en este orden:
-//   Dashboard · Mail · CRM | Clientes · Seguros ... Denuncia · Soporte
+//   Dashboard · Mail · CRM | Clientes · Seguros | Dirección ... Denuncia · Soporte
 // Mail, CRM, Clientes y Seguros son admin-only (mismo criterio de permisos
 // que antes: esAdminOAgente). "Seguros" agrupa Pólizas y Siniestros, que
-// dejaron de estar sueltos en la barra. "Cartera ART" ya no es un ítem
-// superior: el módulo completo vive ahora en CRM > Empresas > Universo ART.
+// dejaron de estar sueltos en la barra. "Dirección" (módulo de gobierno
+// interno) es ADMIN-only y cuelga detrás de su propio divisor: no es
+// navegación de la operación comercial, es la dirección de la empresa.
+// "Cartera ART" ya no es un ítem superior: el módulo completo vive ahora en
+// CRM > Empresas > Universo ART.
 //
 // Las etiquetas, el orden lógico y los permisos no cambian: lo único que se
 // reparte es el layout. Navegación de sección propiamente dicha (arranca
@@ -20,6 +23,8 @@ const SECCIONES_IZQUIERDA = (admin) => sinDivisoresColgando([
   { divisor: true, id: 'div-1' },
   ...(admin ? [{ id: 'clientes', label: 'Clientes' }] : []),
   { id: 'seguros', label: 'Seguros' },
+  { divisor: true, id: 'div-2' },
+  ...(admin ? [{ id: 'direccion', label: 'Dirección' }] : []),
 ]);
 
 const SECCIONES_DERECHA = () => [
@@ -55,8 +60,12 @@ const Header = ({
   // estado paralelo que pueda quedar desincronizado.
   const seccionActiva = seccionDeTab(activeTab);
   // Siniestros sigue siendo admin-only: para un cliente, "Seguros" solo
-  // muestra Pólizas.
-  const subTabsDeSeccion = SUB_TABS_POR_SECCION[seccionActiva] || null;
+  // muestra Pólizas. Dirección es ADMIN-only entera: para cualquier otro rol
+  // no hay sub-menú (ni una barra vacía) aunque el tab llegue por la vía que
+  // sea.
+  const subTabsDeSeccion = seccionActiva === 'direccion' && !isAdmin
+    ? null
+    : (SUB_TABS_POR_SECCION[seccionActiva] || null);
   const subTabs = subTabsDeSeccion
     ? subTabsDeSeccion.filter((t) => isAdmin || t.id === 'polizas')
     : null;
