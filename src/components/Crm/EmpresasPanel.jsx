@@ -15,6 +15,7 @@ import CarteraArtPanel from './CarteraArtPanel';
 import ArtCarteraView from '../ArtCartera/ArtCarteraView';
 import { ArtDatos, ArtHistorial } from './EmpresaArtSection';
 import Timeline from './Timeline';
+import DocumentosTab from './DocumentosTab';
 import CiiuLabel from '../Ciiu/CiiuLabel';
 import CiiuCampoExtra from '../Ciiu/CiiuCampoExtra';
 
@@ -26,6 +27,7 @@ const FICHA_TABS = [
   { id: 'oportunidades', label: 'Oportunidades' },
   { id: 'polizas', label: 'Pólizas' },
   { id: 'actividad', label: 'Actividad' },
+  { id: 'documentos', label: 'Documentos' },
 ];
 
 const ROLES = ['TITULAR', 'GERENTE', 'RRHH', 'CONTADOR', 'COMPRAS', 'OTRO'];
@@ -76,7 +78,8 @@ const EmpresasPanel = ({
   const [vincularResultados, setVincularResultados] = useState([]);
   const [buscandoPersona, setBuscandoPersona] = useState(false);
   const [personaElegida, setPersonaElegida] = useState(null);
-  const [rolElegido, setRolElegido] = useState('TITULAR');
+  // Sin default: el rol del vínculo es obligatorio y lo elige quien vincula.
+  const [rolElegido, setRolElegido] = useState('');
   const [esDecisor, setEsDecisor] = useState(false);
   const [esContactoPrincipal, setEsContactoPrincipal] = useState(false);
   const [vinculando, setVinculando] = useState(false);
@@ -227,7 +230,7 @@ const EmpresasPanel = ({
     setVincularQuery('');
     setVincularResultados([]);
     setPersonaElegida(null);
-    setRolElegido('TITULAR');
+    setRolElegido('');
     setEsDecisor(false);
     setEsContactoPrincipal(false);
     setErrorVinculo(null);
@@ -238,6 +241,10 @@ const EmpresasPanel = ({
     e.preventDefault();
     if (!personaElegida) {
       setErrorVinculo('Elegí una persona para vincular');
+      return;
+    }
+    if (!rolElegido) {
+      setErrorVinculo('Elegí el rol de la persona en la empresa');
       return;
     }
     setVinculando(true);
@@ -254,7 +261,9 @@ const EmpresasPanel = ({
           es_contacto_principal: esContactoPrincipal,
         }),
       });
-      if (!res.ok) {
+      // 409 = ya existe ese vínculo con ese rol: el enlace está, no es un
+      // error para el usuario.
+      if (!res.ok && res.status !== 409) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail || 'No se pudo vincular la persona');
       }
@@ -447,6 +456,9 @@ const EmpresasPanel = ({
                       }`}
                     >
                       {t.label}
+                      {t.id === 'documentos' && ficha.adjuntos_count > 0 && (
+                        <span className="ml-2 px-1.5 py-0.5 bg-slate-600 rounded text-xs">{ficha.adjuntos_count}</span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -597,6 +609,10 @@ const EmpresasPanel = ({
                 />
               )}
 
+              {fichaTab === 'documentos' && (
+                <DocumentosTab token={token} filtro={{ empresa_id: ficha.id }} onCambio={refrescarFichaActual} />
+              )}
+
               {fichaTab === 'actividad' && (
                 <Timeline token={token} tipo="empresa" id={ficha.id} destinatarioEmail={ficha.email} />
               )}
@@ -653,12 +669,14 @@ const EmpresasPanel = ({
             </div>
 
             <div>
-              <label className="block text-slate-400 text-sm mb-2">Rol</label>
+              <label className="block text-slate-400 text-sm mb-2">Rol *</label>
               <select
                 value={rolElegido}
                 onChange={(e) => setRolElegido(e.target.value)}
                 className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm"
+                required
               >
+                <option value="">Elegí un rol...</option>
                 {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </div>
@@ -666,7 +684,7 @@ const EmpresasPanel = ({
             <div className="flex flex-col gap-2">
               <label className="flex items-center gap-3 p-3 bg-slate-700/30 rounded-lg cursor-pointer hover:bg-slate-700/50 transition">
                 <input type="checkbox" checked={esDecisor} onChange={(e) => setEsDecisor(e.target.checked)} className="w-4 h-4 rounded" />
-                <span className="text-sm">Es decisor</span>
+                <span className="text-sm">Es quien decide</span>
               </label>
               <label className="flex items-center gap-3 p-3 bg-slate-700/30 rounded-lg cursor-pointer hover:bg-slate-700/50 transition">
                 <input type="checkbox" checked={esContactoPrincipal} onChange={(e) => setEsContactoPrincipal(e.target.checked)} className="w-4 h-4 rounded" />
@@ -690,7 +708,7 @@ const EmpresasPanel = ({
               </button>
               <button
                 type="submit"
-                disabled={vinculando}
+                disabled={vinculando || !rolElegido}
                 className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg font-semibold transition"
               >
                 {vinculando ? 'Vinculando...' : 'Vincular'}

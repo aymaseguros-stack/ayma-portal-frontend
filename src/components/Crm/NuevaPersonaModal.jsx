@@ -3,15 +3,17 @@ import Modal from '../Modal';
 import FieldForm from '../FieldForm';
 import { PERSONA_FIELD_SECTIONS, PERSONA_INITIAL_FORM } from './personaFields';
 import { authHeader } from '../../utils/api';
-import { buscarDuplicados, normalizarPayload, etiquetaEmpresa } from './altaEncadenada';
-import { AvisoDuplicados, BotonAnidar, ChipsVinculos } from './altaEncadenadaUI';
+import { buscarDuplicados, normalizarPayload, etiquetaEmpresa, VINCULO_INICIAL } from './altaEncadenada';
+import { AvisoDuplicados, BotonAnidar, ChipsVinculos, CamposVinculo } from './altaEncadenadaUI';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
 // Alta de persona, usable sola (tab Personas) o como nivel de la pila de alta
 // encadenada. Las empresas que llegan por `precarga` o por `inyeccion` quedan
 // enlazadas con un POST /crm/vinculos apenas la persona existe: el backend no
-// acepta empresa_id en PersonaCreate, el vínculo es una llamada aparte.
+// acepta empresa_id en PersonaCreate, el vínculo es una llamada aparte. El rol
+// de ese vínculo lo elige el usuario y es obligatorio (antes se asumía TITULAR
+// + contacto principal).
 const NuevaPersonaModal = ({
   token,
   precarga = null,
@@ -27,6 +29,7 @@ const NuevaPersonaModal = ({
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState(null);
   const [duplicados, setDuplicados] = useState(null);
+  const [vinculo, setVinculo] = useState(VINCULO_INICIAL);
   const inyeccionAplicada = useRef(null);
 
   const headers = { ...authHeader(token), 'Content-Type': 'application/json' };
@@ -56,8 +59,9 @@ const NuevaPersonaModal = ({
           body: JSON.stringify({
             persona_id: personaId,
             empresa_id: empresa.id,
-            rol: 'TITULAR',
-            es_contacto_principal: true,
+            rol: vinculo.rol,
+            es_decisor: vinculo.es_decisor,
+            es_contacto_principal: vinculo.es_contacto_principal,
           }),
         });
       } catch (err) {
@@ -89,6 +93,8 @@ const NuevaPersonaModal = ({
     }
   };
 
+  const faltaRol = empresas.length > 0 && !vinculo.rol;
+
   const usarExistente = async (persona) => {
     setGuardando(true);
     try {
@@ -103,6 +109,10 @@ const NuevaPersonaModal = ({
     e.preventDefault();
     if (!form.nombre?.trim()) {
       setError('El nombre es obligatorio');
+      return;
+    }
+    if (faltaRol) {
+      setError('Elegí el rol de la persona en la empresa');
       return;
     }
     setError(null);
@@ -138,9 +148,12 @@ const NuevaPersonaModal = ({
               vacio="Sin empresa vinculada"
             />
             {empresas.length > 0 && (
-              <p className="text-slate-500 text-xs">
-                Al guardar se enlaza como contacto principal de {empresas.map(etiquetaEmpresa).join(', ')}.
-              </p>
+              <>
+                <p className="text-slate-500 text-xs">
+                  Al guardar se enlaza con {empresas.map(etiquetaEmpresa).join(', ')}.
+                </p>
+                <CamposVinculo valor={vinculo} onChange={setVinculo} deshabilitado={guardando} />
+              </>
             )}
           </div>
         )}
@@ -173,7 +186,7 @@ const NuevaPersonaModal = ({
           </button>
           <button
             type="submit"
-            disabled={guardando}
+            disabled={guardando || faltaRol}
             className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg font-semibold transition"
           >
             {guardando ? 'Guardando...' : 'Crear persona'}

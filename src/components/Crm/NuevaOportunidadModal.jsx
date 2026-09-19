@@ -5,6 +5,7 @@ import { authHeader } from '../../utils/api';
 import { TRACKS_VALIDOS, ETAPAS_SAIDA_VALIDAS } from './oportunidadConstants';
 import { etiquetaEmpresa, etiquetaPersona } from './altaEncadenada';
 import { BotonAnidar } from './altaEncadenadaUI';
+import { contactosDeEmpresa } from './empresasApi';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -14,6 +15,11 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onr
 // Grupos, o el chip de "producto faltante"): { persona_id | empresa_id |
 // grupo_id, nombre, track? }. Sin `preset` (alta desde el Pipeline) se
 // busca la persona o empresa a mano.
+//
+// B2B (aditivo): si la entidad elegida es una EMPRESA aparece un segundo
+// campo opcional, "Contacto de referencia" (persona). Se mandan empresa_id y
+// persona_id juntos: la empresa es la TITULAR de la oportunidad y la persona
+// la referencia. Con una persona como entidad (B2C) no hay segundo campo.
 //
 // Alta encadenada (aditivo): con `puedeAnidar` aparecen los botones
 // "+ Nueva persona" / "+ Nueva empresa" al lado del selector, y la entidad que
@@ -28,6 +34,13 @@ const NuevaOportunidadModal = ({
   const [buscarQuery, setBuscarQuery] = useState('');
   const [buscando, setBuscando] = useState(false);
   const [resultados, setResultados] = useState({ personas: [], empresas: [] });
+
+  // Contacto de referencia (solo cuando la entidad es una empresa).
+  const [referencia, setReferencia] = useState(preset?.referencia || null);
+  const [refQuery, setRefQuery] = useState('');
+  const [refBuscando, setRefBuscando] = useState(false);
+  const [refResultados, setRefResultados] = useState([]);
+  const [refVinculadas, setRefVinculadas] = useState([]);
 
   const [form, setForm] = useState({
     track: preset?.track || '',
@@ -68,12 +81,53 @@ const NuevaOportunidadModal = ({
   const elegirPersona = (p) => setEntidad({ persona_id: p.id, nombre: etiquetaPersona(p), registro: p });
   const elegirEmpresa = (e) => setEntidad({ empresa_id: e.id, nombre: etiquetaEmpresa(e), registro: e });
 
+  const empresaId = entidad?.empresa_id || preset?.empresa_id || null;
+
+  // Al elegir empresa, las personas ya vinculadas se ofrecen primero.
+  useEffect(() => {
+    if (!empresaId) { setRefVinculadas([]); return; }
+    let vigente = true;
+    contactosDeEmpresa(token, empresaId).then((lista) => { if (vigente) setRefVinculadas(lista); });
+    return () => { vigente = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [empresaId]);
+
+  // Buscador del contacto de referencia: mismo endpoint, solo personas.
+  useEffect(() => {
+    if (!refQuery.trim()) { setRefResultados([]); return; }
+    setRefBuscando(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/v1/crm/buscar?q=${encodeURIComponent(refQuery)}`, { headers: authHeader(token) });
+        if (!res.ok) throw new Error('Error ' + res.status);
+        const data = await res.json();
+        setRefResultados(data.personas || []);
+      } catch (err) {
+        console.error('Error buscando contacto de referencia:', err);
+        setRefResultados([]);
+      } finally {
+        setRefBuscando(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refQuery]);
+
+  const elegirReferencia = (p) => {
+    setReferencia({ persona_id: p.id, nombre: etiquetaPersona(p) });
+    setRefQuery('');
+  };
+
   // Una entidad creada en el nivel de arriba queda seleccionada acá.
   useEffect(() => {
     if (!inyeccion) return;
     if (inyeccionAplicada.current === inyeccion.seq) return;
     inyeccionAplicada.current = inyeccion.seq;
     if (inyeccion.tipo === 'empresa') elegirEmpresa(inyeccion.entidad);
+    // Corrige PR #57: con una empresa ya elegida, la persona creada arriba NO
+    // reemplaza la entidad (la empresa sigue siendo la titular): pasa a ser el
+    // contacto de referencia.
+    else if (empresaId) elegirReferencia(inyeccion.entidad);
     else elegirPersona(inyeccion.entidad);
   }, [inyeccion]);
 
@@ -102,7 +156,7 @@ const NuevaOportunidadModal = ({
     setError(null);
     try {
       const payload = {
-        persona_id: entidad.persona_id || null,
+        persona_id: entidad.persona_id || referencia?.persona_id || null,
         empresa_id: entidad.empresa_id || null,
         grupo_id: entidad.grupo_id || null,
         track: form.track,
@@ -153,7 +207,7 @@ const NuevaOportunidadModal = ({
             {entidad ? (
               <div className="flex items-center justify-between bg-blue-600/20 border border-blue-500/40 rounded-lg px-3 py-2">
                 <span className="text-sm">{entidad.nombre}</span>
-                <button type="button" onClick={() => setEntidad(null)} className="text-slate-400 hover:text-white">
+                <button type="button" onClick={() => { setEntidad(null); setReferencia(null); }} className="text-slate-400 hover:text-white">
                   <Icon name="x-mark" size={14} />
                 </button>
               </div>
@@ -195,6 +249,66 @@ const NuevaOportunidadModal = ({
                 )}
               </>
             )}
+          </div>
+        )}
+
+        {empresaId && (
+          <div>
+            <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+              <label className="text-slate-400 text-sm">Contacto de referencia</label>
+              {puedeAnidar && (
+                <BotonAnidar tipo="persona" onClick={anidar('persona')} disabled={guardando} />
+              )}
+            </div>
+            {referencia ? (
+              <div className="flex items-center justify-between bg-blue-600/20 border border-blue-500/40 rounded-lg px-3 py-2">
+                <span className="text-sm">{referencia.nombre}</span>
+                <button type="button" aria-label="Quitar contacto de referencia" onClick={() => setReferencia(null)} className="text-slate-400 hover:text-white">
+                  <Icon name="x-mark" size={14} />
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="relative">
+                  <Icon name="magnifying-glass" className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input
+                    type="text"
+                    value={refQuery}
+                    onChange={(e) => setRefQuery(e.target.value)}
+                    placeholder="Buscar persona..."
+                    className="w-full pl-9 pr-4 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                </div>
+                {!refQuery.trim() && refVinculadas.length > 0 && (
+                  <div className="mt-2 border border-slate-700 rounded-lg divide-y divide-slate-700">
+                    <p className="text-slate-500 text-xs px-3 py-1.5">Personas vinculadas a esta empresa</p>
+                    {refVinculadas.map((p) => (
+                      <button type="button" key={`v-${p.id}`} onClick={() => elegirReferencia(p)} className="w-full text-left px-3 py-2 text-sm hover:bg-slate-700/60 transition">
+                        <span className="font-medium">{p.nombre} {p.apellido || ''}</span>
+                        {p.rol && <span className="text-slate-500 ml-2 text-xs">{p.rol}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {refQuery.trim() && (
+                  <div className="mt-2 max-h-48 overflow-y-auto border border-slate-700 rounded-lg divide-y divide-slate-700">
+                    {refBuscando ? (
+                      <p className="text-slate-500 text-sm p-3">Buscando...</p>
+                    ) : refResultados.length === 0 ? (
+                      <p className="text-slate-500 text-sm p-3">Sin resultados</p>
+                    ) : (
+                      refResultados.map((p) => (
+                        <button type="button" key={`r-${p.id}`} onClick={() => elegirReferencia(p)} className="w-full text-left px-3 py-2 text-sm hover:bg-slate-700/60 transition">
+                          <span className="font-medium">{p.nombre} {p.apellido || ''}</span>
+                          <span className="text-slate-500 ml-2 text-xs">{p.email || p.numero_documento || ''}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+            <p className="text-slate-500 text-xs mt-2">La empresa es la titular de la oportunidad; la persona, la referencia.</p>
           </div>
         )}
 

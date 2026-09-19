@@ -11,6 +11,7 @@ import OportunidadFichaModal from './OportunidadFichaModal';
 import OfertasSugeridas from './OfertasSugeridas';
 import GruposPanel from './GruposPanel';
 import Timeline from './Timeline';
+import DocumentosTab from './DocumentosTab';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -32,6 +33,7 @@ const FICHA_TABS = [
   { id: 'oportunidades', label: 'Oportunidades' },
   { id: 'polizas', label: 'Pólizas' },
   { id: 'actividad', label: 'Actividad' },
+  { id: 'documentos', label: 'Documentos' },
 ];
 
 // Colores por estado_crm, según la convención del embudo CRM.
@@ -362,6 +364,9 @@ const PersonasPanel = ({
                       }`}
                     >
                       {t.label}
+                      {t.id === 'documentos' && ficha.adjuntos_count > 0 && (
+                        <span className="ml-2 px-1.5 py-0.5 bg-slate-600 rounded text-xs">{ficha.adjuntos_count}</span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -497,6 +502,10 @@ const PersonasPanel = ({
                     </>
                   )}
                 />
+              )}
+
+              {fichaTab === 'documentos' && (
+                <DocumentosTab token={token} filtro={{ persona_id: ficha.id }} onCambio={refrescarFichaActual} />
               )}
 
               {fichaTab === 'actividad' && (

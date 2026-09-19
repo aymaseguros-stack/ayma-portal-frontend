@@ -3,6 +3,7 @@ import { Icon } from '../Icons';
 import { authHeader, formatApiError } from '../../utils/api';
 import AltaEncadenada from './AltaEncadenada';
 import OportunidadFichaModal from './OportunidadFichaModal';
+import { nombreDeEmpresa, etiquetaTitularConReferencia } from './empresasApi';
 import {
   ESTADOS_CRM_ORDEN, ESTADO_CRM_LABEL, ESTADO_CRM_BADGE, TRACKS_VALIDOS,
   formatMoneda, diasDesde, estaVencida,
@@ -12,9 +13,26 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onr
 
 const columnaVacia = (estado_crm) => ({ estado_crm, cantidad: 0, prima_estimada_total: 0, oportunidades: [] });
 
-const OportunidadCard = ({ o, onDragStart, onClick }) => {
+// Con empresa titular Y persona de referencia la tarjeta muestra
+// "Empresa · ref.: Persona". El backend manda `nombre_vinculado` = la persona
+// cuando están los dos (su _nombre_vinculado prioriza persona), así que la
+// razón social se resuelve acá, cacheada por id.
+const OportunidadCard = ({ token, o, onDragStart, onClick }) => {
   const dias = diasDesde(o.updated_at);
   const vencida = estaVencida(o);
+  const [nombreEmpresa, setNombreEmpresa] = useState(null);
+  const conReferencia = Boolean(o.empresa_id && o.persona_id);
+
+  useEffect(() => {
+    if (!conReferencia) return undefined;
+    let vigente = true;
+    nombreDeEmpresa(token, o.empresa_id).then((n) => { if (vigente) setNombreEmpresa(n); });
+    return () => { vigente = false; };
+  }, [conReferencia, o.empresa_id, token]);
+
+  const titulo = conReferencia
+    ? (etiquetaTitularConReferencia(nombreEmpresa, o.nombre_vinculado) || o.nombre_vinculado)
+    : o.nombre_vinculado;
   return (
     <div
       draggable
@@ -23,7 +41,7 @@ const OportunidadCard = ({ o, onDragStart, onClick }) => {
       className="bg-slate-800 border border-slate-700 rounded-lg p-3 cursor-grab active:cursor-grabbing hover:border-blue-500/60 transition space-y-2"
     >
       <div className="flex items-start justify-between gap-2">
-        <span className="font-medium text-sm truncate">{o.nombre_vinculado || 'Sin vincular'}</span>
+        <span className="font-medium text-sm truncate">{titulo || 'Sin vincular'}</span>
         {vencida && <span className="w-2 h-2 rounded-full bg-red-500 shrink-0 mt-1" title="Fecha de cierre estimada vencida" />}
       </div>
       <div className="flex items-center gap-2 flex-wrap">
@@ -209,7 +227,7 @@ const PipelineKanban = ({ token }) => {
                     <p className="text-slate-600 text-xs text-center py-6">Sin oportunidades</p>
                   ) : (
                     col.oportunidades.map((o) => (
-                      <OportunidadCard key={o.id} o={o} onDragStart={onDragStart} onClick={setOportunidadAbierta} />
+                      <OportunidadCard key={o.id} token={token} o={o} onDragStart={onDragStart} onClick={setOportunidadAbierta} />
                     ))
                   )}
                 </div>

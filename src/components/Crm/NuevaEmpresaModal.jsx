@@ -5,14 +5,15 @@ import CiiuCampoExtra from '../Ciiu/CiiuCampoExtra';
 import { EMPRESA_FIELD_SECTIONS, EMPRESA_INITIAL_FORM } from './empresaFields';
 import { esCuitValido, formatearCuit } from '../../utils/cuit';
 import { authHeader } from '../../utils/api';
-import { buscarDuplicados, normalizarPayload, etiquetaPersona } from './altaEncadenada';
-import { AvisoDuplicados, BotonAnidar, ChipsVinculos } from './altaEncadenadaUI';
+import { buscarDuplicados, normalizarPayload, etiquetaPersona, VINCULO_INICIAL } from './altaEncadenada';
+import { AvisoDuplicados, BotonAnidar, ChipsVinculos, CamposVinculo } from './altaEncadenadaUI';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
 // Alta de empresa, usable sola (tab Empresas) o como nivel de la pila de alta
 // encadenada. Las personas de `precarga` / `inyeccion` quedan enlazadas como
-// contacto con un POST /crm/vinculos apenas la empresa existe.
+// contacto con un POST /crm/vinculos apenas la empresa existe, con el rol que
+// elige el usuario (obligatorio, sin default).
 const NuevaEmpresaModal = ({
   token,
   precarga = null,
@@ -29,6 +30,7 @@ const NuevaEmpresaModal = ({
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState(null);
   const [duplicados, setDuplicados] = useState(null);
+  const [vinculo, setVinculo] = useState(VINCULO_INICIAL);
   const inyeccionAplicada = useRef(null);
 
   const headers = { ...authHeader(token), 'Content-Type': 'application/json' };
@@ -64,8 +66,9 @@ const NuevaEmpresaModal = ({
           body: JSON.stringify({
             persona_id: persona.id,
             empresa_id: empresaId,
-            rol: 'TITULAR',
-            es_contacto_principal: true,
+            rol: vinculo.rol,
+            es_decisor: vinculo.es_decisor,
+            es_contacto_principal: vinculo.es_contacto_principal,
           }),
         });
       } catch (err) {
@@ -97,6 +100,8 @@ const NuevaEmpresaModal = ({
     }
   };
 
+  const faltaRol = personas.length > 0 && !vinculo.rol;
+
   const usarExistente = async (empresa) => {
     setGuardando(true);
     try {
@@ -115,6 +120,10 @@ const NuevaEmpresaModal = ({
     }
     if (form.cuit && !esCuitValido(form.cuit)) {
       setError('El CUIT ingresado no es válido (dígito verificador incorrecto)');
+      return;
+    }
+    if (faltaRol) {
+      setError('Elegí el rol de la persona en la empresa');
       return;
     }
     setError(null);
@@ -150,9 +159,12 @@ const NuevaEmpresaModal = ({
               vacio="Sin contacto vinculado"
             />
             {personas.length > 0 && (
-              <p className="text-slate-500 text-xs">
-                Al guardar se enlaza como contacto principal a {personas.map(etiquetaPersona).join(', ')}.
-              </p>
+              <>
+                <p className="text-slate-500 text-xs">
+                  Al guardar se enlaza a {personas.map(etiquetaPersona).join(', ')}.
+                </p>
+                <CamposVinculo valor={vinculo} onChange={setVinculo} deshabilitado={guardando} />
+              </>
             )}
           </div>
         )}
@@ -191,7 +203,7 @@ const NuevaEmpresaModal = ({
           </button>
           <button
             type="submit"
-            disabled={guardando || cuitInvalido}
+            disabled={guardando || cuitInvalido || faltaRol}
             className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg font-semibold transition"
           >
             {guardando ? 'Guardando...' : 'Crear empresa'}

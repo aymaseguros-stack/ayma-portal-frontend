@@ -1,6 +1,6 @@
 import React from 'react';
 import { Icon } from '../Icons';
-import { etiquetaEntidad } from './altaEncadenada';
+import { etiquetaEntidad, ROLES_VINCULO } from './altaEncadenada';
 
 // Piezas compartidas por los formularios de alta encadenada (persona, empresa,
 // oportunidad). Separadas de AltaEncadenada.jsx para no importar en círculo: el
@@ -86,5 +86,47 @@ export const AvisoDuplicados = ({ tipo, duplicados, onUsarExistente, onCrearIgua
     >
       Crear de todas formas
     </button>
+  </div>
+);
+
+// Rol del vínculo + los dos atributos que lo califican. Sin valor por
+// defecto y obligatorio: antes el enlace automático asumía TITULAR y
+// contacto principal, y así se cargaban gerentes y contadores como titulares
+// de la empresa. Quien enlaza es quien sabe qué rol tiene esa persona.
+export const CamposVinculo = ({ valor, onChange, deshabilitado = false, etiquetaRol = 'Rol del vínculo *' }) => (
+  <div className="space-y-2">
+    <div>
+      <label className="block text-slate-400 text-sm mb-2">{etiquetaRol}</label>
+      <select
+        value={valor.rol}
+        disabled={deshabilitado}
+        onChange={(e) => onChange({ ...valor, rol: e.target.value })}
+        className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm"
+        required
+      >
+        <option value="">Elegí un rol...</option>
+        {ROLES_VINCULO.map((r) => <option key={r} value={r}>{r}</option>)}
+      </select>
+    </div>
+    <label className="flex items-center gap-3 p-3 bg-slate-700/30 rounded-lg cursor-pointer hover:bg-slate-700/50 transition">
+      <input
+        type="checkbox"
+        checked={valor.es_decisor}
+        disabled={deshabilitado}
+        onChange={(e) => onChange({ ...valor, es_decisor: e.target.checked })}
+        className="w-4 h-4 rounded"
+      />
+      <span className="text-sm">Es quien decide</span>
+    </label>
+    <label className="flex items-center gap-3 p-3 bg-slate-700/30 rounded-lg cursor-pointer hover:bg-slate-700/50 transition">
+      <input
+        type="checkbox"
+        checked={valor.es_contacto_principal}
+        disabled={deshabilitado}
+        onChange={(e) => onChange({ ...valor, es_contacto_principal: e.target.checked })}
+        className="w-4 h-4 rounded"
+      />
+      <span className="text-sm">Contacto principal</span>
+    </label>
   </div>
 );
