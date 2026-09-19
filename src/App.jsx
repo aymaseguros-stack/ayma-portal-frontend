@@ -18,13 +18,15 @@ import ResumenDireccion from './components/Admin/ResumenDireccion';
 import PipelineKanban from './components/Crm/PipelineKanban';
 import OportunidadesPanel from './components/Crm/OportunidadesPanel';
 import AgendaPanel from './components/Crm/AgendaPanel';
+import SeguimientosHoyPanel from './components/Crm/SeguimientosHoyPanel';
+import LeadDetalleModal from './components/Crm/LeadDetalleModal';
 import Timeline from './components/Crm/Timeline';
 import Modal from './components/Modal';
 import { Icon } from './components/Icons';
 import TwoFactorLoginStep from './components/Auth/TwoFactorLoginStep';
 import SecurityPanel from './components/Security/SecurityPanel';
 import { normalizeList, formatApiError, authHeader, SESSION_EXPIRED_EVENT } from './utils/api';
-import { fechaCorta } from './utils/fechas';
+import { fechaCorta, fechaHora } from './utils/fechas';
 import { extraerRol, esRolAdmin } from './utils/roles';
 import { anularLead } from './utils/leadsApi';
 
@@ -220,9 +222,11 @@ function App() {
   };
   const [convirtiendoLeadId, setConvirtiendoLeadId] = useState(null);
   const [anulandoLeadId, setAnulandoLeadId] = useState(null);
-  // Ficha liviana de actividad de un Lead (timeline unificado), abierta desde
-  // el botón "Actividad" de la tabla de Leads.
-  const [leadActividadAbierto, setLeadActividadAbierto] = useState(null);
+  // C-13: la ficha del Lead - datos completos, atribución y timeline. Antes era
+  // sólo el timeline ("Actividad"): todo lo que el alta persiste (email,
+  // mensaje, vehículo, utm_*, fbclid, gclid, page_url, la hora) no se veía en
+  // ninguna pantalla.
+  const [leadAbierto, setLeadAbierto] = useState(null);
 
   // Estado para marcar cliente como recuperable
   const [recuperableCliente, setRecuperableCliente] = useState(null);
@@ -451,6 +455,19 @@ function App() {
       setState(prev => ({ ...prev, leadsError: err.message }));
     }
   };
+
+  // Al VOLVER a la pestaña Leads se relee la lista.
+  //
+  // Antes los leads se cargaban una sola vez, junto con el dashboard, al
+  // loguearse: quedar la mañana entera con el portal abierto y volver a la
+  // pestaña mostraba la foto del login, y los leads que entraron en el medio
+  // sólo aparecían recargando el portal (F5) - que es justo lo que no hay que
+  // pedirle a quien está atendiendo. El endpoint es una lista corta, así que la
+  // relectura al entrar alcanza; no hace falta un polling.
+  useEffect(() => {
+    if (state.activeTab === 'leads' && state.token && isAdmin()) cargarLeads();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.activeTab, state.token]);
 
   // Anular un lead: baja LÓGICA. El lead no desaparece de la lista, queda
   // marcado como anulado (mismo criterio visual que las propuestas ART
@@ -1422,8 +1439,11 @@ function App() {
                         const anulado = lead.estado === 'anulado';
                         return (
                         <tr key={lead.id || idx} className={`hover:bg-slate-700/30 ${anulado ? 'opacity-60' : ''}`}>
-                          <td className="px-4 py-3 text-sm text-slate-400">
-                            {fechaCorta(lead.created_at)}
+                          {/* `created_at` es un instante, no un día: sin la
+                              hora no se puede priorizar a quién llamar
+                              primero, que es para lo que se mira esta columna. */}
+                          <td className="px-4 py-3 text-sm text-slate-400 whitespace-nowrap">
+                            {fechaHora(lead.created_at, { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
                           </td>
                           <td className={`px-4 py-3 text-sm font-medium ${anulado ? 'line-through text-slate-500' : ''}`}>{lead.nombre}</td>
                           <td className="px-4 py-3 text-sm">
@@ -1457,11 +1477,11 @@ function App() {
                           <td className="px-4 py-3 text-center">
                             <div className="flex items-center justify-center gap-2">
                               <button
-                                onClick={() => setLeadActividadAbierto(lead)}
+                                onClick={() => setLeadAbierto(lead)}
                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded transition text-sm whitespace-nowrap"
                               >
-                                <Icon name="clock" size={14} />
-                                Actividad
+                                <Icon name="document-text" size={14} />
+                                Ver detalle
                               </button>
                               {lead.persona_id ? (
                                 <span className="text-xs text-slate-500">Ya convertido</span>
@@ -1498,19 +1518,12 @@ function App() {
               )}
             </div>
 
-            {leadActividadAbierto && (
-              <Modal
-                title={`Actividad · ${leadActividadAbierto.nombre}`}
-                onClose={() => setLeadActividadAbierto(null)}
-                maxWidth="max-w-2xl"
-              >
-                <Timeline
-                  token={state.token}
-                  tipo="lead"
-                  id={leadActividadAbierto.id}
-                  destinatarioEmail={leadActividadAbierto.email}
-                />
-              </Modal>
+            {leadAbierto && (
+              <LeadDetalleModal
+                token={state.token}
+                lead={leadAbierto}
+                onClose={() => setLeadAbierto(null)}
+              />
             )}
           </div>
         )}
@@ -2006,6 +2019,11 @@ function App() {
         {/* AGENDA (CRM Fase 2) */}
         {state.activeTab === 'agenda' && isAdmin() && (
           <AgendaPanel token={state.token} />
+        )}
+
+        {/* SEGUIMIENTOS DE HOY - cadencia post-cotización (backend PR #176) */}
+        {state.activeTab === 'seguimientos' && isAdmin() && (
+          <SeguimientosHoyPanel token={state.token} />
         )}
 
         {/* PERSONAS (CRM v2) - incluye sub-pestaña "Grupos familiares" */}

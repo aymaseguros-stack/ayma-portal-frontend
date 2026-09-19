@@ -77,3 +77,67 @@ export const estaVencida = (oportunidad) => {
   if (!oportunidad?.fecha_cierre_estimada) return false;
   return oportunidad.fecha_cierre_estimada < hoyISO();
 };
+
+// ---------------------------------------------------------------------------
+// Pipeline dirigido por actos (backend PR #176)
+// ---------------------------------------------------------------------------
+
+// Los actos y el estado al que llevan. Espejo de `ACTO_A_ESTADO` en
+// app/models/crm/estado_crm.py. Se muestra en la ficha para que quede a la
+// vista POR QUÉ el estado se movió: el estado no se elige, se deriva de esto.
+export const ACTOS_VALIDOS = ['CONTACTO', 'CALIFICACION', 'COTIZACION', 'EMISION'];
+
+export const ACTO_A_ESTADO = {
+  CONTACTO: 'DATO',
+  CALIFICACION: 'PROSPECTO',
+  COTIZACION: 'POTENCIAL',
+  EMISION: 'CLIENTE',
+};
+
+export const ACTO_LABEL = {
+  CONTACTO: 'Contacto',
+  CALIFICACION: 'Calificación',
+  COTIZACION: 'Cotización entregada',
+  EMISION: 'Emisión',
+};
+
+// Las DOS únicas transiciones explícitas. Todo lo demás se deriva del acto.
+export const ESTADOS_EXPLICITOS = ['LOOP', 'RECUPERABLE'];
+
+// `MotivoBaja` del backend (app/models/cliente.py), que es lo que valida
+// `TransicionRequest.motivo_baja`. NO se agrega ningún valor de más acá: un
+// motivo que el backend no conoce es un 422 al confirmar.
+//
+// FALTA `NO_COLOCABLE` (el riesgo que ninguna compañía toma - una F100 del 76).
+// Hoy no está en el enum del backend, así que no se ofrece: ver la nota de
+// MOTIVO_NO_COLOCABLE_PENDIENTE más abajo.
+export const MOTIVOS_BAJA_VALIDOS = [
+  'PRECIO', 'SERVICIO', 'SINIESTRO', 'COMPANIA', 'VENTA_BIEN', 'MUDANZA',
+  'SIN_CONTACTO', 'OTRO',
+];
+
+export const MOTIVO_BAJA_LABEL = {
+  PRECIO: 'Precio',
+  SERVICIO: 'Servicio',
+  SINIESTRO: 'Siniestro',
+  COMPANIA: 'Compañía',
+  VENTA_BIEN: 'Vendió el bien',
+  MUDANZA: 'Mudanza',
+  SIN_CONTACTO: 'Sin contacto',
+  OTRO: 'Otro',
+};
+
+// PENDIENTE DE BACKEND - no se fuerza desde acá.
+//
+// "No colocable" NO es una pérdida comercial: es que no tuvimos producto para
+// el riesgo (una Ford F100 1976 que ninguna de nuestras compañías toma). Hoy
+// se mezcla con PRECIO/OTRO y ensucia la tasa de cierre, que es justo lo que
+// hay que poder separar.
+//
+// Mandarlo igual sería un 422: `TransicionRequest._motivo_valido` valida
+// contra `MotivoBaja`, y además `crm_estado.aplicar_transicion` sólo persiste
+// `motivo_baja` en RECUPERABLE (en LOOP lo ignora). Hacen falta las dos cosas
+// del lado del backend: el valor en el enum y que LOOP lo guarde. Hasta
+// entonces el motivo del LOOP viaja en la nota, que SÍ se guarda (como
+// `interacciones.resumen`) pero no se puede agregar en un reporte.
+export const MOTIVO_NO_COLOCABLE_PENDIENTE = 'NO_COLOCABLE';
