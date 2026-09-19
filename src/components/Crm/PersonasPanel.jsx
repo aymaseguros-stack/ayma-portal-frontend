@@ -6,6 +6,7 @@ import { PERSONA_FIELD_SECTIONS, PERSONA_INITIAL_FORM } from './personaFields';
 import { Dato, ListaSimple } from './FichaHelpers';
 import { normalizeList, formatApiError, authHeader } from '../../utils/api';
 import NuevaOportunidadModal from './NuevaOportunidadModal';
+import AltaEncadenada from './AltaEncadenada';
 import OportunidadFichaModal from './OportunidadFichaModal';
 import OfertasSugeridas from './OfertasSugeridas';
 import GruposPanel from './GruposPanel';
@@ -69,9 +70,7 @@ const PersonasPanel = ({
   const [resultadosBusqueda, setResultadosBusqueda] = useState(null);
 
   const [mostrarNueva, setMostrarNueva] = useState(false);
-  const [nuevaForm, setNuevaForm] = useState(PERSONA_INITIAL_FORM);
   const [guardando, setGuardando] = useState(false);
-  const [errorForm, setErrorForm] = useState(null);
 
   const [fichaId, setFichaId] = useState(null);
   const [ficha, setFicha] = useState(null);
@@ -139,39 +138,6 @@ const PersonasPanel = ({
       setError(err.message);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const crearPersona = async (e) => {
-    e.preventDefault();
-    if (!nuevaForm.nombre?.trim()) {
-      setErrorForm('El nombre es obligatorio');
-      return;
-    }
-    setGuardando(true);
-    setErrorForm(null);
-    try {
-      const payload = Object.fromEntries(
-        Object.entries(nuevaForm).map(([k, v]) => [k, v === '' ? null : v])
-      );
-      const res = await fetch(`${API_URL}/api/v1/crm/personas`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail?.[0]?.msg || err.detail || 'No se pudo crear la persona');
-      }
-      const creada = await res.json();
-      setMostrarNueva(false);
-      setNuevaForm(PERSONA_INITIAL_FORM);
-      cargarPersonas();
-      abrirFicha(creada.id);
-    } catch (err) {
-      setErrorForm(err.message);
-    } finally {
-      setGuardando(false);
     }
   };
 
@@ -287,7 +253,7 @@ const PersonasPanel = ({
           {subTabPills}
         </div>
         <button
-          onClick={() => { setNuevaForm(PERSONA_INITIAL_FORM); setErrorForm(null); setMostrarNueva(true); }}
+          onClick={() => setMostrarNueva(true)}
           className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition text-sm font-medium"
         >
           <Icon name="plus" />
@@ -359,34 +325,19 @@ const PersonasPanel = ({
         </div>
       </div>
 
-      {/* Modal: Nueva persona */}
+      {/* Alta de persona, encadenable: "+ Nueva empresa" crea la empresa
+          encima y vuelve con la persona ya enlazada a ella. */}
       {mostrarNueva && (
-        <Modal title="Nueva persona" onClose={() => setMostrarNueva(false)} maxWidth="max-w-3xl">
-          <form onSubmit={crearPersona} className="space-y-6">
-            <FieldForm sections={PERSONA_FIELD_SECTIONS} values={nuevaForm} onChange={setNuevaForm} />
-            {errorForm && (
-              <div className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-2 rounded-lg text-sm">
-                {errorForm}
-              </div>
-            )}
-            <div className="flex gap-4 pt-2">
-              <button
-                type="button"
-                onClick={() => setMostrarNueva(false)}
-                className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 rounded-lg transition"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={guardando}
-                className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg font-semibold transition"
-              >
-                {guardando ? 'Guardando...' : 'Crear persona'}
-              </button>
-            </div>
-          </form>
-        </Modal>
+        <AltaEncadenada
+          token={token}
+          raiz={{ tipo: 'persona' }}
+          onCerrar={() => setMostrarNueva(false)}
+          onResuelto={(creada) => {
+            setMostrarNueva(false);
+            cargarPersonas();
+            abrirFicha(creada.id);
+          }}
+        />
       )}
 
       {/* Ficha 360 */}

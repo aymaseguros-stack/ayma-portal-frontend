@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../Icons';
 import { authHeader, formatApiError } from '../../utils/api';
-import NuevaOportunidadModal from './NuevaOportunidadModal';
+import AltaEncadenada from './AltaEncadenada';
 import OportunidadFichaModal from './OportunidadFichaModal';
 import {
   ESTADOS_CRM_ORDEN, ESTADO_CRM_LABEL, ESTADO_CRM_BADGE, TRACKS_VALIDOS,
@@ -220,11 +220,11 @@ const PipelineKanban = ({ token }) => {
       )}
 
       {mostrarNueva && (
-        <NuevaOportunidadModal
+        <AltaEncadenada
           token={token}
-          preset={null}
-          onClose={() => setMostrarNueva(false)}
-          onCreated={() => { setMostrarNueva(false); cargarPipeline(); }}
+          raiz={{ tipo: 'oportunidad', preset: null }}
+          onCerrar={() => setMostrarNueva(false)}
+          onResuelto={() => { setMostrarNueva(false); cargarPipeline(); }}
         />
       )}
 
