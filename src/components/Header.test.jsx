@@ -15,7 +15,12 @@ import { CRM_TABS, MAIL_TABS, SEGUROS_TABS } from './navTabs';
 // ScoringIndicator hace fetch al montar; lo neutralizamos.
 vi.mock('./ScoringIndicator', () => ({ default: () => null }));
 
-const ITEMS_SUPERIORES = ['Dashboard', 'Mail', 'CRM', 'Clientes', 'Seguros', 'Denuncia', 'Soporte'];
+// Orden de la fila 1 para un ADMIN (el único rol que ve Dirección):
+// izquierda = Dashboard · Mail · CRM | Dirección | Clientes · Seguros,
+// derecha = Denuncia · Soporte.
+const ITEMS_IZQUIERDA = ['Dashboard', 'Mail', 'CRM', 'Dirección', 'Clientes', 'Seguros'];
+const ITEMS_DERECHA = ['Denuncia', 'Soporte'];
+const ITEMS_SUPERIORES = [...ITEMS_IZQUIERDA, ...ITEMS_DERECHA];
 
 const activo = (boton) => boton.className.includes('bg-blue-600');
 
@@ -38,7 +43,7 @@ beforeEach(() => { globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, js
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe('barra superior', () => {
-  it('muestra los ítems en el orden acordado', () => {
+  it('muestra los ítems en el orden acordado (Dirección detrás del toggle)', () => {
     pintar('dashboard');
     const labels = screen.getAllByRole('button')
       .map(b => b.textContent)
@@ -115,10 +120,44 @@ describe('alcanzabilidad', () => {
     ITEMS_SUPERIORES.forEach((label) => {
       fireEvent.click(screen.getAllByRole('button').find(b => b.textContent === label));
     });
-    expect(secciones).toEqual(['dashboard', 'mail', 'crm', 'clientes', 'seguros', 'denuncia', 'soporte']);
+    expect(secciones).toEqual(['dashboard', 'mail', 'crm', 'direccion', 'clientes', 'seguros', 'denuncia', 'soporte']);
 
     CRM_TABS.forEach(t => fireEvent.click(screen.getAllByText(t.label)[0]));
     expect(tabs).toEqual(CRM_TABS.map(t => t.id));
+  });
+});
+
+// Ningún divisor al borde del nav ni pegado a otro divisor.
+const divisoresSanos = (izquierda) => {
+  const hijos = Array.from(izquierda.querySelector('nav').children);
+  const esDivisor = (el) => el && el.tagName !== 'BUTTON';
+  if (esDivisor(hijos[0]) || esDivisor(hijos[hijos.length - 1])) return false;
+  return hijos.every((el, i) => !esDivisor(el) || !esDivisor(hijos[i + 1]));
+};
+
+// El orden nuevo: Dirección pasa de ir después de Seguros a ir inmediatamente
+// después del toggle Dashboard/Mail/CRM, con un divisor a cada lado. Para un
+// rol que no ve Dirección los dos divisores quedarían juntos: se colapsan.
+describe('orden de la fila 1 por rol', () => {
+  const nav = () => screen.getByTestId('header-izquierda').querySelector('nav');
+  const secuencia = () =>
+    Array.from(nav().children).map((el) => (el.tagName === 'BUTTON' ? el.textContent : '|'));
+
+  it('ADMIN: Dashboard · Mail · CRM | Dirección | Clientes · Seguros', () => {
+    pintar('dashboard');
+    expect(secuencia()).toEqual(
+      ['Dashboard', 'Mail', 'CRM', '|', 'Dirección', '|', 'Clientes', 'Seguros']
+    );
+    expect(divisoresSanos(screen.getByTestId('header-izquierda'))).toBe(true);
+  });
+
+  // EMPLEADO y CLIENTE llegan al Header con el mismo flag (isAdmin=false:
+  // esRolAdmin() es estricto), así que ven la misma fila 1. Este ajuste es
+  // de orden: no toca permisos, por eso no se separan acá.
+  it.each([['empleado'], ['cliente']])('%s: Dashboard | Seguros, con un solo divisor', (rol) => {
+    pintar('polizas', { isAdmin: false, rol });
+    expect(secuencia()).toEqual(['Dashboard', '|', 'Seguros']);
+    expect(divisoresSanos(screen.getByTestId('header-izquierda'))).toBe(true);
   });
 });
 
@@ -130,11 +169,11 @@ describe('reparto de la fila 1 en dos bloques', () => {
   const enBloque = (bloque, label) =>
     Array.from(bloque.querySelectorAll('button')).some((b) => b.textContent === label);
 
-  it('Clientes y Seguros viven en el bloque izquierdo, junto al logo', () => {
+  it('Dirección, Clientes y Seguros viven en el bloque izquierdo, junto al logo', () => {
     pintar('dashboard');
     const { izquierda, derecha } = bloques();
     expect(izquierda.querySelector('h1').textContent).toBe('AYMA');
-    ['Dashboard', 'Mail', 'CRM', 'Clientes', 'Seguros'].forEach((label) => {
+    ITEMS_IZQUIERDA.forEach((label) => {
       expect(enBloque(izquierda, label)).toBe(true);
       expect(enBloque(derecha, label)).toBe(false);
     });
@@ -162,17 +201,8 @@ describe('reparto de la fila 1 en dos bloques', () => {
     pintar('polizas', { isAdmin: false, rol: 'cliente' });
     const { izquierda, derecha } = bloques();
     ['Dashboard', 'Seguros'].forEach((l) => expect(enBloque(izquierda, l)).toBe(true));
-    ['Mail', 'CRM', 'Clientes'].forEach((l) => expect(enBloque(izquierda, l)).toBe(false));
+    ['Mail', 'CRM', 'Clientes', 'Dirección'].forEach((l) => expect(enBloque(izquierda, l)).toBe(false));
     ['Denuncia', 'Soporte'].forEach((l) => expect(enBloque(derecha, l)).toBe(true));
-
-    // Ningún divisor al borde del nav ni pegado a otro divisor.
-    const nav = izquierda.querySelector('nav');
-    const hijos = Array.from(nav.children);
-    const esDivisor = (el) => el.tagName !== 'BUTTON';
-    expect(esDivisor(hijos[0])).toBe(false);
-    expect(esDivisor(hijos[hijos.length - 1])).toBe(false);
-    hijos.forEach((el, i) => {
-      if (esDivisor(el)) expect(esDivisor(hijos[i + 1])).toBe(false);
-    });
+    expect(divisoresSanos(izquierda)).toBe(true);
   });
 });

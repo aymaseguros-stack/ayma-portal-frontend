@@ -3,12 +3,14 @@ import ScoringIndicator from './ScoringIndicator';
 import { SUB_TABS_POR_SECCION, seccionDeTab } from './navTabs';
 
 // Barra superior (D-NAV-1), en este orden:
-//   Dashboard · Mail · CRM | Clientes · Seguros | Dirección ... Denuncia · Soporte
+//   Dashboard · Mail · CRM | Dirección | Clientes · Seguros ... Denuncia · Soporte
 // Mail, CRM, Clientes y Seguros son admin-only (mismo criterio de permisos
 // que antes: esAdminOAgente). "Seguros" agrupa Pólizas y Siniestros, que
 // dejaron de estar sueltos en la barra. "Dirección" (módulo de gobierno
-// interno) es ADMIN-only y cuelga detrás de su propio divisor: no es
-// navegación de la operación comercial, es la dirección de la empresa.
+// interno) es ADMIN-only y va aislada entre dos divisores, inmediatamente
+// después del toggle Dashboard/Mail/CRM: no es navegación de la operación
+// comercial, es la dirección de la empresa, y por eso queda pegada al
+// toggle y separada de Clientes · Seguros.
 // "Cartera ART" ya no es un ítem superior: el módulo completo vive ahora en
 // CRM > Empresas > Universo ART.
 //
@@ -21,10 +23,10 @@ const SECCIONES_IZQUIERDA = (admin) => sinDivisoresColgando([
   ...(admin ? [{ id: 'mail', label: 'Mail' }] : []),
   ...(admin ? [{ id: 'crm', label: 'CRM' }] : []),
   { divisor: true, id: 'div-1' },
+  ...(admin ? [{ id: 'direccion', label: 'Dirección' }] : []),
+  { divisor: true, id: 'div-2' },
   ...(admin ? [{ id: 'clientes', label: 'Clientes' }] : []),
   { id: 'seguros', label: 'Seguros' },
-  { divisor: true, id: 'div-2' },
-  ...(admin ? [{ id: 'direccion', label: 'Dirección' }] : []),
 ]);
 
 const SECCIONES_DERECHA = () => [
@@ -32,16 +34,21 @@ const SECCIONES_DERECHA = () => [
   { id: 'soporte', label: 'Soporte' },
 ];
 
-// Con menos ítems (un CLIENTE no ve Mail/CRM/Clientes) un divisor puede
-// quedar al borde o pegado a otro divisor. Se descartan esos casos para que
-// el bloque no muestre una barra suelta sin nada que separar.
+// Con menos ítems (un CLIENTE no ve Mail/CRM/Clientes; nadie que no sea
+// ADMIN ve Dirección) un divisor puede quedar al borde o pegado a otro
+// divisor. Dirección va entre dos divisores, así que para un rol que no la
+// ve los dos quedan juntos: se colapsan en uno solo (sigue separando lo que
+// queda a cada lado) y se recortan los de los bordes. Colapsar en vez de
+// descartar ambos es lo que mantiene "Dashboard | Seguros" para un CLIENTE.
 function sinDivisoresColgando(items) {
-  return items.filter((item, i) => {
-    if (!item.divisor) return true;
-    const anterior = items[i - 1];
-    const siguiente = items[i + 1];
-    return Boolean(anterior) && Boolean(siguiente) && !anterior.divisor && !siguiente.divisor;
-  });
+  const colapsados = items.filter(
+    (item, i) => !item.divisor || !items[i + 1]?.divisor
+  );
+  const primero = colapsados.findIndex((item) => !item.divisor);
+  if (primero === -1) return [];
+  let ultimo = colapsados.length - 1;
+  while (colapsados[ultimo].divisor) ultimo -= 1;
+  return colapsados.slice(primero, ultimo + 1);
 }
 
 // Padding horizontal ajustado (no la fuente) para que todo entre en una sola
