@@ -6,6 +6,7 @@ import {
   listarCredenciales, listarHallazgos, tomarSnapshotSalud,
 } from './direccionApi';
 import { ESTADOS_HALLAZGO, SEVERIDADES_HALLAZGO, SISTEMAS_HALLAZGO, etiqueta, fechaCorta } from './direccionConstantes';
+import DireccionDiagnosticos from './DireccionDiagnosticos';
 import {
   AvisoConflictoCodigo, Badge, Campo, Cargando, ErrorCarga, EstadoVacio, Panel, Tabla, botonPrimario, botonSecundario, inputClase,
 } from './DireccionComunes';
@@ -14,6 +15,7 @@ const PESTANAS = [
   { id: 'hallazgos', label: 'Hallazgos' },
   { id: 'credenciales', label: 'Credenciales' },
   { id: 'salud', label: 'Salud' },
+  { id: 'diagnosticos', label: 'Diagnósticos del sistema' },
 ];
 
 // Pantalla 4: seguridad. Hallazgos, inventario de credenciales y salud.
@@ -58,7 +60,7 @@ const DireccionSeguridad = ({ token }) => {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold">Seguridad</h2>
-          <p className="text-slate-400 text-sm mt-1">Hallazgos, inventario de credenciales y salud del sistema.</p>
+          <p className="text-slate-400 text-sm mt-1">Hallazgos, inventario de credenciales, salud y diagnósticos del sistema.</p>
         </div>
         {/* La métrica NUNCA muestra 0 cuando la consulta falló: dice que no se
             pudo medir. Un 0 ahí se lee como "no hay críticos abiertos". */}
@@ -93,6 +95,7 @@ const DireccionSeguridad = ({ token }) => {
       {pestana === 'hallazgos' && <PestanaHallazgos token={token} onCambio={recargarCriticos} />}
       {pestana === 'credenciales' && <PestanaCredenciales token={token} />}
       {pestana === 'salud' && <PestanaSalud token={token} />}
+      {pestana === 'diagnosticos' && <DireccionDiagnosticos token={token} />}
     </div>
   );
 };
