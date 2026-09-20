@@ -27,10 +27,62 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onr
 export const TAMANO_MAX_BYTES = 10 * 1024 * 1024;
 export const MAX_ARCHIVOS = 5;
 
-export const CATEGORIAS_ADJUNTO = [
-  'F931', 'POLIZA', 'COTIZACION', 'PROPUESTA',
-  'DNI_CEDULA', 'CONSTANCIA', 'CHAT', 'OTRO',
+// El catálogo de categorías, AGRUPADO y en orden de ciclo de vida. Espejo de
+// app/models/crm/adjunto.py::GRUPOS_CATEGORIAS, que es la fuente: el backend
+// lo sirve en GET /api/v1/crm/adjuntos/categorias y con eso se puede cotejar
+// esta copia sin leer su fuente. Se mantiene acá -y no se pide por red- para
+// que el desplegable se dibuje sin esperar un request y para que la copia
+// viva en un archivo que el diff del PR muestra.
+//
+// POR QUÉ AGRUPADO. Con 15 categorías, una lista plana obliga a leerlas todas
+// para elegir, y lo que se elige cuando no se encuentra la propia es OTRO -
+// que es el cajón del que este paquete viene a sacar al certificado
+// provisorio, las fotos de inspección, la tarjeta azul y la cédula verde.
+export const GRUPOS_CATEGORIAS = [
+  { grupo: 'Comercial', categorias: [
+    ['COTIZACION', 'Cotización'],
+    ['PROPUESTA', 'Propuesta'],
+    ['CHAT', 'Conversación / chat'],
+  ] },
+  { grupo: 'Emisión', categorias: [
+    ['ORDEN_EMISION', 'Orden de emisión'],
+    ['CERTIFICADO_PROVISORIO', 'Certificado provisorio'],
+    ['CERTIFICADO_COBERTURA', 'Certificado de cobertura'],
+    ['POLIZA', 'Póliza'],
+  ] },
+  { grupo: 'Riesgo', categorias: [
+    ['TARJETA_AZUL', 'Tarjeta azul (datos del riesgo)'],
+    ['CEDULA_VERDE', 'Cédula verde'],
+    ['FOTO_INSPECCION', 'Foto de inspección'],
+  ] },
+  { grupo: 'Identidad', categorias: [
+    ['DNI_CEDULA', 'DNI / cédula'],
+    ['CONSTANCIA', 'Constancia'],
+  ] },
+  { grupo: 'Cobro', categorias: [
+    ['COMPROBANTE_PAGO', 'Comprobante de pago'],
+  ] },
+  { grupo: 'ART', categorias: [
+    ['F931', 'F931'],
+  ] },
+  { grupo: 'Otros', categorias: [
+    ['OTRO', 'Otro'],
+  ] },
 ];
+
+// Derivada, nunca escrita a mano: dos listas que hay que mantener iguales se
+// desincronizan a la primera categoría nueva.
+export const CATEGORIAS_ADJUNTO = GRUPOS_CATEGORIAS
+  .flatMap(({ categorias }) => categorias.map(([valor]) => valor));
+
+const TITULOS = Object.fromEntries(
+  GRUPOS_CATEGORIAS.flatMap(({ categorias }) => categorias),
+);
+
+// Un adjunto viejo puede tener una categoría que el catálogo ya no ofrece:
+// se muestra su código tal cual, nunca vacío.
+export const tituloCategoria = (valor) => TITULOS[valor] || valor || '';
+
 export const CATEGORIA_DEFAULT = 'OTRO';
 
 // Mismas firmas que app/services/crm_adjuntos.py::FIRMAS.
