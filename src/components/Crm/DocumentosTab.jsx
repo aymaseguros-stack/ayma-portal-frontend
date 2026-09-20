@@ -3,9 +3,10 @@ import { Icon } from '../Icons';
 import Modal from '../Modal';
 import { fechaHora } from '../../utils/fechas';
 import {
-  CATEGORIAS_ADJUNTO, listarAdjuntos, anularAdjunto, subirAdjuntos,
+  listarAdjuntos, anularAdjunto, subirAdjuntos,
 } from './adjuntosApi';
 import { SelectorAdjuntos, FilaAdjunto, AvisoDuplicadosAdjuntos } from './AdjuntosUI';
+import { OpcionesCategorias } from './categoriasAdjunto';
 
 // Pestaña "Documentos" de las fichas de persona, empresa y oportunidad: todos
 // los adjuntos de esa entidad (los de sus interacciones incluidos, porque el
@@ -100,7 +101,7 @@ const DocumentosTab = ({ token, filtro, onCambio }) => {
             className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm"
           >
             <option value="">Todas</option>
-            {CATEGORIAS_ADJUNTO.map((c) => <option key={c} value={c}>{c}</option>)}
+            <OpcionesCategorias />
           </select>
         </div>
         <div>

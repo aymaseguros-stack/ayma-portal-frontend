@@ -1,9 +1,10 @@
 import React, { useRef, useState } from 'react';
 import { Icon } from '../Icons';
 import {
-  CATEGORIAS_ADJUNTO, MAX_ARCHIVOS, formatBytes, iconoDeMime,
+  MAX_ARCHIVOS, formatBytes, iconoDeMime, tituloCategoria,
   validarSeleccion, descargarAdjunto,
 } from './adjuntosApi';
+import { OpcionesCategorias } from './categoriasAdjunto';
 
 // Piezas de UI compartidas por los adjuntos del CRM: el selector (botón +
 // arrastrar y soltar, con categoría por archivo) y la lista de adjuntos ya
@@ -88,7 +89,7 @@ export const SelectorAdjuntos = ({ elegidos, onElegidos, deshabilitado = false }
                 onChange={(e) => cambiarCategoria(item.id, e.target.value)}
                 className="px-2 py-1 rounded-lg bg-slate-700 border border-slate-600 text-white text-xs"
               >
-                {CATEGORIAS_ADJUNTO.map((c) => <option key={c} value={c}>{c}</option>)}
+                <OpcionesCategorias />
               </select>
               <button
                 type="button"
@@ -130,7 +131,7 @@ export const FilaAdjunto = ({ token, adjunto, onAnular, compacto = false }) => {
       <div className="min-w-0 flex-1">
         <p className="text-sm truncate">{adjunto.nombre_original}</p>
         <p className="text-slate-500 text-xs">
-          {adjunto.categoria} · {formatBytes(adjunto.tamano_bytes)}
+          {tituloCategoria(adjunto.categoria)} · {formatBytes(adjunto.tamano_bytes)}
           {adjunto.anulado_en ? ' · anulado' : ''}
         </p>
         {error && <p className="text-red-400 text-xs mt-1">{error}</p>}
