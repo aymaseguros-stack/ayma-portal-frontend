@@ -220,7 +220,10 @@ describe('el formulario de origen no se pierde', () => {
     render(<AltaEncadenada token="t" raiz={{ tipo: 'oportunidad', preset: null }} onResuelto={() => {}} onCerrar={() => {}} />);
     const oportunidad = modal('Nueva oportunidad');
     fireEvent.change(campo(oportunidad, 'Track *'), { target: { value: 'ART' } });
-    escribir(oportunidad, 'Origen', 'referido');
+    // C-16: `origen` dejó de ser texto libre. Se elige del vocabulario
+    // cerrado, y lo que este test verifica -que lo cargado no se pierda al
+    // volver del nivel de arriba- vale igual para un desplegable.
+    fireEvent.change(campo(oportunidad, 'Origen'), { target: { value: 'REFERIDO' } });
     escribir(oportunidad, 'Notas', 'llamar el lunes');
 
     fireEvent.click(boton(oportunidad, 'Nueva persona'));
@@ -230,7 +233,7 @@ describe('el formulario de origen no se pierde', () => {
 
     const vuelta = modal('Nueva oportunidad');
     expect(campo(vuelta, 'Track *').value).toBe('ART');
-    expect(campo(vuelta, 'Origen').value).toBe('referido');
+    expect(campo(vuelta, 'Origen').value).toBe('REFERIDO');
     expect(campo(vuelta, 'Notas').value).toBe('llamar el lunes');
   });
 });

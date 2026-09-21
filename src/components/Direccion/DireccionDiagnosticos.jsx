@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Icon } from '../Icons';
-import { DIAGNOSTICOS, sanear } from './diagnosticosCatalogo';
+import { DIAGNOSTICOS, MIGRACIONES_DATOS, sanear } from './diagnosticosCatalogo';
+import MigracionDatosCard from './MigracionDatosCard';
 import { Cargando, ErrorCarga, Panel, botonPrimario, botonSecundario } from './DireccionComunes';
 
 // Diagnósticos del sistema, en pantalla.
@@ -176,6 +177,21 @@ const DireccionDiagnosticos = ({ token }) => (
     </div>
 
     {DIAGNOSTICOS.map((d) => <TarjetaDiagnostico key={d.id} token={token} diagnostico={d} />)}
+
+    {/* Las migraciones de datos van DEBAJO y con su propio encabezado: las de
+        arriba son lecturas y éstas escriben. Mezclarlas en una sola lista
+        haría que "apretar el botón y ver qué dice" -que es lo correcto
+        arriba- se aplicara también acá. */}
+    <div className="pt-2">
+      <h3 className="text-lg font-semibold">Migraciones de datos</h3>
+      <p className="text-slate-400 text-sm mt-1">
+        Escrituras que <strong>no corren solas en el arranque</strong>: cada una se mira antes de
+        aplicarla. Siempre se simula primero; la corrida en seco recorre el mismo camino y termina
+        en <code>rollback</code>, así que sus conteos son los reales.
+      </p>
+    </div>
+
+    {MIGRACIONES_DATOS.map((m) => <MigracionDatosCard key={m.id} token={token} migracion={m} />)}
   </div>
 );
 

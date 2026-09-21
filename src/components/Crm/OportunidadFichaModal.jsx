@@ -16,6 +16,11 @@ import {
   ACTO_A_ESTADO, ACTO_LABEL, formatMoneda,
 } from './oportunidadConstants';
 import { interaccionesQueParecenActo } from './actosAMano';
+import DeclaracionLoop from './DeclaracionLoop';
+import { FORM_LOOP_VACIO, payloadLoop, validarLoop } from './declaracionLoop';
+import SelectorCompania from './SelectorCompania';
+import IdentificacionRiesgo from './IdentificacionRiesgo';
+import { etiquetaOrigen, FUENTE_AHORRO_LABEL, RESULTADO_LOOP_LABEL } from './oportunidadCatalogos';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -71,7 +76,13 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
   const [avisoPipeline, setAvisoPipeline] = useState(null);
 
   const [mostrarCierre, setMostrarCierre] = useState(false);
-  const [cierreForm, setCierreForm] = useState({ resultado: 'GANADA', motivo_perdida: '', motivo_perdida_detalle: '', compania_ganadora: '' });
+  const [cierreForm, setCierreForm] = useState({
+    resultado: 'GANADA', motivo_perdida: '', motivo_perdida_detalle: '', compania_ganadora: '',
+    // D-B8: el cierre PERDIDA es UNA DE LAS CUATRO PUERTAS A LOOP, y es la
+    // que más se usa para registrar el NO que la compañía actual defendió
+    // bajando la tarifa. Sin `resultado_loop` el backend contesta 409.
+    ...FORM_LOOP_VACIO,
+  });
   const [guardandoCierre, setGuardandoCierre] = useState(false);
   const [errorAccion, setErrorAccion] = useState(null);
 
@@ -216,6 +227,10 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
       setErrorAccion('Elegí un motivo de pérdida');
       return;
     }
+    if (cierreForm.resultado === 'PERDIDA') {
+      const problema = validarLoop(cierreForm);
+      if (problema) { setErrorAccion(problema); return; }
+    }
     setGuardandoCierre(true);
     setErrorAccion(null);
     try {
@@ -227,6 +242,7 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
           motivo_perdida: cierreForm.resultado === 'PERDIDA' ? cierreForm.motivo_perdida : null,
           motivo_perdida_detalle: cierreForm.resultado === 'PERDIDA' ? (cierreForm.motivo_perdida_detalle || null) : null,
           compania_ganadora: cierreForm.resultado === 'GANADA' ? (cierreForm.compania_ganadora || null) : null,
+          ...(cierreForm.resultado === 'PERDIDA' ? payloadLoop(cierreForm) : {}),
         }),
       });
       if (!res.ok) {
@@ -462,8 +478,13 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
 
           {tab === 'datos' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <IdentificacionRiesgo
+                token={token}
+                oportunidad={detalle}
+                onGuardado={async () => { await cargarDetalle(); onChanged?.(); }}
+              />
               <Dato label="Etapa SAIDA" valor={detalle.etapa_saida} />
-              <Dato label="Origen" valor={detalle.origen} />
+              <Dato label="Origen" valor={etiquetaOrigen(detalle.origen)} />
               <Dato label="Probabilidad de cierre" valor={detalle.probabilidad_cierre !== null && detalle.probabilidad_cierre !== undefined ? `${detalle.probabilidad_cierre}%` : null} />
               <Dato label="Fecha de cierre estimada" valor={detalle.fecha_cierre_estimada} />
               <Dato label="Fecha de alta" valor={fechaCorta(detalle.fecha_alta)} />
@@ -472,6 +493,37 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
                   <Dato label="Fecha de cierre real" valor={detalle.fecha_cierre_real} />
                   {detalle.resultado === 'PERDIDA' && <Dato label="Motivo de pérdida" valor={detalle.motivo_perdida} />}
                   {detalle.resultado === 'GANADA' && <Dato label="Compañía ganadora" valor={detalle.compania_ganadora} />}
+                </>
+              )}
+              {/* D-B8: lo declarado al entrar a LOOP. Se muestra SIEMPRE que
+                  haya `resultado_loop`, no sólo con la oportunidad cerrada:
+                  una que volvió de LOOP a POTENCIAL conserva lo que se
+                  declaró, y borrarlo de la vista sería perder el antecedente
+                  justo cuando se la vuelve a trabajar. */}
+              {detalle.resultado_loop && (
+                <>
+                  <Dato
+                    label="Resultado del LOOP"
+                    valor={RESULTADO_LOOP_LABEL[detalle.resultado_loop] || detalle.resultado_loop}
+                  />
+                  {detalle.resultado_loop === 'CON_EFECTO' && (
+                    <>
+                      <Dato
+                        label="Alícuotas (previa → posterior)"
+                        valor={
+                          detalle.alicuota_previa !== null && detalle.alicuota_previa !== undefined
+                            ? `${detalle.alicuota_previa}% → ${detalle.alicuota_posterior}%`
+                            : null
+                        }
+                      />
+                      <Dato label="Fuente de la posterior" valor={detalle.alicuota_posterior_fuente} />
+                      <Dato label="Ahorro anual generado" valor={formatMoneda(detalle.ahorro_anual_generado)} />
+                      <Dato
+                        label="Origen del ahorro"
+                        valor={detalle.ahorro_fuente ? (FUENTE_AHORRO_LABEL[detalle.ahorro_fuente] || detalle.ahorro_fuente) : null}
+                      />
+                    </>
+                  )}
                 </>
               )}
               <Dato label="Notas" valor={detalle.notas} full />
@@ -684,7 +736,7 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
 
       {/* Sub-modal: cerrar oportunidad */}
       {mostrarCierre && (
-        <Modal title="Cerrar oportunidad" onClose={() => setMostrarCierre(false)} maxWidth="max-w-md">
+        <Modal title="Cerrar oportunidad" onClose={() => setMostrarCierre(false)} maxWidth="max-w-lg">
           <form onSubmit={cerrarOportunidad} className="space-y-5">
             <div>
               <label className="block text-slate-400 text-sm mb-2">Resultado</label>
@@ -707,20 +759,22 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
             </div>
 
             {cierreForm.resultado === 'GANADA' ? (
-              <div>
-                <label className="block text-slate-400 text-sm mb-2">Compañía ganadora</label>
-                <input
-                  type="text"
-                  value={cierreForm.compania_ganadora}
-                  onChange={(e) => setCierreForm(prev => ({ ...prev, compania_ganadora: e.target.value }))}
-                  className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm"
-                />
-              </div>
+              /* LISTA CERRADA (C-16): el backend valida contra el padrón de
+                 proveedores y contesta 422 con lo que no esté. Un campo de
+                 texto acá es cómo "La Segunda" y "La Segunda ART" terminaban
+                 siendo la misma compañía en el tablero de producción. */
+              <SelectorCompania
+                token={token}
+                valor={cierreForm.compania_ganadora}
+                onChange={(v) => setCierreForm(prev => ({ ...prev, compania_ganadora: v }))}
+                deshabilitado={guardandoCierre}
+              />
             ) : (
               <>
                 <div>
-                  <label className="block text-slate-400 text-sm mb-2">Motivo *</label>
+                  <label className="block text-slate-400 text-sm mb-2" htmlFor="cierre-motivo">Motivo *</label>
                   <select
+                    id="cierre-motivo"
                     value={cierreForm.motivo_perdida}
                     onChange={(e) => setCierreForm(prev => ({ ...prev, motivo_perdida: e.target.value }))}
                     className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm"
@@ -731,14 +785,21 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
                   </select>
                 </div>
                 <div>
-                  <label className="block text-slate-400 text-sm mb-2">Detalle</label>
+                  <label className="block text-slate-400 text-sm mb-2" htmlFor="cierre-detalle">Detalle</label>
                   <textarea
+                    id="cierre-detalle"
                     value={cierreForm.motivo_perdida_detalle}
                     onChange={(e) => setCierreForm(prev => ({ ...prev, motivo_perdida_detalle: e.target.value }))}
                     rows={2}
                     className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm"
                   />
                 </div>
+                <DeclaracionLoop
+                  form={cierreForm}
+                  onChange={(campo, valor) => setCierreForm(prev => ({ ...prev, [campo]: valor }))}
+                  idPrefijo="cierre"
+                  deshabilitado={guardandoCierre}
+                />
               </>
             )}
 

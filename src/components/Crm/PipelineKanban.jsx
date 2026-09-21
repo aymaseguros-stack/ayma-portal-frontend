@@ -9,6 +9,7 @@ import {
   ESTADOS_CRM_ORDEN, ESTADO_CRM_LABEL, ESTADO_CRM_BADGE, TRACKS_VALIDOS,
   ESTADOS_EXPLICITOS, formatMoneda, diasDesde, estaVencida,
 } from './oportunidadConstants';
+import BuscadorOportunidades from './BuscadorOportunidades';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -49,6 +50,27 @@ const OportunidadCard = ({ token, o, onDragStart, onClick }) => {
       <div className="flex items-center gap-2 flex-wrap">
         <span className="px-2 py-0.5 bg-slate-700 rounded text-xs font-medium">{o.track}</span>
         {o.etapa_saida && <span className="px-2 py-0.5 bg-slate-700/60 text-slate-400 rounded text-xs">{o.etapa_saida}</span>}
+        {/* C-15: la patente en la tarjeta. Es como se reconoce de qué riesgo
+            se trata sin abrir la ficha, que era la pregunta que había que ir
+            a buscar a las notas. */}
+        {o.patente && (
+          <span className="px-2 py-0.5 bg-slate-900/60 text-slate-300 rounded text-xs font-mono">{o.patente}</span>
+        )}
+        {/* D-B8: el NO que dejó valor. Sin el badge, la columna LOOP muestra
+            igual a la cuenta que defendimos hasta hacerle bajar la tarifa y a
+            la que dijo "no me interesa". */}
+        {o.resultado_loop === 'CON_EFECTO' && (
+          <span
+            className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 rounded text-xs font-medium"
+            title={
+              o.ahorro_anual_generado
+                ? `Ahorro anual generado: ${formatMoneda(o.ahorro_anual_generado)}`
+                : 'La compañía actual bajó la tarifa por nuestra intervención'
+            }
+          >
+            con efecto
+          </span>
+        )}
       </div>
       <div className="flex items-center justify-between text-xs text-slate-400">
         <span>{formatMoneda(o.prima_estimada)}</span>
@@ -193,6 +215,13 @@ const PipelineKanban = ({ token }) => {
           Solo vencidas
         </label>
       </div>
+
+      {/* EL BUSCADOR NO FILTRA EL TABLERO: consulta `GET /crm/oportunidades`.
+          El pipeline sólo trae lo que está en una columna visible, así que
+          filtrar las tarjetas cargadas dejaría afuera justo a las cerradas -y
+          "¿cuál era la oportunidad del HAC394?" se pregunta, casi siempre,
+          sobre una que ya se cerró. */}
+      <BuscadorOportunidades token={token} onAbrir={setOportunidadAbierta} />
 
       {error && (
         <div className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-2 rounded-lg text-sm">{error}</div>
