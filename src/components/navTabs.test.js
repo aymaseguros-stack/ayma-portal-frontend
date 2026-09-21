@@ -35,6 +35,23 @@ describe('seccionDeTab', () => {
   });
 });
 
+// C-12B: Puntos de contacto y Comisiones de referido entran como
+// SUB-PESTAÑAS del CRM (decisión D-C12-1: sin ítem nuevo de menú), no como
+// una entrada nueva de la barra superior. Si alguien las moviera de sección,
+// el submenú del CRM dejaría de mostrarlas estando parado en ellas.
+describe('puntos de contacto y comisiones de referido (C-12B)', () => {
+  it('son tabs del CRM, no una sección nueva de la barra superior', () => {
+    expect(seccionDeTab('puntos-contacto')).toBe('crm');
+    expect(seccionDeTab('comisiones-referido')).toBe('crm');
+  });
+
+  it('están en el submenú del CRM', () => {
+    const ids = SUB_TABS_POR_SECCION.crm.map(t => t.id);
+    expect(ids).toContain('puntos-contacto');
+    expect(ids).toContain('comisiones-referido');
+  });
+});
+
 describe('submenús', () => {
   it('Seguros agrupa Pólizas y Siniestros', () => {
     expect(SEGUROS_TABS.map(t => t.label)).toEqual(['Pólizas', 'Siniestros']);
