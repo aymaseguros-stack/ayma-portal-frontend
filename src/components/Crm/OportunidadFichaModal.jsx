@@ -77,7 +77,13 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
 
   const [mostrarCierre, setMostrarCierre] = useState(false);
   const [cierreForm, setCierreForm] = useState({
-    resultado: 'GANADA', motivo_perdida: '', motivo_perdida_detalle: '', compania_ganadora: '',
+    // NINGUNA OPCIÓN MARCADA POR DEFECTO (sigue a C-16 / D-B8). Abrir con
+    // GANADA marcada convierte el cierre en un clic: el que quería registrar
+    // una pérdida y apretó "Confirmar" de apuro cierra una venta que no
+    // existió, y eso después aparece como producción en el tablero. Mismo
+    // criterio que `resultado_loop`: si el dato lo tiene que declarar una
+    // persona, el formulario no lo declara por ella.
+    resultado: '', motivo_perdida: '', motivo_perdida_detalle: '', compania_ganadora: '',
     // D-B8: el cierre PERDIDA es UNA DE LAS CUATRO PUERTAS A LOOP, y es la
     // que más se usa para registrar el NO que la compañía actual defendió
     // bajando la tarifa. Sin `resultado_loop` el backend contesta 409.
@@ -223,6 +229,10 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
 
   const cerrarOportunidad = async (e) => {
     e.preventDefault();
+    if (!cierreForm.resultado) {
+      setErrorAccion('Elegí el resultado del cierre: ganada o perdida.');
+      return;
+    }
     if (cierreForm.resultado === 'PERDIDA' && !cierreForm.motivo_perdida) {
       setErrorAccion('Elegí un motivo de pérdida');
       return;
@@ -465,7 +475,17 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
                     </button>
                   )}
                   <button
-                    onClick={() => { setErrorAccion(null); setMostrarCierre(true); }}
+                    onClick={() => {
+                      setErrorAccion(null);
+                      // Se reabre siempre en blanco: un resultado que quedó
+                      // elegido en una apertura anterior es el default que
+                      // este modal justamente no tiene.
+                      setCierreForm({
+                        resultado: '', motivo_perdida: '', motivo_perdida_detalle: '',
+                        compania_ganadora: '', ...FORM_LOOP_VACIO,
+                      });
+                      setMostrarCierre(true);
+                    }}
                     className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition text-sm whitespace-nowrap"
                   >
                     <Icon name="check-badge" />
@@ -744,6 +764,7 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
                 <button
                   type="button"
                   onClick={() => setCierreForm(prev => ({ ...prev, resultado: 'GANADA' }))}
+                  aria-pressed={cierreForm.resultado === 'GANADA'}
                   className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition ${cierreForm.resultado === 'GANADA' ? 'bg-green-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
                 >
                   Ganada
@@ -751,6 +772,7 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
                 <button
                   type="button"
                   onClick={() => setCierreForm(prev => ({ ...prev, resultado: 'PERDIDA' }))}
+                  aria-pressed={cierreForm.resultado === 'PERDIDA'}
                   className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition ${cierreForm.resultado === 'PERDIDA' ? 'bg-red-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
                 >
                   Perdida
@@ -758,7 +780,11 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
               </div>
             </div>
 
-            {cierreForm.resultado === 'GANADA' ? (
+            {cierreForm.resultado === '' && (
+              <p className="text-slate-400 text-sm">Elegí el resultado para continuar.</p>
+            )}
+
+            {cierreForm.resultado === 'GANADA' && (
               /* LISTA CERRADA (C-16): el backend valida contra el padrón de
                  proveedores y contesta 422 con lo que no esté. Un campo de
                  texto acá es cómo "La Segunda" y "La Segunda ART" terminaban
@@ -769,7 +795,9 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
                 onChange={(v) => setCierreForm(prev => ({ ...prev, compania_ganadora: v }))}
                 deshabilitado={guardandoCierre}
               />
-            ) : (
+            )}
+
+            {cierreForm.resultado === 'PERDIDA' && (
               <>
                 <div>
                   <label className="block text-slate-400 text-sm mb-2" htmlFor="cierre-motivo">Motivo *</label>
@@ -811,7 +839,7 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
               <button type="button" onClick={() => setMostrarCierre(false)} className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 rounded-lg transition">
                 Cancelar
               </button>
-              <button type="submit" disabled={guardandoCierre} className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg font-semibold transition">
+              <button type="submit" disabled={guardandoCierre || !cierreForm.resultado} className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-semibold transition">
                 {guardandoCierre ? 'Cerrando...' : 'Confirmar cierre'}
               </button>
             </div>

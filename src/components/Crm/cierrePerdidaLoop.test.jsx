@@ -58,9 +58,41 @@ const cuerpoDelPatch = () => {
   return JSON.parse(llamada[1].body);
 };
 
+// FE #69 - el modal abre SIN resultado elegido, misma regla que el LOOP.
+describe('Cierre de oportunidad — el resultado no tiene valor por defecto', () => {
+  it('abre sin ninguna opción marcada y con Confirmar deshabilitado', async () => {
+    await abrirCierre();
+
+    expect(screen.getByRole('button', { name: /^Ganada$/i }).getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByRole('button', { name: /^Perdida$/i }).getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByRole('button', { name: /Confirmar cierre/i }).disabled).toBe(true);
+    // Sin resultado elegido no se dibuja ni el selector de compañía ni el
+    // bloque de pérdida: no hay nada para completar todavía.
+    expect(screen.queryByLabelText(/Compañía ganadora/i)).toBeNull();
+    expect(screen.queryByLabelText(/Motivo/i)).toBeNull();
+  });
+
+  it('elegir un resultado habilita Confirmar, y el otro no queda marcado', async () => {
+    await abrirCierre();
+    fireEvent.click(screen.getByRole('button', { name: /^Perdida$/i }));
+
+    expect(screen.getByRole('button', { name: /^Perdida$/i }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: /^Ganada$/i }).getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByRole('button', { name: /Confirmar cierre/i }).disabled).toBe(false);
+  });
+
+  it('el botón deshabilitado no manda nada al backend', async () => {
+    await abrirCierre();
+    fireEvent.click(screen.getByRole('button', { name: /Confirmar cierre/i }));
+
+    expect(globalThis.fetch.mock.calls.some(([, o]) => o?.method === 'PATCH')).toBe(false);
+  });
+});
+
 describe('Cierre de oportunidad — la puerta PERDIDA a LOOP', () => {
   it('GANADA elige la compañía de una lista, no de un campo de texto', async () => {
     await abrirCierre();
+    fireEvent.click(screen.getByRole('button', { name: /^Ganada$/i }));
     await waitFor(() => expect(screen.getByRole('option', { name: /San Cristóbal/ })).toBeTruthy());
     fireEvent.change(screen.getByLabelText(/Compañía ganadora/i), { target: { value: 'San Cristóbal' } });
     fireEvent.click(screen.getByRole('button', { name: /Confirmar cierre/i }));
@@ -101,6 +133,7 @@ describe('Cierre de oportunidad — la puerta PERDIDA a LOOP', () => {
 
   it('GANADA no manda campos del LOOP: no entra a LOOP', async () => {
     await abrirCierre();
+    fireEvent.click(screen.getByRole('button', { name: /^Ganada$/i }));
     await waitFor(() => expect(screen.getByRole('option', { name: /San Cristóbal/ })).toBeTruthy());
     fireEvent.change(screen.getByLabelText(/Compañía ganadora/i), { target: { value: 'San Cristóbal' } });
     fireEvent.click(screen.getByRole('button', { name: /Confirmar cierre/i }));
