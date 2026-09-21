@@ -17,6 +17,7 @@ import PolizasView from './components/PolizasView';
 import PersonasPanel from './components/Crm/PersonasPanel';
 import EmpresasPanel from './components/Crm/EmpresasPanel';
 import ResumenDireccion from './components/Admin/ResumenDireccion';
+import AhorroGeneradoCard from './components/Crm/AhorroGeneradoCard';
 import PipelineKanban from './components/Crm/PipelineKanban';
 import OportunidadesPanel from './components/Crm/OportunidadesPanel';
 import AgendaPanel from './components/Crm/AgendaPanel';
@@ -896,6 +897,13 @@ function App() {
                 </div>
                 <p className="text-purple-200 text-sm mt-4">En seguimiento</p>
               </div>
+
+              {/* D-B8: el valor que generaron los NO. El endpoint es ADMIN o
+                  EMPLEADO (require_admin_o_agente), así que para un CLIENTE
+                  la tarjeta no se pide -un 403 por una métrica interna en el
+                  dashboard del asegurado no es un error suyo que pueda
+                  resolver. */}
+              {isAdmin() && <AhorroGeneradoCard token={state.token} />}
 
               <div className="bg-gradient-to-br from-orange-600 to-orange-800 rounded-2xl p-6 shadow-xl">
                 <div className="flex justify-between items-start">

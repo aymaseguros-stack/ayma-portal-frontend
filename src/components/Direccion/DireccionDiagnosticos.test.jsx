@@ -54,7 +54,10 @@ describe('diagnóstico de Google Drive', () => {
     globalThis.fetch = vi.fn();
     render(<DireccionDiagnosticos token="tok-123" />);
     expect(globalThis.fetch).not.toHaveBeenCalled();
-    expect(screen.getByText(/Todavía no se corrió/)).toBeTruthy();
+    // Desde el FE de C-15/C-16/D-B8 la pantalla lista también las tres
+    // migraciones de datos, que arrancan con el mismo cartel: se verifica
+    // que NINGUNA corrió sola, no que haya una sola tarjeta.
+    expect(screen.getAllByText(/Todavía no se corrió/).length).toBeGreaterThan(0);
   });
 
   it('llama al endpoint de admin con el token de la sesión', async () => {

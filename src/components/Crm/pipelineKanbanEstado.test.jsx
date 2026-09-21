@@ -98,6 +98,9 @@ describe('PipelineKanban · el estado no se arrastra', () => {
     await arrastrarA('Loop');
     await waitFor(() => expect(screen.getByLabelText('Fecha de recontacto *')).toBeTruthy());
 
+    // D-B8: declarar el resultado del LOOP es obligatorio (ver
+    // declaracionLoop.test.jsx); sin eso ni se manda el POST.
+    fireEvent.click(screen.getByRole('radio', { name: /Sin efecto/i }));
     fireEvent.change(screen.getByLabelText('Fecha de recontacto *'), { target: { value: '2026-12-01' } });
     fireEvent.click([...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Confirmar LOOP'));
 
@@ -105,7 +108,9 @@ describe('PipelineKanban · el estado no se arrastra', () => {
       const post = llamadas.find((l) => l.url.includes('/transicion'));
       expect(post).toBeTruthy();
       expect(post.metodo).toBe('POST');
-      expect(JSON.parse(post.body)).toMatchObject({ estado_crm: 'LOOP', fecha_recontacto: '2026-12-01' });
+      expect(JSON.parse(post.body)).toMatchObject({
+        estado_crm: 'LOOP', fecha_recontacto: '2026-12-01', resultado_loop: 'SIN_EFECTO',
+      });
     });
     expect(patchDeEstado()).toEqual([]);
     // Dos GET del pipeline: el del montaje y el de después de la transición.

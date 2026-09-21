@@ -3,6 +3,7 @@ import { Icon } from '../Icons';
 import Modal from '../Modal';
 import { authHeader } from '../../utils/api';
 import { TRACKS_VALIDOS, ETAPAS_SAIDA_VALIDAS } from './oportunidadConstants';
+import { ORIGENES_DE_PERSONA, ORIGEN_LABEL } from './oportunidadCatalogos';
 import { etiquetaEmpresa, etiquetaPersona } from './altaEncadenada';
 import { BotonAnidar } from './altaEncadenadaUI';
 import { contactosDeEmpresa } from './empresasApi';
@@ -369,13 +370,22 @@ const NuevaOportunidadModal = ({
             />
           </div>
           <div>
-            <label className="block text-slate-400 text-sm mb-2">Origen</label>
-            <input
-              type="text"
+            {/* LISTA CERRADA (C-16). Era texto libre, y el mismo hecho
+                comercial se escribía `landing`, `Landing` y `formulario web`
+                según quién cargara: después "¿cuántos leads trajo Meta?" no
+                se podía contestar. Los cuatro orígenes de máquina NO se
+                ofrecen acá -los escribe el backend, y elegirlos a mano
+                mentiría sobre quién generó la oportunidad. */}
+            <label className="block text-slate-400 text-sm mb-2" htmlFor="nueva-origen">Origen</label>
+            <select
+              id="nueva-origen"
               value={form.origen}
               onChange={set('origen')}
               className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm"
-            />
+            >
+              <option value="">Sin especificar</option>
+              {ORIGENES_DE_PERSONA.map(o => <option key={o} value={o}>{ORIGEN_LABEL[o] || o}</option>)}
+            </select>
           </div>
         </div>
 

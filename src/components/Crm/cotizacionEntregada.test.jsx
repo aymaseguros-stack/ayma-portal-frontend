@@ -194,6 +194,10 @@ describe('ficha de oportunidad · LOOP y RECUPERABLE', () => {
     await esperarFicha();
 
     fireEvent.click(boton('Pasar a LOOP'));
+    // D-B8: `resultado_loop` es obligatorio y no tiene default. Sin
+    // declararlo, el formulario no deja confirmar (y el backend contesta
+    // 409): ver declaracionLoop.test.jsx.
+    fireEvent.click(screen.getByRole('radio', { name: /Sin efecto/i }));
     fireEvent.change(screen.getByLabelText('Fecha de recontacto *'), { target: { value: '2026-12-01' } });
     fireEvent.change(screen.getByLabelText('Nota'), { target: { value: 'NO_COLOCABLE: Ford F100 1976' } });
     fireEvent.click(boton('Confirmar LOOP'));
@@ -205,6 +209,7 @@ describe('ficha de oportunidad · LOOP y RECUPERABLE', () => {
         estado_crm: 'LOOP',
         fecha_recontacto: '2026-12-01',
         nota: 'NO_COLOCABLE: Ford F100 1976',
+        resultado_loop: 'SIN_EFECTO',
       });
     });
     await waitFor(() => expect(screen.getByText('LOOP')).toBeTruthy());

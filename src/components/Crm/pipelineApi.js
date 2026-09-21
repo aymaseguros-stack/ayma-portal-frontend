@@ -65,6 +65,12 @@ export const registrarCotizacionEntregada = async (token, oportunidadId, datos, 
  * Los campos obligatorios los exige el backend (409 con el motivo), y el
  * formulario los pide antes: un 409 evitable es una pantalla que hace perder
  * el texto que la persona ya escribió.
+ *
+ * D-B8: LOOP exige además `resultado_loop`, y CON_EFECTO las dos alícuotas
+ * con la fuente de la posterior. Los campos del bloque viajan TAL CUAL los
+ * arma `payloadLoop` (DeclaracionLoop.jsx) en vez de enumerarse acá: son el
+ * mismo cuerpo que manda el cierre PERDIDA, y enumerarlos dos veces es cómo
+ * uno de los dos caminos se queda sin el campo que se agregue mañana.
  */
 export const pedirTransicion = async (token, oportunidadId, datos) => {
   const res = await fetch(
@@ -78,6 +84,7 @@ export const pedirTransicion = async (token, oportunidadId, datos) => {
         fecha_baja: datos.fecha_baja || null,
         motivo_baja: datos.motivo_baja || null,
         nota: datos.nota || null,
+        ...(datos.loop || {}),
       }),
     },
   );

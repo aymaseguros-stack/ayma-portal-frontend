@@ -5,6 +5,9 @@
 // además porque ES el punto de extensión: sumar el diagnóstico de salud o el
 // de migraciones es agregar una entrada acá, sin tocar la pantalla.
 import { probarDrive } from './diagnosticosApi';
+import {
+  backfillResultadoLoop, backfillRiesgo, normalizarListasCerradas,
+} from './migracionesApi';
 
 // --- Saneo: el bloque crudo NUNCA muestra un secreto ---------------------
 //
@@ -54,5 +57,46 @@ export const DIAGNOSTICOS = [
       { label: 'actuando_como', valor: r?.actuando_como },
       { label: 'scopes_solicitados', valor: r?.scopes_solicitados },
     ],
+  },
+];
+
+// --- Registro de migraciones de datos ------------------------------------
+//
+// MISMO PUNTO DE EXTENSIÓN, OTRA FORMA DE CORRER. Un diagnóstico es una
+// lectura: un botón, una respuesta, listo. Una migración de datos ESCRIBE en
+// producción, así que su tarjeta tiene dos pasos (simular / ejecutar en
+// firme) y una confirmación escrita; por eso la dibuja MigracionDatosCard y
+// no TarjetaDiagnostico. Lo que comparten -y por eso viven en el mismo
+// archivo- es que las dos listas son el lugar donde se agrega una entrada sin
+// tocar la pantalla.
+//
+// Las tres son endpoints admin del backend PR #187 y NO corren en el
+// arranque, a propósito: el mapeo de `origen` toca todas las oportunidades y
+// un mapeo mal decidido no se deshace con un redeploy.
+export const MIGRACIONES_DATOS = [
+  {
+    id: 'normalizar-listas-cerradas',
+    titulo: 'Normalizar listas cerradas (C-16)',
+    descripcion:
+      '`origen` y `compania_ganadora` a su valor canónico. Devuelve las dos tablas de mapeo y, '
+      + 'aparte, lo que NO tiene mapeo declarado: eso no se reclasifica y lo decide una persona.',
+    ejecutar: normalizarListasCerradas,
+  },
+  {
+    id: 'backfill-riesgo',
+    titulo: 'Identificación del riesgo (C-15)',
+    descripcion:
+      'Patente y número de solicitud de los casos DECLARADOS uno por uno. No recorre la tabla '
+      + 'buscando patentes en las notas, y un valor ya cargado no se pisa.',
+    ejecutar: backfillRiesgo,
+  },
+  {
+    id: 'backfill-resultado-loop',
+    titulo: 'Resultado de los LOOP existentes (D-B8)',
+    descripcion:
+      'Los LOOP que ya existían pasan a SIN_EFECTO. Es la afirmación conservadora: un CON_EFECTO '
+      + 'exige dos alícuotas y una fuente que nadie registró en su momento, así que reconstruirlo '
+      + 'sería inventarlo.',
+    ejecutar: backfillResultadoLoop,
   },
 ];

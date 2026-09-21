@@ -5,6 +5,8 @@ import { pedirTransicion } from './pipelineApi';
 import {
   MOTIVOS_BAJA_VALIDOS, MOTIVO_BAJA_LABEL, MOTIVO_NO_COLOCABLE_PENDIENTE,
 } from './oportunidadConstants';
+import DeclaracionLoop from './DeclaracionLoop';
+import { FORM_LOOP_VACIO, payloadLoop, validarLoop } from './declaracionLoop';
 
 // LOOP y RECUPERABLE: las dos únicas transiciones que se piden a mano, cada una
 // con sus campos obligatorios.
@@ -13,6 +15,11 @@ import {
 //                 dato que nadie vuelve a tocar.
 //   RECUPERABLE - `fecha_baja`, `motivo_baja` y `fecha_recontacto`, y sólo se
 //                 llega desde CLIENTE (es la baja de un cliente que se tenía).
+//
+// Desde el backend PR #187 LOOP exige además `resultado_loop` (D-B8): sin él,
+// TODA entrada a LOOP desde el portal era un 409. El bloque que lo declara es
+// `DeclaracionLoop`, el MISMO que usa el cierre PERDIDA - ver el comentario de
+// cabecera de ese archivo sobre por qué no está copiado en cada puerta.
 //
 // Los campos los exige también el backend (409 con el motivo); pedirlos acá es
 // para no perder el texto ya escrito en un 409 evitable.
@@ -23,17 +30,25 @@ const TransicionEstadoModal = ({ token, oportunidad, destino, onCerrar, onAplica
     fecha_baja: esRecuperable ? hoyISO() : '',
     motivo_baja: '',
     nota: '',
+    ...FORM_LOOP_VACIO,
   });
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState(null);
 
   const set = (campo) => (e) => setForm((prev) => ({ ...prev, [campo]: e.target.value }));
+  const setValor = (campo, valor) => setForm((prev) => ({ ...prev, [campo]: valor }));
 
   const confirmar = async (e) => {
     e.preventDefault();
     if (!form.fecha_recontacto) { setError('Indicá la fecha de recontacto'); return; }
     if (esRecuperable && !form.fecha_baja) { setError('Indicá la fecha de baja'); return; }
     if (esRecuperable && !form.motivo_baja) { setError('Elegí el motivo de la baja'); return; }
+    // RECUPERABLE no declara resultado del LOOP: es la baja de un cliente que
+    // se tenía, no el cierre de una gestión ante otra compañía.
+    if (!esRecuperable) {
+      const problema = validarLoop(form);
+      if (problema) { setError(problema); return; }
+    }
 
     setGuardando(true);
     setError(null);
@@ -44,6 +59,7 @@ const TransicionEstadoModal = ({ token, oportunidad, destino, onCerrar, onAplica
         fecha_baja: esRecuperable ? form.fecha_baja : null,
         motivo_baja: esRecuperable ? form.motivo_baja : null,
         nota: form.nota.trim() || null,
+        loop: esRecuperable ? null : payloadLoop(form),
       });
       onAplicada(respuesta);
     } catch (err) {
@@ -59,7 +75,7 @@ const TransicionEstadoModal = ({ token, oportunidad, destino, onCerrar, onAplica
     <Modal
       title={esRecuperable ? 'Baja de cliente (RECUPERABLE)' : 'Pasar a LOOP'}
       onClose={onCerrar}
-      maxWidth="max-w-md"
+      maxWidth={esRecuperable ? 'max-w-md' : 'max-w-lg'}
       zClass="z-[60]"
     >
       <form onSubmit={confirmar} className="space-y-5">
@@ -85,6 +101,15 @@ const TransicionEstadoModal = ({ token, oportunidad, destino, onCerrar, onAplica
               </select>
             </div>
           </>
+        )}
+
+        {!esRecuperable && (
+          <DeclaracionLoop
+            form={form}
+            onChange={setValor}
+            idPrefijo="tr"
+            deshabilitado={guardando}
+          />
         )}
 
         <div>
