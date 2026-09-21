@@ -18,6 +18,14 @@ export const CRM_TABS = [
   { id: 'leads', label: 'Leads' },
   { id: 'recuperables', label: 'Recuperables' },
   { id: 'marketing', label: 'Marketing' },
+  // PUNTOS DE CONTACTO (C-12B). Son SUB-PESTAÑAS del CRM, no una entrada
+  // nueva de la barra superior (decisión D-C12-1): el CRM es el módulo
+  // comercial y esta fila es su sub-menú. Van pegadas a Marketing y Leads
+  // porque son la misma pregunta -de dónde viene el negocio-, sólo que
+  // medida por una entidad nuestra y no por un utm_source que el navegador
+  // pierde en el primer reenvío por WhatsApp.
+  { id: 'puntos-contacto', label: 'Puntos de contacto' },
+  { id: 'comisiones-referido', label: 'Comisiones de referido' },
   { id: 'compliance', label: 'Compliance' },
   { id: 'intelligence', label: 'Intelligence' },
 ];

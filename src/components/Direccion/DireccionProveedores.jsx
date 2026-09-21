@@ -8,9 +8,39 @@ import {
   listarProveedores, listarTareasProveedor, obtenerProveedor,
 } from './direccionApi';
 import { ESTADOS_PROVEEDOR, ESTADOS_TAREA_PROVEEDOR, MONEDAS, RUBROS_PRESUPUESTO, TIPOS_COBERTURA, TIPOS_PROVEEDOR, etiqueta, fechaCorta, formatearMonto } from './direccionConstantes';
+// Los seis campos de relación económica los expone el backend desde el
+// PR #184. Sus vocabularios viven en el módulo Comercial, que es de donde
+// salen (app/models/comercial.py::RelacionEconomica), y no se duplican acá:
+// una segunda lista es cómo un valor queda aceptado por una pantalla y
+// rechazado por la otra.
+import {
+  RELACIONES_ECONOMICAS, SIN_CLASIFICAR, SIN_DATO, claseRelacion,
+  formatearPctCampo, oSinDato,
+} from '../Comercial/comercialConstantes';
+import { listarPuntos } from '../Comercial/comercialApi';
 import {
   Badge, Campo, Cargando, ErrorCarga, EstadoVacio, Panel, Tabla, botonPrimario, botonSecundario, inputClase,
 } from './DireccionComunes';
+
+// Chip de relación económica. NULL NO SE PINTA VACÍO: un proveedor sin
+// clasificar se muestra en ámbar como "Sin clasificar", que es una tarea
+// pendiente y no una celda en blanco que se pasa de largo. La migración de
+// datos del backend deja en NULL a los tipos SERVICIOS y OTRO a propósito
+// ("no hay forma de saber la dirección sin mirar el contrato").
+const ChipRelacion = ({ valor }) => (
+  <span className={`px-2 py-0.5 rounded-full text-xs font-medium border whitespace-nowrap ${claseRelacion(valor)}`}>
+    {valor || SIN_CLASIFICAR}
+  </span>
+);
+
+// El LIMIT_MAX del backend. Se pide explícito para que el filtro por
+// relación económica -que se aplica en el cliente, ver `visibles`- barra el
+// padrón entero y no una primera página.
+const LIMITE_PADRON = 500;
+
+// Sentinela del filtro "Sin clasificar". No puede ser '' porque ése es "sin
+// filtro", y no puede ser null porque el value de un <option> es string.
+const FILTRO_SIN_CLASIFICAR = '__SIN_CLASIFICAR__';
 
 const VISTAS = [
   { id: 'lista', label: 'Proveedores' },
@@ -63,6 +93,7 @@ const ListaProveedores = ({ token, onAbrir }) => {
   const [tipo, setTipo] = useState('');
   const [rubro, setRubro] = useState('');
   const [estado, setEstado] = useState('');
+  const [relacion, setRelacion] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [errorAlertas, setErrorAlertas] = useState(null);
@@ -78,14 +109,34 @@ const ListaProveedores = ({ token, onAbrir }) => {
       // limit por default eso significa filtrar sobre los primeros N y
       // mostrar "ninguno coincide" cuando el que se busca está en la página
       // siguiente.
+      // `limit: LIMITE_PADRON` es lo que hace honesto al filtro por
+      // relación económica de abajo. Ver el comentario de `visibles`.
       setItems(await listarProveedores(token, {
         estado: estado || undefined,
         tipo: tipo || undefined,
         rubro_presupuesto: rubro || undefined,
+        limit: LIMITE_PADRON,
       }));
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
   }, [token, estado, tipo, rubro]);
+
+  // EL FILTRO POR RELACIÓN ECONÓMICA SE APLICA EN EL CLIENTE, y es la única
+  // excepción de esta pantalla: `GET /direccion/proveedores` acepta `estado`,
+  // `tipo` y `rubro_presupuesto`, pero NO `relacion_economica` (ver
+  // `listar_proveedores` en el backend). Agregarlo como query lo haría
+  // rebotar como parámetro ignorado y el filtro no filtraría nada.
+  //
+  // Para que eso no reviva el bug que los otros tres filtros ya corrigieron
+  // -filtrar sobre la primera página y decir "ninguno coincide" cuando el
+  // buscado está más atrás-, la carga pide `limit=500`, que es el LIMIT_MAX
+  // del backend, contra un padrón de decenas de filas. Y si alguna vez el
+  // padrón llegara a ese tope, el cartel de abajo lo dice en vez de mentir
+  // en silencio.
+  const visibles = !relacion ? items : items.filter((p) => (
+    relacion === FILTRO_SIN_CLASIFICAR ? !p.relacion_economica : p.relacion_economica === relacion
+  ));
+  const padronTruncado = items.length >= LIMITE_PADRON;
 
   const cargarAlertas = useCallback(async () => {
     setErrorAlertas(null);
@@ -96,7 +147,7 @@ const ListaProveedores = ({ token, onAbrir }) => {
   useEffect(() => { cargar(); }, [cargar]);
   useEffect(() => { cargarAlertas(); }, [cargarAlertas]);
 
-  const hayFiltro = Boolean(tipo || estado || rubro);
+  const hayFiltro = Boolean(tipo || estado || rubro || relacion);
 
   const confirmarBaja = async () => {
     try {
@@ -153,15 +204,46 @@ const ListaProveedores = ({ token, onAbrir }) => {
             {ESTADOS_PROVEEDOR.map((t) => <option key={t} value={t}>{etiqueta(t)}</option>)}
           </select>
         </Campo>
+        <Campo label="Relación económica">
+          <select
+            aria-label="Relación económica"
+            className={inputClase + ' min-w-[185px]'}
+            value={relacion}
+            onChange={(e) => setRelacion(e.target.value)}
+          >
+            <option value="">Todas</option>
+            {RELACIONES_ECONOMICAS.map((r) => <option key={r} value={r}>{r}</option>)}
+            {/* "Sin clasificar" ES un filtro y no la ausencia de filtro: es
+                la lista de trabajo pendiente (los tipos SERVICIOS y OTRO que
+                la migración de datos dejó en NULL a propósito). Sin esta
+                opción, la única forma de encontrarlos sería mirar las 24
+                filas de a una. */}
+            <option value={FILTRO_SIN_CLASIFICAR}>{SIN_CLASIFICAR}</option>
+          </select>
+        </Campo>
         <button className={botonPrimario + ' ml-auto'} onClick={() => setModalAlta(true)}>Nuevo proveedor</button>
       </div>
 
       {error && !loading && <ErrorCarga mensaje={error} que="los proveedores" onReintentar={cargar} />}
 
+      {/* El filtro por relación económica corre en el cliente (el backend no
+          lo acepta como query). Mientras el padrón entre en un pedido, el
+          resultado es completo; si alguna vez llega al tope, se dice, en vez
+          de mostrar un subconjunto como si fuera todo. */}
+      {relacion && padronTruncado && (
+        <div role="alert" className="bg-yellow-500/15 border border-yellow-500/50 rounded-lg p-3 text-sm">
+          <p className="text-yellow-100">
+            El padrón llegó al tope de {LIMITE_PADRON} filas por pedido y este filtro se aplica en
+            el cliente: puede haber proveedores que coincidan y no se estén viendo. Acotá antes por
+            tipo, rubro o estado.
+          </p>
+        </div>
+      )}
+
       <Panel>
         {loading ? (
           <Cargando texto="Cargando proveedores…" />
-        ) : error ? null : items.length === 0 ? (
+        ) : error ? null : visibles.length === 0 ? (
           <EstadoVacio
             icono="building-office"
             titulo={hayFiltro ? 'Ningún proveedor coincide con el filtro' : 'Todavía no hay proveedores. Cargá el primero'}
@@ -171,8 +253,8 @@ const ListaProveedores = ({ token, onAbrir }) => {
               : null}
           />
         ) : (
-          <Tabla columnas={['Proveedor', 'Tipo', 'Estado', 'Costo mensual', 'Rubro', 'Renovación', 'Trabajo asignado', '']}>
-            {items.map((p) => (
+          <Tabla columnas={['Proveedor', 'Tipo', 'Relación', 'Estado', 'Costo mensual', 'Rubro', 'Renovación', 'Trabajo asignado', '']}>
+            {visibles.map((p) => (
               <tr key={p.id} className={p.costo_mensual && !p.trabajo_asignado ? 'bg-red-500/10' : ''}>
                 <td className="px-4 py-2.5">
                   <button className="text-white hover:text-blue-300 font-medium text-left" onClick={() => onAbrir(p.id)}>
@@ -180,6 +262,7 @@ const ListaProveedores = ({ token, onAbrir }) => {
                   </button>
                 </td>
                 <td className="px-4 py-2.5"><Badge valor={p.tipo} /></td>
+                <td className="px-4 py-2.5"><ChipRelacion valor={p.relacion_economica} /></td>
                 <td className="px-4 py-2.5"><Badge valor={p.estado} /></td>
                 <td className="px-4 py-2.5 text-slate-200 whitespace-nowrap">{formatearMonto(p.costo_mensual, p.moneda)}</td>
                 <td className="px-4 py-2.5"><Badge valor={p.rubro_presupuesto} /></td>
@@ -238,7 +321,22 @@ const FORM_VACIO = {
   rubro_presupuesto: '', dia_vencimiento_pago: '', renovacion_fecha: '',
   url_panel: '', trabajo_asignado: '', cuit: '', notas: '',
   es_persona_fisica: false, transfiere_datos_exterior: false, dpa_firmado: false,
+  // Relación económica (backend PR #184). `companias_habilitadas` vive en el
+  // form como TEXTO separado por comas y se parte al enviar: un editor de
+  // chips completo para una lista de tres nombres es más superficie de la
+  // que el dato justifica.
+  relacion_economica: '', companias_habilitadas: '', comision_pct_aplicable: '',
+  es_receptor_factura: false, sla_respuesta_horas: '', punto_contacto_id: '',
 };
+
+// La lista de compañías viaja como array de strings. El backend ya recorta,
+// descarta vacíos y deduplica conservando el orden, así que acá sólo se
+// parte por coma: normalizar dos veces con reglas que se pueden desincronizar
+// es peor que dejar que mande una sola.
+const partirCompanias = (texto) => String(texto || '')
+  .split(',')
+  .map((c) => c.trim())
+  .filter(Boolean);
 
 // Alta y edición. Los campos visibles son exactamente los que pide el
 // módulo; los opcionales vacíos viajan como null (no como "") para no
@@ -247,10 +345,25 @@ const ModalProveedor = ({ token, proveedor, onCerrar, onGuardado }) => {
   const [form, setForm] = useState(() => (proveedor
     ? { ...FORM_VACIO, ...Object.fromEntries(Object.entries(proveedor).filter(([k]) => k in FORM_VACIO))
         , costo_mensual: proveedor.costo_mensual ?? '', renovacion_fecha: proveedor.renovacion_fecha ?? '',
-        dia_vencimiento_pago: proveedor.dia_vencimiento_pago ?? '' }
+        dia_vencimiento_pago: proveedor.dia_vencimiento_pago ?? '',
+        relacion_economica: proveedor.relacion_economica ?? '',
+        companias_habilitadas: (proveedor.companias_habilitadas || []).join(', '),
+        comision_pct_aplicable: proveedor.comision_pct_aplicable ?? '',
+        es_receptor_factura: Boolean(proveedor.es_receptor_factura),
+        sla_respuesta_horas: proveedor.sla_respuesta_horas ?? '',
+        punto_contacto_id: proveedor.punto_contacto_id ?? '' }
     : FORM_VACIO));
   const [error, setError] = useState(null);
   const [guardando, setGuardando] = useState(false);
+  const [puntos, setPuntos] = useState([]);
+
+  // Para el desplegable de "Punto de contacto vinculado". Si falla, el
+  // desplegable queda con la opción vacía y el resto del formulario sigue
+  // funcionando: no se puede perder el alta de un proveedor porque no cargó
+  // una lista opcional.
+  useEffect(() => {
+    listarPuntos(token, { limite: 500 }).then(setPuntos).catch(() => setPuntos([]));
+  }, [token]);
 
   const texto = (campo) => (e) => setForm((f) => ({ ...f, [campo]: e.target.value }));
   const check = (campo) => (e) => setForm((f) => ({ ...f, [campo]: e.target.checked }));
@@ -275,6 +388,24 @@ const ModalProveedor = ({ token, proveedor, onCerrar, onGuardado }) => {
       transfiere_datos_exterior: Boolean(form.transfiere_datos_exterior),
       dpa_firmado: Boolean(form.dpa_firmado),
       notas: vacioANull(form.notas),
+      // Los seis de relación económica. LOS VACÍOS VIAJAN COMO `null` Y ESO
+      // BORRA: el backend honra el null para estos cinco campos
+      // (`CAMPOS_BORRABLES`) justamente para que se puedan desvincular desde
+      // acá. Para los campos viejos de arriba, en cambio, `null` sigue
+      // significando "no lo toques" — por eso esta pantalla nunca pudo
+      // borrarlos y sigue sin poder, que es el contrato de siempre.
+      relacion_economica: vacioANull(form.relacion_economica),
+      companias_habilitadas: partirCompanias(form.companias_habilitadas).length
+        ? partirCompanias(form.companias_habilitadas)
+        : null,
+      comision_pct_aplicable: form.comision_pct_aplicable === ''
+        ? null : String(form.comision_pct_aplicable),
+      // `es_receptor_factura` NO usa vacioANull: su columna es NOT NULL y se
+      // apaga mandando `false`, no `null`.
+      es_receptor_factura: Boolean(form.es_receptor_factura),
+      sla_respuesta_horas: form.sla_respuesta_horas === ''
+        ? null : Number(form.sla_respuesta_horas),
+      punto_contacto_id: vacioANull(form.punto_contacto_id),
     };
     try {
       if (proveedor) await editarProveedor(token, proveedor.id, cuerpo);
@@ -336,6 +467,71 @@ const ModalProveedor = ({ token, proveedor, onCerrar, onGuardado }) => {
         <Campo label="Notas">
           <textarea className={inputClase} rows={2} value={form.notas} onChange={texto('notas')} />
         </Campo>
+        <fieldset className="border border-slate-700 rounded-lg p-3 space-y-3">
+          <legend className="px-1 text-slate-400 text-xs">Relación económica</legend>
+          <p className="text-slate-500 text-[11px]">
+            En qué dirección va la plata con este proveedor. Dejar los campos vacíos los borra.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Campo
+              label="Relación"
+              ayuda="INGRESO: nos liquida. EGRESO: le pagamos. COMPARTIDA: las dos."
+            >
+              <select
+                aria-label="Relación"
+                className={inputClase}
+                value={form.relacion_economica}
+                onChange={texto('relacion_economica')}
+              >
+                <option value="">{SIN_CLASIFICAR}</option>
+                {RELACIONES_ECONOMICAS.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </Campo>
+            <Campo label="Comisión aplicable (%)" ayuda="0 a 100.">
+              <input
+                type="number" step="0.01" min="0" max="100"
+                className={inputClase}
+                value={form.comision_pct_aplicable}
+                onChange={texto('comision_pct_aplicable')}
+              />
+            </Campo>
+            <Campo label="SLA de respuesta (horas)" ayuda="Hasta 8760 (un año).">
+              <input
+                type="number" min="0" max="8760"
+                className={inputClase}
+                value={form.sla_respuesta_horas}
+                onChange={texto('sla_respuesta_horas')}
+              />
+            </Campo>
+            <Campo label="Punto de contacto vinculado">
+              <select
+                aria-label="Punto de contacto vinculado"
+                className={inputClase}
+                value={form.punto_contacto_id}
+                onChange={texto('punto_contacto_id')}
+              >
+                <option value="">—</option>
+                {puntos.map((pc) => <option key={pc.id} value={pc.id}>{pc.slug} — {pc.nombre}</option>)}
+              </select>
+            </Campo>
+          </div>
+          <Campo
+            label="Compañías habilitadas"
+            ayuda="Separadas por coma. P. ej.: BERKLEY, PREVENCION, FEDERACION."
+          >
+            <input
+              className={inputClase}
+              value={form.companias_habilitadas}
+              onChange={texto('companias_habilitadas')}
+              placeholder="BERKLEY, PREVENCION"
+            />
+          </Campo>
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input type="checkbox" checked={form.es_receptor_factura} onChange={check('es_receptor_factura')} />
+            Le emitimos comprobante (es receptor de factura)
+          </label>
+        </fieldset>
+
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-sm text-slate-300">
             <input type="checkbox" checked={form.es_persona_fisica} onChange={check('es_persona_fisica')} />
@@ -417,7 +613,7 @@ const DetalleProveedor = ({ token, proveedorId, onVolver }) => {
             ))}
           </nav>
 
-          {pestana === 'datos' && <PestanaDatos proveedor={proveedor} />}
+          {pestana === 'datos' && <PestanaDatos token={token} proveedor={proveedor} />}
           {pestana === 'contactos' && <PestanaContactos token={token} proveedorId={proveedorId} />}
           {pestana === 'tareas' && <PestanaTareas token={token} proveedorId={proveedorId} />}
           {pestana === 'coberturas' && <PestanaCoberturas token={token} proveedorId={proveedorId} />}
@@ -443,7 +639,45 @@ const Dato = ({ label, children }) => (
   </div>
 );
 
-const PestanaDatos = ({ proveedor: p }) => (
+// El link al punto de contacto: el backend guarda el id, y un UUID en
+// pantalla no le dice nada a nadie. Se resuelve contra el listado de puntos
+// para mostrar el slug, que es lo que está impreso en el QR.
+const PuntoVinculado = ({ token, puntoId }) => {
+  const [punto, setPunto] = useState(undefined);
+  useEffect(() => {
+    // Sin id no se toca el estado: el render de abajo ya corta por `puntoId`
+    // antes de mirar `punto`, y un setState acá dispararía un render en
+    // cascada por un caso que no necesita ninguno.
+    if (!puntoId) return undefined;
+    let vivo = true;
+    listarPuntos(token, { limite: 500 })
+      .then((filas) => { if (vivo) setPunto(filas.find((f) => f.id === puntoId) || null); })
+      .catch(() => { if (vivo) setPunto(null); });
+    return () => { vivo = false; };
+  }, [token, puntoId]);
+
+  if (!puntoId) return <span className="text-slate-500">{SIN_DATO}</span>;
+  if (punto === undefined) return <span className="text-slate-500">…</span>;
+  if (!punto) return <span className="text-slate-500">{SIN_DATO}</span>;
+  return (
+    <span className="inline-flex items-center gap-2 flex-wrap">
+      <code className="font-mono text-blue-300">{punto.slug}</code>
+      <span className="text-slate-400 text-xs">{punto.nombre}</span>
+      {punto.url_corta && (
+        <a
+          href={punto.url_corta}
+          target="_blank"
+          rel="noreferrer"
+          className="text-blue-300 hover:text-blue-200 inline-flex items-center gap-1 text-xs"
+        >
+          Abrir <Icon name="arrow-top-right-on-square" size={12} />
+        </a>
+      )}
+    </span>
+  );
+};
+
+const PestanaDatos = ({ token, proveedor: p }) => (
   <Panel titulo="Datos">
     <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       <Dato label="Tipo"><Badge valor={p.tipo} /></Dato>
@@ -466,8 +700,42 @@ const PestanaDatos = ({ proveedor: p }) => (
       <Dato label="Persona física">{p.es_persona_fisica ? 'Sí' : 'No'}</Dato>
       <Dato label="Transfiere datos al exterior">{p.transfiere_datos_exterior ? 'Sí' : 'No'}</Dato>
       <Dato label="DPA firmado">{p.dpa_firmado ? 'Sí' : 'No'}</Dato>
+
+      {/* Relación económica (backend PR #184). En su propia fila porque es
+          otra pregunta que el resto: el bloque de arriba es a quién le
+          pagamos, éste es en qué dirección va la plata. */}
+      <div className="sm:col-span-2 lg:col-span-3 border-t border-slate-700/60 pt-4 mt-1">
+        <p className="text-slate-400 text-xs font-medium uppercase tracking-wide">Relación económica</p>
+      </div>
+      <Dato label="Relación"><ChipRelacion valor={p.relacion_economica} /></Dato>
+      <Dato label="Comisión aplicable">{formatearPctCampo(p.comision_pct_aplicable)}</Dato>
+      <Dato label="SLA de respuesta">
+        {p.sla_respuesta_horas === null || p.sla_respuesta_horas === undefined
+          ? <span className="text-slate-500">{SIN_DATO}</span>
+          : `${p.sla_respuesta_horas} h`}
+      </Dato>
+      <Dato label="Receptor de factura">{p.es_receptor_factura ? 'Sí' : 'No'}</Dato>
+      <div className="sm:col-span-2">
+        <Dato label="Punto de contacto vinculado">
+          <PuntoVinculado token={token} puntoId={p.punto_contacto_id} />
+        </Dato>
+      </div>
       <div className="sm:col-span-2 lg:col-span-3">
-        <Dato label="Notas">{p.notas || '—'}</Dato>
+        <Dato label="Compañías habilitadas">
+          {p.companias_habilitadas && p.companias_habilitadas.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {p.companias_habilitadas.map((c) => (
+                <span key={c} className="px-2 py-0.5 rounded-full bg-slate-700/60 text-slate-200 text-xs">
+                  {c}
+                </span>
+              ))}
+            </div>
+          ) : <span className="text-slate-500">{SIN_DATO}</span>}
+        </Dato>
+      </div>
+
+      <div className="sm:col-span-2 lg:col-span-3">
+        <Dato label="Notas">{oSinDato(p.notas)}</Dato>
       </div>
     </div>
   </Panel>

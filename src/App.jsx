@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import CompliancePanel from './components/Admin/CompliancePanel';
 import IntelligencePanel from './components/Admin/IntelligencePanel';
 import MarketingStudio from './components/Admin/MarketingStudio';
+import PuntosContactoPanel from './components/Comercial/PuntosContactoPanel';
+import ComisionesReferidoPanel from './components/Comercial/ComisionesReferidoPanel';
 import RecuperablesPanel from './components/Admin/RecuperablesPanel';
 import Header from './components/Header';
 import { CRM_TAB_IDS, SINIESTROS_TABS, MAIL_TAB_IDS, DIRECCION_TAB_IDS, SECCIONES, seccionDeTab } from './components/navTabs';
@@ -2054,6 +2056,19 @@ function App() {
         {/* MARKETING PANEL */}
         {state.activeTab === 'marketing' && isAdmin() && (
           <MarketingStudio />
+        )}
+
+        {/* PUNTOS DE CONTACTO Y COMISIONES DE REFERIDO (C-12B).
+            ADMIN-only igual que Dirección, y por el mismo motivo: el router
+            /api/v1/comercial del backend cuelga entero de require_admin, así
+            que sin este gate un rol no-admin que llegue al tab por
+            localStorage vería la pantalla pedir datos y comerse un 403. */}
+        {state.activeTab === 'puntos-contacto' && isAdmin() && (
+          <PuntosContactoPanel token={state.token} />
+        )}
+
+        {state.activeTab === 'comisiones-referido' && isAdmin() && (
+          <ComisionesReferidoPanel token={state.token} />
         )}
 
         {/* COMPLIANCE PANEL */}
