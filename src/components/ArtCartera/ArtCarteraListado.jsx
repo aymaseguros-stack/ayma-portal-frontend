@@ -16,6 +16,24 @@ const FILTROS_INICIALES = {
 const labelClass = 'block text-slate-400 text-xs mb-1';
 const inputClass = 'px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm placeholder-slate-500';
 
+// Normaliza lo que se tipea en los dos extremos del rango de dotación.
+//
+// Un input vaciado MANDA VACÍO, nunca 0. En Chrome/macOS `Ctrl+A` no
+// selecciona todo dentro de un input: mueve el caret al principio, así que
+// Ctrl+A + Suprimir sobre "50" borra el 5 y deja "0" - el campo se ve vacío
+// para quien lo borró y viaja `dotacion_max=0`, que con un mínimo cargado es
+// un 422 y sin mínimo son "las empresas de 0 empleados", que no es una
+// pregunta del negocio (las que no tienen el dato son NULL y las cuenta el
+// aviso de `excluidas_sin_dotacion`). Por eso un cero suelto y los ceros a la
+// izquierda se descartan, y cualquier cosa que no sea un entero -espacios,
+// un pegado con texto, "5e3"- vuelve a vacío en vez de viajar tal cual.
+const sanearDotacion = (valor) => {
+  const limpio = String(valor ?? '').trim();
+  if (!/^\d+$/.test(limpio)) return '';
+  const sinCeros = limpio.replace(/^0+/, '');
+  return sinCeros;
+};
+
 const FilaSkeleton = () => (
   <tr className="animate-pulse">
     {Array.from({ length: 9 }).map((_, i) => (
@@ -96,7 +114,12 @@ const ArtCarteraListado = ({ token, onAbrirFicha }) => {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-2xl font-bold">Universo ART</h2>
-        <p className="text-slate-400 text-sm">{total.toLocaleString('es-AR')} empresas</p>
+        {/* Con el rango inválido el contador NO se muestra: un "0 empresas"
+            al lado del error se lee como una respuesta del backend sobre la
+            cartera, cuando la consulta ni se hizo. */}
+        {!errorRango && (
+          <p className="text-slate-400 text-sm">{total.toLocaleString('es-AR')} empresas</p>
+        )}
       </div>
 
       {/* Barra de filtros - los 8 del endpoint (ciiu, provincia,
@@ -154,7 +177,7 @@ const ArtCarteraListado = ({ token, onAbrirFicha }) => {
                   min="0"
                   step="1"
                   value={filtros.dotacion_min}
-                  onChange={(e) => cambiarFiltro('dotacion_min', e.target.value)}
+                  onChange={(e) => cambiarFiltro('dotacion_min', sanearDotacion(e.target.value))}
                   aria-invalid={errorRango ? 'true' : undefined}
                   className={`${inputClass} w-full ${errorRango ? 'border-red-500' : ''}`}
                 />
@@ -167,7 +190,7 @@ const ArtCarteraListado = ({ token, onAbrirFicha }) => {
                   min="0"
                   step="1"
                   value={filtros.dotacion_max}
-                  onChange={(e) => cambiarFiltro('dotacion_max', e.target.value)}
+                  onChange={(e) => cambiarFiltro('dotacion_max', sanearDotacion(e.target.value))}
                   aria-invalid={errorRango ? 'true' : undefined}
                   className={`${inputClass} w-full ${errorRango ? 'border-red-500' : ''}`}
                 />
@@ -268,6 +291,12 @@ const ArtCarteraListado = ({ token, onAbrirFicha }) => {
             <tbody className="divide-y divide-slate-700">
               {loading ? (
                 Array.from({ length: 8 }).map((_, i) => <FilaSkeleton key={i} />)
+              ) : errorRango ? (
+                // "No hay empresas para estos filtros" afirmaría que el
+                // backend miró la cartera y no encontró nada. Con el rango
+                // invertido no hubo consulta: lo único cierto es que falta
+                // corregir lo que se tipeó.
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-500">Corregí el rango de dotación</td></tr>
               ) : items.length === 0 ? (
                 <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-500">No hay empresas para estos filtros</td></tr>
               ) : (
