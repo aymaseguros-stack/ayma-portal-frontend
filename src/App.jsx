@@ -32,6 +32,7 @@ import SecurityPanel from './components/Security/SecurityPanel';
 import { normalizeList, formatApiError, authHeader, SESSION_EXPIRED_EVENT } from './utils/api';
 import { fechaCorta, fechaHora } from './utils/fechas';
 import { extraerRol, esRolAdmin } from './utils/roles';
+import { guardarRolDeSesion, limpiarRolDeSesion } from './utils/sesion';
 import { anularLead } from './utils/leadsApi';
 
 // API Configuration
@@ -257,6 +258,8 @@ function App() {
   // login con un mensaje claro, sin importar desde qué vista vino el error.
   useEffect(() => {
     const onSessionExpired = () => {
+      // El interceptor ya borró token y user; el rol es de la misma sesión.
+      limpiarRolDeSesion();
       setState({ ...initialState, error: 'Tu sesión expiró, volvé a ingresar' });
     };
     window.addEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
@@ -330,6 +333,10 @@ function App() {
       let clientesError = null, leadsError = null;
       const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
       const rolUsuario = extraerRol(dashboardRes?.role, savedUser.role, savedUser.tipo_usuario);
+      // El rol queda asentado para que cualquier componente lo resuelva por
+      // su cuenta (utils/sesion.js) en vez de recibirlo por props: la ficha
+      // abierta desde el Pipeline no tenía por dónde enterarse.
+      guardarRolDeSesion(rolUsuario);
       if (esRolAdmin(rolUsuario)) {
         const [cResult, lResult] = await Promise.allSettled([
           fetchAPI('/api/v1/admin/clientes', authToken),
@@ -532,6 +539,7 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    limpiarRolDeSesion();
     setState(initialState);
     setLoginForm({ email: '', password: '' });
   };
@@ -598,6 +606,7 @@ function App() {
       tipo_usuario: data.tipo_usuario,
       role: data.role
     }));
+    guardarRolDeSesion(data.role, data.tipo_usuario);
 
     setTokenTemporal2FA(null);
     setState(prev => ({
@@ -2034,7 +2043,7 @@ function App() {
 
         {/* SEGUIMIENTOS DE HOY - cadencia post-cotización (backend PR #176) */}
         {state.activeTab === 'seguimientos' && isAdmin() && (
-          <SeguimientosHoyPanel token={state.token} esAdmin={isAdmin()} />
+          <SeguimientosHoyPanel token={state.token} />
         )}
 
         {/* SOLICITUDES DE EMISIÓN (QR-EMI, C-6c).
@@ -2050,7 +2059,6 @@ function App() {
         {state.activeTab === 'personas' && isAdmin() && (
           <PersonasPanel
             token={state.token}
-            esAdmin={isAdmin()}
             abrirFichaIdInicial={personaFichaAAbrir}
             onFichaAbierta={() => setPersonaFichaAAbrir(null)}
             onIrAGrupo={irAFichaGrupo}
@@ -2063,7 +2071,6 @@ function App() {
         {state.activeTab === 'empresas' && isAdmin() && (
           <EmpresasPanel
             token={state.token}
-            esAdmin={isAdmin()}
             abrirFichaIdInicial={empresaFichaAAbrir}
             onFichaAbierta={() => setEmpresaFichaAAbrir(null)}
             abrirGrupoFichaIdInicial={grupoFichaEmpresarialAAbrir}

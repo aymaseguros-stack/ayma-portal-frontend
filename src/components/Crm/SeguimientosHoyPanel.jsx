@@ -202,7 +202,7 @@ const RegistrarModal = ({ fila, onCerrar, onConfirmar }) => {
   );
 };
 
-const SeguimientosHoyPanel = ({ token, esAdmin = false }) => {
+const SeguimientosHoyPanel = ({ token }) => {
   const [datos, setDatos] = useState({ fecha: null, total: 0, seguimientos: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -352,7 +352,6 @@ const SeguimientosHoyPanel = ({ token, esAdmin = false }) => {
       {fichaAbierta && (
         <OportunidadFichaModal
           token={token}
-          esAdmin={esAdmin}
           oportunidadId={fichaAbierta}
           onClose={() => setFichaAbierta(null)}
           onChanged={cargar}

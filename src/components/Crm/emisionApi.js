@@ -268,19 +268,12 @@ export const purgarSolicitud = async (token, solicitudId, { motivo, detalle, sim
   return leer(res);
 };
 
-// ---------------------------------------------------------------------------
-// Baja de la oportunidad (C-6i punto 3)
-// ---------------------------------------------------------------------------
-// El DELETE existente: asienta SIN_EFECTO y manda la oportunidad a LOOP. No
-// borra un solo dato personal, así que NO reemplaza a la purga - por eso la
-// ficha avisa antes cuando hay una solicitud con datos cargados.
-export const eliminarOportunidad = async (token, oportunidadId) => {
-  const res = await fetch(`${API_URL}/api/v1/crm/oportunidades/${oportunidadId}`, {
-    method: 'DELETE',
-    headers: authHeader(token),
-  });
-  return leer(res);
-};
+// La baja de la oportunidad vive en ./bajaApi.js: desde C-6k el DELETE pide
+// `motivo_baja` y lo comparte con la baja de persona, así que dejarlo acá
+// -en el cliente de QR-EMI- era el lugar donde el segundo llamador no lo iba
+// a encontrar. Lo que SÍ sigue siendo de este módulo es `tieneDatosVivos`:
+// la baja no borra un dato personal y el backend la rechaza con 409 mientras
+// quede una solicitud sin purgar.
 
 // Los estados en los que la solicitud TODAVÍA tiene datos personales
 // guardados. `PURGADA` ya no; una que nunca se envió tampoco.

@@ -12,6 +12,9 @@ import OfertasSugeridas from './OfertasSugeridas';
 import GruposPanel from './GruposPanel';
 import Timeline from './Timeline';
 import DocumentosTab from './DocumentosTab';
+import BajaModal from './BajaModal';
+import { darDeBajaPersona } from './bajaApi';
+import { useEsAdmin } from '../../utils/sesion';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -58,8 +61,11 @@ const EstadoCrmBadge = ({ estado }) => {
 
 const PersonasPanel = ({
   token, abrirFichaIdInicial, onFichaAbierta, onIrAGrupo,
-  abrirGrupoFichaIdInicial, onGrupoFichaAbierta, esAdmin = false,
+  abrirGrupoFichaIdInicial, onGrupoFichaAbierta,
 }) => {
+  // El rol sale de la sesión, no de una prop (C-6l punto 1): mismo criterio
+  // que la ficha de oportunidad. El backend igual exige `require_admin`.
+  const esAdmin = useEsAdmin();
   const [subTab, setSubTab] = useState('personas');
   const [grupoFichaIdParaAbrir, setGrupoFichaIdParaAbrir] = useState(null);
 
@@ -83,6 +89,14 @@ const PersonasPanel = ({
 
   const [mostrarNuevaOportunidad, setMostrarNuevaOportunidad] = useState(false);
   const [oportunidadAbierta, setOportunidadAbierta] = useState(null);
+
+  // Baja de persona (C-6l punto 3). SÓLO ADMIN, y el backend contesta 409
+  // nombrando las oportunidades vivas: el orden correcto es resolver primero
+  // las oportunidades y después la persona. Ese 409 se muestra tal cual -es
+  // la lista de lo que hay que resolver, no un error de sistema-.
+  const [mostrarBaja, setMostrarBaja] = useState(false);
+  const [dandoDeBaja, setDandoDeBaja] = useState(false);
+  const [errorBaja, setErrorBaja] = useState(null);
 
   const headers = { ...authHeader(token), 'Content-Type': 'application/json' };
 
@@ -168,6 +182,28 @@ const PersonasPanel = ({
     }
   };
 
+  const abrirBaja = () => {
+    setErrorBaja(null);
+    setMostrarBaja(true);
+  };
+
+  const darDeBaja = async ({ motivo, detalle }) => {
+    if (dandoDeBaja) return;                       // guarda de reentrada (H-66)
+    setDandoDeBaja(true);
+    setErrorBaja(null);
+    try {
+      await darDeBajaPersona(token, fichaId, { motivo, detalle });
+      setMostrarBaja(false);
+      setFichaId(null);
+      setFicha(null);
+      await cargarPersonas();
+    } catch (err) {
+      setErrorBaja(err.message);
+    } finally {
+      setDandoDeBaja(false);
+    }
+  };
+
   const refrescarFichaActual = async () => {
     if (!fichaId) return;
     try { await cargarFicha(fichaId); } catch (err) { console.error('Error refrescando ficha:', err); }
@@ -224,7 +260,6 @@ const PersonasPanel = ({
     return (
       <GruposPanel
         token={token}
-        esAdmin={esAdmin}
         tipos={['FAMILIAR']}
         tipoDefault="FAMILIAR"
         abrirFichaIdInicial={grupoFichaIdParaAbrir}
@@ -380,6 +415,17 @@ const PersonasPanel = ({
                     Editar
                   </button>
                 )}
+                {/* La baja va en la pestaña de datos, última y en rojo
+                    apagado: no compite por el ojo con lo del día a día. */}
+                {fichaTab === 'datos' && !editando && esAdmin && (
+                  <button
+                    onClick={abrirBaja}
+                    className="inline-flex items-center gap-2 px-3 py-2 bg-red-600/20 hover:bg-red-600/40 border border-red-500/50 text-red-200 rounded-lg transition text-sm"
+                  >
+                    <Icon name="exclamation-triangle" />
+                    Dar de baja persona
+                  </button>
+                )}
                 {fichaTab === 'oportunidades' && (
                   <button
                     onClick={() => setMostrarNuevaOportunidad(true)}
@@ -529,10 +575,30 @@ const PersonasPanel = ({
       {oportunidadAbierta && (
         <OportunidadFichaModal
           token={token}
-          esAdmin={esAdmin}
           oportunidadId={oportunidadAbierta}
           onClose={() => setOportunidadAbierta(null)}
           onChanged={refrescarFichaActual}
+        />
+      )}
+
+      {/* Baja de persona (C-6l punto 3) */}
+      {mostrarBaja && (
+        <BajaModal
+          titulo="Dar de baja persona"
+          aviso={(
+            <>
+              <p className="font-semibold">La persona sale del Pipeline y de las métricas. Queda la constancia.</p>
+              <p className="text-red-200/90 mt-1">
+                La fila no se borra: queda marcada e inactiva, y deja de aparecer en los listados y
+                en las ofertas sugeridas. Si tiene oportunidades vivas, el backend rechaza la baja y
+                las nombra.
+              </p>
+            </>
+          )}
+          enviando={dandoDeBaja}
+          error={errorBaja}
+          onConfirmar={darDeBaja}
+          onCerrar={() => setMostrarBaja(false)}
         />
       )}
     </div>
