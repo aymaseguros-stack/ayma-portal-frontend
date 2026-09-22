@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Icon } from '../Icons';
+import { useAccionManual, useReinicioAlRestaurar } from './accionManual';
 import { DIAGNOSTICOS, MIGRACIONES_DATOS, sanear } from './diagnosticosCatalogo';
 import MigracionDatosCard from './MigracionDatosCard';
 import { Cargando, ErrorCarga, Panel, botonPrimario, botonSecundario } from './DireccionComunes';
@@ -98,14 +99,21 @@ const BloqueCrudo = ({ resultado }) => {
 const TarjetaDiagnostico = ({ token, diagnostico }) => {
   const [resultado, setResultado] = useState(null);
   const [error, setError] = useState(null);
-  const [corriendo, setCorriendo] = useState(false);
+  // Un diagnóstico es una LECTURA, pero pasa por el mismo guardián que las
+  // migraciones: la regla de H-66 es "ni un pedido sin un clic en esta carga
+  // de pantalla", y una lectura que se dispara sola enseña que la pantalla se
+  // mueve por su cuenta -que es exactamente lo que después nadie sabe si pasó
+  // con la de al lado, que sí escribe.
+  const { corriendo, correr: conGuardia } = useAccionManual();
 
-  const correr = async () => {
-    setCorriendo(true); setError(null);
+  const reiniciar = useCallback(() => { setResultado(null); setError(null); }, []);
+  useReinicioAlRestaurar(reiniciar);
+
+  const correr = () => conGuardia('probar', async () => {
+    setError(null);
     try { setResultado(await diagnostico.ejecutar(token)); }
     catch (err) { setError(err.message); setResultado(null); }
-    finally { setCorriendo(false); }
-  };
+  });
 
   const veredicto = resultado ? diagnostico.veredicto(resultado) : undefined;
 
@@ -114,7 +122,7 @@ const TarjetaDiagnostico = ({ token, diagnostico }) => {
       titulo={diagnostico.titulo}
       subtitulo={diagnostico.descripcion}
       acciones={
-        <button className={botonPrimario} onClick={correr} disabled={corriendo}>
+        <button type="button" className={botonPrimario} onClick={correr} disabled={Boolean(corriendo)}>
           {corriendo ? 'Probando…' : diagnostico.boton}
         </button>
       }

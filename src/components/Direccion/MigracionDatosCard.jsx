@@ -1,11 +1,21 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Icon } from '../Icons';
+import { useAccionManual, useReinicioAlRestaurar } from './accionManual';
 import { sanear } from './diagnosticosCatalogo';
 import { Cargando, ErrorCarga, Panel, botonPrimario, botonSecundario } from './DireccionComunes';
 
 // Una migración de datos, corrida desde la pantalla con la sesión del admin.
 //
-// LAS TRES REGLAS DE ESTA TARJETA, Y NINGUNA ES DECORACIÓN:
+// LAS CUATRO REGLAS DE ESTA TARJETA, Y NINGUNA ES DECORACIÓN:
+//
+// 0. NADA SALE SIN UN CLIC EN ESTA MISMA CARGA DE PANTALLA. Es la regla que
+//    dejó H-66: el panel terminó en "Ejecutada en firme (dry_run: false) -
+//    Escribió 0 fila(s)" sin que nadie apretara nada. La tarjeta no tiene un
+//    solo `useEffect` que pida datos, no persiste su estado en ningún lado y
+//    no reintenta sola; lo que faltaba -y está en accionManual.js- es el
+//    guardián de reentrada, porque `disabled` llega un render tarde, y el
+//    reinicio al volver del back/forward cache, que restaura el estado
+//    entero de la página como si nunca se hubiera ido.
 //
 // 1. NO SE PUEDE EJECUTAR EN FIRME SIN HABER SIMULADO ANTES, en esta misma
 //    pantalla y en esta misma sesión. El botón nace deshabilitado y lo
@@ -104,22 +114,36 @@ const MigracionDatosCard = ({ token, migracion }) => {
   const [simulacion, setSimulacion] = useState(null);
   const [ejecucion, setEjecucion] = useState(null);
   const [error, setError] = useState(null);
-  const [corriendo, setCorriendo] = useState(null); // 'simular' | 'ejecutar'
   const [confirmacion, setConfirmacion] = useState('');
+  // 'simular' | 'ejecutar' | null. El guardián de reentrada vive acá adentro:
+  // un segundo disparo del mismo gesto no vuelve a pegarle al backend.
+  const { corriendo, correr } = useAccionManual();
 
-  const simular = async () => {
-    setCorriendo('simular'); setError(null); setEjecucion(null); setConfirmacion('');
+  // Volver con el botón Atrás restaura la página congelada, no la monta de
+  // nuevo: sin esto, la tarjeta reaparece con el resultado viejo y con
+  // "Ejecutar en firme" habilitado por una simulación de otra carga de
+  // pantalla. Se borra todo y queda en "Todavía no se corrió".
+  const reiniciar = useCallback(() => {
+    setSimulacion(null); setEjecucion(null); setError(null); setConfirmacion('');
+  }, []);
+  useReinicioAlRestaurar(reiniciar);
+
+  const simular = () => correr('simular', async () => {
+    setError(null); setEjecucion(null); setConfirmacion('');
     try {
       setSimulacion(await migracion.ejecutar(token, true));
     } catch (err) {
       setError(err.message); setSimulacion(null);
-    } finally {
-      setCorriendo(null);
     }
-  };
+  });
 
-  const ejecutar = async () => {
-    setCorriendo('ejecutar'); setError(null);
+  const ejecutar = () => correr('ejecutar', async () => {
+    // LA PRECONDICIÓN SE VUELVE A MIRAR ACÁ ADENTRO, no sólo en `disabled`.
+    // Un atributo del DOM es lo que la pantalla muestra; esto es lo que
+    // decide si sale el POST. Si alguna vez un evento llega con el botón ya
+    // habilitado por un estado viejo, acá se corta.
+    if (!simulacion || confirmacion !== PALABRA_CONFIRMACION) return;
+    setError(null);
     try {
       const r = await migracion.ejecutar(token, false);
       setEjecucion(r);
@@ -129,10 +153,8 @@ const MigracionDatosCard = ({ token, migracion }) => {
       setConfirmacion('');
     } catch (err) {
       setError(err.message);
-    } finally {
-      setCorriendo(null);
     }
-  };
+  });
 
   const puedeEjecutar = Boolean(simulacion) && confirmacion === PALABRA_CONFIRMACION && !corriendo;
 
@@ -141,7 +163,7 @@ const MigracionDatosCard = ({ token, migracion }) => {
       titulo={migracion.titulo}
       subtitulo={migracion.descripcion}
       acciones={
-        <button className={botonSecundario} onClick={simular} disabled={Boolean(corriendo)}>
+        <button type="button" className={botonSecundario} onClick={simular} disabled={Boolean(corriendo)}>
           {corriendo === 'simular' ? 'Simulando…' : (ejecucion ? 'Simular de nuevo' : 'Simular')}
         </button>
       }
@@ -191,7 +213,7 @@ const MigracionDatosCard = ({ token, migracion }) => {
                 className="w-full max-w-xs px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm font-mono"
               />
               <div>
-                <button className={botonPrimario} onClick={ejecutar} disabled={!puedeEjecutar}>
+                <button type="button" className={botonPrimario} onClick={ejecutar} disabled={!puedeEjecutar}>
                   Ejecutar en firme
                 </button>
               </div>

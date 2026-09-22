@@ -147,6 +147,15 @@ describe('Presupuesto', () => {
     render(<DireccionFinanzas token="t" />);
     fireEvent.click(await screen.findByText('Copiar del mes anterior'));
 
+    // ABRIR EL MODAL NO PIDE NADA (H-66). Hasta el PR de H-66 el dry_run
+    // salía del montaje, así que abrir la pantalla -o volver a ella- mandaba
+    // un POST que nadie pidió. Ahora el modal abre en blanco y la simulación
+    // la pide un clic.
+    expect(await screen.findByText(/Todavía no se corrió/)).toBeTruthy();
+    expect(rutas.some((r) => r.includes('/copiar'))).toBe(false);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Simular la copia' }));
+
     // La previa llega con dry_run=true y se muestra la tabla propuesta.
     await waitFor(() => expect(screen.getByText(/Simulación: todavía no se escribió nada/)).toBeTruthy());
     expect(rutas.some((r) => r.startsWith('POST') && r.includes('/copiar') && r.includes('dry_run=true'))).toBe(true);
@@ -193,6 +202,12 @@ describe('Gastos', () => {
   it('generar recurrentes: dry_run, tabla propuesta, aviso de los ACTIVOS que quedan afuera, y confirmar', async () => {
     await abrirGastos();
     fireEvent.click(screen.getByText('Generar recurrentes del mes'));
+
+    // Mismo criterio que "Copiar del mes anterior": abrir no pide nada.
+    expect(await screen.findByText(/Todavía no se corrió/)).toBeTruthy();
+    expect(rutas.some((r) => r.includes('generar-recurrentes'))).toBe(false);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Simular los recurrentes' }));
 
     await waitFor(() => expect(screen.getByText(/Simulación: todavía no se escribió nada/)).toBeTruthy());
     expect(rutas.some((r) => r.includes('generar-recurrentes') && r.includes('dry_run=true'))).toBe(true);
