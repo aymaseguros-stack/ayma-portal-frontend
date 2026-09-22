@@ -13,6 +13,11 @@ export const CRM_TABS = [
   // se mira a la mañana, y es una PESTAÑA del CRM: la navegación está
   // congelada, no se suma una ruta nueva.
   { id: 'seguimientos', label: 'Seguimientos de hoy' },
+  // SOLICITUDES DE EMISIÓN (QR-EMI, C-6c): la cola de revisión de lo que
+  // los clientes cargaron por el link firmado. Va pegada a Seguimientos
+  // porque es lo mismo -lo que hay que atender hoy- y es una PESTAÑA del
+  // CRM: la navegación está congelada, no se suma una ruta nueva.
+  { id: 'solicitudes-emision', label: 'Solicitudes de emisión' },
   { id: 'personas', label: 'Personas' },
   { id: 'empresas', label: 'Empresas' },
   { id: 'leads', label: 'Leads' },
