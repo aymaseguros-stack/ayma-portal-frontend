@@ -4,7 +4,7 @@
 // que src/components/Mail/mailApi.js: fetch crudo + authHeader/formatApiError
 // de utils/api, con normalizeList para los listados paginados (Page{total,
 // items,limit,offset} - ver app/schemas/common.py del backend).
-import { authHeader, formatApiError, normalizeList } from '../../utils/api';
+import { authHeader, formatApiError, normalizeList, numeroSeguro } from '../../utils/api';
 import { sanearTramoNomina } from './artCarteraConstants';
 
 export const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
@@ -57,11 +57,27 @@ export const normalizarBusqueda = (q) => {
 // `filtros` acepta: ciiu, provincia, dotacion_min, dotacion_max,
 // riesgo_suscripcion, estado_efectivo, aseguradora, estrategia_art, q,
 // order_by, limit, offset (ver app/api/v1/art_consultas.py).
+//
+// Devuelve `{items, total, excluidas_sin_dotacion}`. Los dos primeros salen
+// de `normalizeList` (envelope Page); el tercero es propio de ESTE endpoint
+// (`PaginaEmpresasART`, ART-42b) y `normalizeList` lo descartaría: es cuántas
+// empresas SIN dotación cargada quedaron fuera por el filtro de rango. Es
+// `null` -no 0- cuando no hay filtro de dotación activo: ahí no se excluyó a
+// nadie por dotación y un 0 afirmaría haber contado algo.
+//
+// El error lleva `.status`: el 422 de rango inválido (máx < mín) se muestra
+// junto a los inputs, no como "no se pudo cargar la cartera", y sin el status
+// habría que adivinarlo parseando el texto del mensaje.
 export const listarEmpresasArt = async (token, filtros = {}) => {
   const params = 'q' in filtros ? { ...filtros, q: normalizarBusqueda(filtros.q) } : filtros;
   const res = await fetch(`${API_URL}/api/v1/art/empresas${buildQuery(params)}`, { headers: artHeaders(token) });
-  if (!res.ok) throw new Error(await formatApiError(res));
-  return normalizeList(await res.json());
+  if (!res.ok) {
+    const err = new Error(await formatApiError(res));
+    err.status = res.status;
+    throw err;
+  }
+  const body = await res.json();
+  return { ...normalizeList(body), excluidas_sin_dotacion: numeroSeguro(body?.excluidas_sin_dotacion) };
 };
 
 // GET /art/empresas/{cuit} - ficha + matriz de 19 aseguradoras + historial +

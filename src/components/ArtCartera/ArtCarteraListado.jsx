@@ -9,7 +9,7 @@ import CiiuLabel from '../Ciiu/CiiuLabel';
 const LIMIT = 50;
 
 const FILTROS_INICIALES = {
-  q: '', ciiu: '', provincia: '', dotacion_min: '',
+  q: '', ciiu: '', provincia: '', dotacion_min: '', dotacion_max: '',
   riesgo_suscripcion: '', estado_efectivo: '', aseguradora: '', estrategia_art: '',
 };
 
@@ -26,7 +26,7 @@ const FilaSkeleton = () => (
 
 // Pantalla A - Listado de cartera ART (/art). Tabla server-side paginada:
 // son 9.119 empresas, así que `total` sale SIEMPRE del envelope del backend
-// (nunca items.length) y los 7 filtros del endpoint van por querystring, no
+// (nunca items.length) y los 8 filtros del endpoint van por querystring, no
 // se filtra en el cliente (ver GET /art/empresas en app/api/v1/art_consultas.py).
 const ArtCarteraListado = ({ token, onAbrirFicha }) => {
   const [filtros, setFiltros] = useState(FILTROS_INICIALES);
@@ -35,6 +35,16 @@ const ArtCarteraListado = ({ token, onAbrirFicha }) => {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // El 422 de rango inválido (dotacion_max < dotacion_min) se muestra JUNTO A
+  // LOS INPUTS y no en el cartel de "no se pudo cargar la cartera": el
+  // problema está en lo que se tipeó ahí y el mensaje del backend nombra los
+  // dos valores, que es lo que permite ver que están al revés sin volver al
+  // formulario. Estado aparte de `error` justamente para que no compitan.
+  const [errorRango, setErrorRango] = useState(null);
+  // Cuántas empresas SIN dotación cargada quedaron fuera por el filtro de
+  // rango (ART-42b). `null` = no hay filtro de dotación activo: no se excluyó
+  // a nadie y no se muestra nada.
+  const [excluidasSinDotacion, setExcluidasSinDotacion] = useState(null);
 
   const filtrosKey = JSON.stringify(filtros);
 
@@ -47,14 +57,24 @@ const ArtCarteraListado = ({ token, onAbrirFicha }) => {
     let cancelado = false;
     setLoading(true);
     setError(null);
+    setErrorRango(null);
     const t = setTimeout(async () => {
       try {
         const resultado = await listarEmpresasArt(token, { ...filtros, limit: LIMIT, offset });
         if (cancelado) return;
         setItems(resultado.items);
         setTotal(resultado.total);
+        setExcluidasSinDotacion(resultado.excluidas_sin_dotacion ?? null);
       } catch (err) {
-        if (!cancelado) setError(err.message);
+        if (cancelado) return;
+        // Un rango inválido no deja la tabla con lo de la consulta anterior:
+        // una lista vieja bajo un mensaje de error se lee como el resultado
+        // del filtro que se acaba de tipear.
+        setItems([]);
+        setTotal(0);
+        setExcluidasSinDotacion(null);
+        if (err.status === 422) setErrorRango(err.message);
+        else setError(err.message);
       } finally {
         if (!cancelado) setLoading(false);
       }
@@ -79,9 +99,9 @@ const ArtCarteraListado = ({ token, onAbrirFicha }) => {
         <p className="text-slate-400 text-sm">{total.toLocaleString('es-AR')} empresas</p>
       </div>
 
-      {/* Barra de filtros - los 7 del endpoint (ciiu, provincia,
-          dotacion_min, riesgo_suscripcion, estado_efectivo, aseguradora,
-          estrategia) más búsqueda por razón social/CUIT. */}
+      {/* Barra de filtros - los 8 del endpoint (ciiu, provincia,
+          dotacion_min, dotacion_max, riesgo_suscripcion, estado_efectivo,
+          aseguradora, estrategia) más búsqueda por razón social/CUIT. */}
       <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
         <div className="flex items-center gap-2 text-slate-400 text-xs uppercase tracking-wide mb-3">
           <Icon name="funnel" size={14} />
@@ -120,15 +140,42 @@ const ArtCarteraListado = ({ token, onAbrirFicha }) => {
               className={`${inputClass} w-full`}
             />
           </div>
+          {/* Rango de dotación: dos inputs de mitad de ancho en la MISMA
+              celda de la grilla, para que "mínima" y "máxima" se lean como un
+              solo campo y el 422 de rango invertido tenga dónde mostrarse
+              sin separarse de ninguno de los dos. */}
           <div>
-            <label className={labelClass}>Dotación mínima</label>
-            <input
-              type="number"
-              min="0"
-              value={filtros.dotacion_min}
-              onChange={(e) => cambiarFiltro('dotacion_min', e.target.value)}
-              className={`${inputClass} w-full`}
-            />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className={labelClass} htmlFor="art-dotacion-min">Dotación mínima</label>
+                <input
+                  id="art-dotacion-min"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={filtros.dotacion_min}
+                  onChange={(e) => cambiarFiltro('dotacion_min', e.target.value)}
+                  aria-invalid={errorRango ? 'true' : undefined}
+                  className={`${inputClass} w-full ${errorRango ? 'border-red-500' : ''}`}
+                />
+              </div>
+              <div>
+                <label className={labelClass} htmlFor="art-dotacion-max">Dotación máxima</label>
+                <input
+                  id="art-dotacion-max"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={filtros.dotacion_max}
+                  onChange={(e) => cambiarFiltro('dotacion_max', e.target.value)}
+                  aria-invalid={errorRango ? 'true' : undefined}
+                  className={`${inputClass} w-full ${errorRango ? 'border-red-500' : ''}`}
+                />
+              </div>
+            </div>
+            {errorRango && !loading && (
+              <p role="alert" className="mt-1 text-xs text-red-300">{errorRango}</p>
+            )}
           </div>
           <div>
             <label className={labelClass}>Riesgo de suscripción</label>
@@ -188,6 +235,17 @@ const ArtCarteraListado = ({ token, onAbrirFicha }) => {
         <div className="bg-red-500/15 border border-red-500/50 rounded-lg p-4 flex items-start gap-3">
           <Icon name="exclamation-triangle" className="text-red-400 shrink-0 mt-0.5" />
           <p className="text-red-200 text-sm">No se pudo cargar la cartera ART. {error}</p>
+        </div>
+      )}
+
+      {/* `> 0` y no `!= null`: con el filtro activo y nada excluido el
+          backend manda 0, y un aviso de "0 empresas no se muestran" es ruido. */}
+      {excluidasSinDotacion > 0 && !loading && (
+        <div className="bg-amber-500/15 border border-amber-500/50 rounded-lg p-3 flex items-start gap-3">
+          <Icon name="exclamation-triangle" className="text-amber-400 shrink-0 mt-0.5" />
+          <p className="text-amber-100 text-sm">
+            {excluidasSinDotacion.toLocaleString('es-AR')} empresas sin dotación cargada no se muestran con este filtro.
+          </p>
         </div>
       )}
 
