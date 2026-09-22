@@ -1,13 +1,20 @@
 // Cliente HTTP de QR-EMI, lado del PORTAL
-// (backend: app/api/v1/crm_solicitudes_emision.py, PR #190 / 11755e3).
+// (backend: app/api/v1/crm_solicitudes_emision.py, C-6h / 27cfd4d).
 //
-// SEIS ENDPOINTS Y UNO NO ES COMO LOS OTROS CINCO. Generar, revocar,
+// SIETE ENDPOINTS Y DOS NO SON COMO LOS OTROS CINCO. Generar, revocar,
 // listar, aprobar y observar cuelgan de `require_admin_o_agente` y no
 // muestran un solo dato del formulario. `verSolicitud` -el detalle- cuelga
 // de `require_admin`, devuelve el DNI, el CBU y el domicilio DESCIFRADOS, y
 // el backend deja cada acceso en `auditoria_accesos`. Por eso vive en una
 // función aparte con su propio nombre y por eso NINGUNA pantalla la llama
 // al montar: la dispara un clic explícito.
+//
+// `purgarSolicitud` es ADMIN por el motivo SIMÉTRICO: borra esos mismos
+// datos y no se deshace. Sus tres candados son del backend y acá no se
+// aflojan: ADMIN, `?dry_run=true` por default y un `simulacion_id` que sale
+// del dry_run. La pantalla suma el suyo -tipear PURGAR- porque el default
+// protege de quien no leyó la firma y la credencial de quien la leyó, pero
+// ninguno de los dos protege del clic de más.
 //
 // EL TOKEN EN CLARO SALE UNA SOLA VEZ, en la respuesta de `generarSolicitud`
 // (y de `observarSolicitud` con `regenerar_link`). La base guarda su
@@ -173,33 +180,109 @@ export const bajarBlob = (blob, nombre) => {
   }
 };
 
-// EL LISTADO NO TRAE NI LA REFERENCIA DE LA OPORTUNIDAD NI EL NOMBRE DEL
-// CLIENTE, y no es un olvido: `SolicitudOut` no declara un solo dato de la
-// persona a propósito (los datos viven cifrados y su lectura es ADMIN y
-// auditada). La referencia `AYMA-OPP-...` y el `nombre_vinculado` salen de
-// la ficha de la oportunidad, que es otro endpoint.
+// EL LISTADO YA TRAE LA REFERENCIA Y EL NOMBRE (C-6g). Hasta el backend
+// C-6h, `SolicitudOut` no los declaraba y esta pantalla pedía la ficha de
+// la oportunidad UNA VEZ POR FILA para poder escribir de quién era cada
+// solicitud: N pedidos para pintar una tabla, y cada uno un GET más sobre
+// la oportunidad. Ahora vienen en la misma respuesta -`oportunidad_referencia`
+// y `cliente_nombre`, y nada más: ni documento, ni teléfono, ni email-, así
+// que esos N pedidos NO EXISTEN MÁS y no hay que reponerlos.
 //
-// Se piden DE A UNA Y DEDUPLICADAS por oportunidad -varias solicitudes de
-// la misma oportunidad son un solo pedido- y el fallo de una NO voltea la
-// tabla: esa fila muestra el id, que es lo que igual permite encontrarla.
-export const resolverOportunidad = async (token, oportunidadId) => {
-  const res = await fetch(`${API_URL}/api/v1/crm/oportunidades/${oportunidadId}`, {
-    headers: authHeader(token),
-  });
-  if (!res.ok) throw new Error(await formatApiError(res));
-  return res.json();
+// El fallback es el id de la oportunidad, no un pedido de reserva: si el
+// backend no mandó la referencia, mostrar el id deja encontrar la fila igual.
+export const referenciaDe = (s) => s?.oportunidad_referencia || s?.oportunidad_id || '';
+export const clienteDe = (s) => s?.cliente_nombre || null;
+
+// ---------------------------------------------------------------------------
+// Subida a Drive (C-6h punto 3)
+// ---------------------------------------------------------------------------
+// `en_drive=false` QUERÍA DECIR TRES COSAS A LA VEZ hasta C-6h: "no se
+// despachó", "está viajando" y "falló y no va a llegar nunca". Por eso el
+// detalle decía "todavía subiendo" sobre un archivo muerto. La columna
+// `subida_estado` es la que decide; `en_drive` queda sólo para saber si hay
+// binario que descargar.
+export const SUBIDA_PENDIENTE = 'PENDIENTE';
+export const SUBIDA_EN_CURSO = 'EN_CURSO';
+export const SUBIDA_OK = 'OK';
+export const SUBIDA_FALLIDA = 'FALLIDA';
+export const ESTADOS_SUBIDA_EN_VUELO = [SUBIDA_PENDIENTE, SUBIDA_EN_CURSO];
+
+export const estaEnVuelo = (a) => ESTADOS_SUBIDA_EN_VUELO.includes(a?.subida_estado);
+export const fallo = (a) => a?.subida_estado === SUBIDA_FALLIDA;
+
+// El texto NO es decorativo: la salida depende del estado. En vuelo se
+// espera; FALLIDA no llega sola y hay que volver a pedir el archivo con
+// "Observar" + link nuevo, que es lo que el backend contesta en su 409.
+export const SUBIDA_TEXTO = {
+  [SUBIDA_PENDIENTE]: 'Todavía subiendo. Actualizá en unos segundos.',
+  [SUBIDA_EN_CURSO]: 'Todavía subiendo. Actualizá en unos segundos.',
+  [SUBIDA_FALLIDA]: 'La subida falló: no va a llegar sola. Observá la solicitud y pedí el archivo de nuevo.',
 };
 
-export const resolverOportunidades = async (token, ids, yaConocidas = {}) => {
-  const faltantes = [...new Set(ids.filter((id) => id && !yaConocidas[id]))];
-  const resueltas = {};
-  await Promise.all(faltantes.map(async (id) => {
-    try {
-      const o = await resolverOportunidad(token, id);
-      resueltas[id] = { referencia: o?.token || null, cliente: o?.nombre_vinculado || null };
-    } catch {
-      resueltas[id] = { referencia: null, cliente: null };
-    }
-  }));
-  return resueltas;
+// Lo que bloquea "Aprobar". El backend contesta 409 igual -esto no lo
+// reemplaza-, pero ofrecer un botón que se sabe que va a rebotar es hacerle
+// perder el viaje a quien revisa.
+export const adjuntosQueBloquean = (adjuntos = []) =>
+  adjuntos.filter((a) => !a?.purgado_en && (estaEnVuelo(a) || fallo(a)));
+
+// Desde el listado, sin haber abierto los datos: el backend ya cuenta.
+export const bloqueadaPorSubidas = (s) =>
+  (s?.archivos_en_vuelo || 0) > 0 || (s?.archivos_fallidos || 0) > 0;
+
+// ---------------------------------------------------------------------------
+// Purga (C-6h) — ADMIN, irreversible
+// ---------------------------------------------------------------------------
+// DOS LLAMADAS Y NO UNA, y la segunda no existe sin la primera: el dry_run
+// devuelve el plan y un `simulacion_id` que vale 10 minutos, una sola vez y
+// atado a la HUELLA de lo que se mostró. Si entre una cosa y la otra llegó
+// otro archivo, el backend rebota con 409 y hay que volver a mirar - que es
+// el punto de la credencial: no que alguien haya mirado algo, sino ESTO.
+export const ESTADO_PURGADA = 'PURGADA';
+
+export const MOTIVOS_PURGA = [
+  { valor: 'PRUEBA', titulo: 'Prueba: los datos no son de un cliente real' },
+  { valor: 'SUPRESION_TITULAR', titulo: 'Supresión pedida por el titular (Ley 25.326 art. 16)' },
+  { valor: 'OTRO', titulo: 'Otro (hay que decir de dónde salió el pedido)' },
+];
+
+export const MOTIVO_OTRO = 'OTRO';
+
+// La palabra que hay que tipear para habilitar la corrida firme.
+export const PALABRA_CONFIRMACION = 'PURGAR';
+
+export const purgarSolicitud = async (token, solicitudId, { motivo, detalle, simulacion_id, dry_run }) => {
+  const res = await fetch(
+    `${BASE}/solicitudes-emision/${solicitudId}/purgar?dry_run=${dry_run ? 'true' : 'false'}`,
+    {
+      method: 'POST',
+      headers: headersJson(token),
+      // `dry_run` va en la QUERY STRING y NUNCA en el cuerpo: el backend
+      // tiene un validador que rebota con 422 el que llegue ahí.
+      body: JSON.stringify({
+        motivo,
+        detalle: detalle || null,
+        simulacion_id: simulacion_id || null,
+      }),
+    },
+  );
+  return leer(res);
 };
+
+// ---------------------------------------------------------------------------
+// Baja de la oportunidad (C-6i punto 3)
+// ---------------------------------------------------------------------------
+// El DELETE existente: asienta SIN_EFECTO y manda la oportunidad a LOOP. No
+// borra un solo dato personal, así que NO reemplaza a la purga - por eso la
+// ficha avisa antes cuando hay una solicitud con datos cargados.
+export const eliminarOportunidad = async (token, oportunidadId) => {
+  const res = await fetch(`${API_URL}/api/v1/crm/oportunidades/${oportunidadId}`, {
+    method: 'DELETE',
+    headers: authHeader(token),
+  });
+  return leer(res);
+};
+
+// Los estados en los que la solicitud TODAVÍA tiene datos personales
+// guardados. `PURGADA` ya no; una que nunca se envió tampoco.
+export const tieneDatosVivos = (s) =>
+  !!s?.enviada_en && s?.estado !== ESTADO_PURGADA && !s?.purgada_en;

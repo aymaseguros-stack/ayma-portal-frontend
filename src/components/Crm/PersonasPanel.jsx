@@ -58,7 +58,7 @@ const EstadoCrmBadge = ({ estado }) => {
 
 const PersonasPanel = ({
   token, abrirFichaIdInicial, onFichaAbierta, onIrAGrupo,
-  abrirGrupoFichaIdInicial, onGrupoFichaAbierta,
+  abrirGrupoFichaIdInicial, onGrupoFichaAbierta, esAdmin = false,
 }) => {
   const [subTab, setSubTab] = useState('personas');
   const [grupoFichaIdParaAbrir, setGrupoFichaIdParaAbrir] = useState(null);
@@ -224,6 +224,7 @@ const PersonasPanel = ({
     return (
       <GruposPanel
         token={token}
+        esAdmin={esAdmin}
         tipos={['FAMILIAR']}
         tipoDefault="FAMILIAR"
         abrirFichaIdInicial={grupoFichaIdParaAbrir}
@@ -528,6 +529,7 @@ const PersonasPanel = ({
       {oportunidadAbierta && (
         <OportunidadFichaModal
           token={token}
+          esAdmin={esAdmin}
           oportunidadId={oportunidadAbierta}
           onClose={() => setOportunidadAbierta(null)}
           onChanged={refrescarFichaActual}
