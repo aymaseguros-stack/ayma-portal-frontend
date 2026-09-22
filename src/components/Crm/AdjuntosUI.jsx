@@ -2,8 +2,11 @@ import React, { useRef, useState } from 'react';
 import { Icon } from '../Icons';
 import {
   MAX_ARCHIVOS, formatBytes, iconoDeMime, tituloCategoria,
-  validarSeleccion, descargarAdjunto,
+  validarSeleccion, descargarAdjunto, reintentarSubidaAdjunto,
 } from './adjuntosApi';
+import {
+  SUBIDA_FALLIDA, SUBIDA_TEXTO, estadoSubida, estaEnVuelo, fallo, sePuedeDescargar,
+} from './subidaAdjunto';
 import { OpcionesCategorias } from './categoriasAdjunto';
 
 // Piezas de UI compartidas por los adjuntos del CRM: el selector (botón +
@@ -109,9 +112,20 @@ export const SelectorAdjuntos = ({ elegidos, onElegidos, deshabilitado = false }
 
 // Un adjunto ya subido. La descarga siempre va por el stream autenticado
 // (fetch + blob): nunca un href al backend ni una URL de Drive.
-export const FilaAdjunto = ({ token, adjunto, onAnular, compacto = false }) => {
+//
+// EL TAMAÑO NO PRUEBA QUE EL ARCHIVO ESTÉ (C-6q). `tamano_bytes` se escribe
+// EN LÍNEA dentro del pedido, así que un archivo cuya subida a Drive falló se
+// veía acá completo y con su botón "Descargar": alguien lo tocaba y recibía
+// un error o nada. Quien decide es `subida_estado`, la MISMA columna que lee
+// el detalle de la solicitud. FALLIDA y en vuelo no ofrecen descarga.
+export const FilaAdjunto = ({ token, adjunto, onAnular, onReintentado, compacto = false }) => {
   const [error, setError] = useState(null);
   const [bajando, setBajando] = useState(false);
+  const [reintentando, setReintentando] = useState(false);
+
+  const enVuelo = estaEnVuelo(adjunto);
+  const fallida = fallo(adjunto);
+  const descargable = sePuedeDescargar(adjunto);
 
   const bajar = async () => {
     setBajando(true);
@@ -125,6 +139,23 @@ export const FilaAdjunto = ({ token, adjunto, onAnular, compacto = false }) => {
     }
   };
 
+  // UN SOLO POST POR CLIC: `reintentando` es la guarda de reentrada y se
+  // levanta ANTES del await. Cada reintento arranca una tanda de hasta cuatro
+  // intentos contra Drive; dos clics son dos tandas sobre el mismo archivo.
+  const reintentar = async () => {
+    if (reintentando) return;
+    setReintentando(true);
+    setError(null);
+    try {
+      await reintentarSubidaAdjunto(token, adjunto.id);
+      await onReintentado?.();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setReintentando(false);
+    }
+  };
+
   return (
     <div className={`flex items-center gap-3 ${compacto ? 'px-2 py-1.5' : 'px-3 py-2'}`}>
       <Icon name={iconoDeMime(adjunto.mime)} className="text-blue-400 shrink-0" />
@@ -134,16 +165,34 @@ export const FilaAdjunto = ({ token, adjunto, onAnular, compacto = false }) => {
           {tituloCategoria(adjunto.categoria)} · {formatBytes(adjunto.tamano_bytes)}
           {adjunto.anulado_en ? ' · anulado' : ''}
         </p>
+        {enVuelo && <p className="text-amber-300 text-xs mt-1">{SUBIDA_TEXTO[estadoSubida(adjunto)]}</p>}
+        {fallida && <p className="text-red-300 text-xs mt-1">{SUBIDA_TEXTO[SUBIDA_FALLIDA]}</p>}
         {error && <p className="text-red-400 text-xs mt-1">{error}</p>}
       </div>
-      <button
-        type="button"
-        onClick={bajar}
-        disabled={bajando}
-        className="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 rounded-lg text-xs font-medium transition whitespace-nowrap"
-      >
-        {bajando ? 'Descargando...' : 'Descargar'}
-      </button>
+      {descargable && (
+        <button
+          type="button"
+          onClick={bajar}
+          disabled={bajando}
+          className="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 rounded-lg text-xs font-medium transition whitespace-nowrap"
+        >
+          {bajando ? 'Descargando...' : 'Descargar'}
+        </button>
+      )}
+      {/* Si no quedó copia del archivo en el portal, el backend contesta 409
+          diciéndolo y ese texto aparece acá: la pantalla no tiene ese dato y
+          esconder el botón por las dudas dejaría sin salida a los que SÍ se
+          pueden recuperar. */}
+      {fallida && !adjunto.anulado_en && !adjunto.purgado_en && (
+        <button
+          type="button"
+          onClick={reintentar}
+          disabled={reintentando}
+          className="px-2.5 py-1.5 bg-amber-600/30 hover:bg-amber-600/50 disabled:opacity-50 border border-amber-500/40 text-amber-100 rounded-lg text-xs font-medium transition whitespace-nowrap"
+        >
+          {reintentando ? 'Reintentando...' : 'Reintentar subida'}
+        </button>
+      )}
       {onAnular && !adjunto.anulado_en && (
         <button
           type="button"

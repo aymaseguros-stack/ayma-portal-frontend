@@ -160,7 +160,7 @@ const DocumentosTab = ({ token, filtro, onCambio }) => {
         <ul className="divide-y divide-slate-700 border border-slate-700 rounded-lg">
           {visibles.map((a) => (
             <li key={a.id}>
-              <FilaAdjunto token={token} adjunto={a} onAnular={setAAnular} />
+              <FilaAdjunto token={token} adjunto={a} onAnular={setAAnular} onReintentado={cargar} />
               <p className="text-slate-500 text-xs px-3 pb-2">
                 {fechaHora(a.creado_en) || ''}
                 {a.interaccion_id ? ' · de una interacción' : ' · sin interacción'}
