@@ -2034,7 +2034,7 @@ function App() {
 
         {/* SEGUIMIENTOS DE HOY - cadencia post-cotización (backend PR #176) */}
         {state.activeTab === 'seguimientos' && isAdmin() && (
-          <SeguimientosHoyPanel token={state.token} />
+          <SeguimientosHoyPanel token={state.token} esAdmin={isAdmin()} />
         )}
 
         {/* SOLICITUDES DE EMISIÓN (QR-EMI, C-6c).
@@ -2050,6 +2050,7 @@ function App() {
         {state.activeTab === 'personas' && isAdmin() && (
           <PersonasPanel
             token={state.token}
+            esAdmin={isAdmin()}
             abrirFichaIdInicial={personaFichaAAbrir}
             onFichaAbierta={() => setPersonaFichaAAbrir(null)}
             onIrAGrupo={irAFichaGrupo}
@@ -2062,6 +2063,7 @@ function App() {
         {state.activeTab === 'empresas' && isAdmin() && (
           <EmpresasPanel
             token={state.token}
+            esAdmin={isAdmin()}
             abrirFichaIdInicial={empresaFichaAAbrir}
             onFichaAbierta={() => setEmpresaFichaAAbrir(null)}
             abrirGrupoFichaIdInicial={grupoFichaEmpresarialAAbrir}

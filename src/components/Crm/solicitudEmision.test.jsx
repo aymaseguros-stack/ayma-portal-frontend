@@ -38,6 +38,11 @@ const SOLICITUD = {
   revisada_por: null, revisada_en: null, observacion: null,
   consentimiento_version: 'v1', consentimiento_fecha: '2026-09-20T13:00:00',
   hitos_aplicados_en: null, vencida: false, archivos: 2,
+  // C-6h: el listado ya trae la referencia, el nombre y los conteos de
+  // subida. La pantalla no vuelve a pedir la ficha de la oportunidad.
+  oportunidad_referencia: 'AYMA-OPP-1', cliente_nombre: 'Juan Pérez',
+  archivos_en_vuelo: 0, archivos_fallidos: 0,
+  purgada_en: null, purga_motivo: null,
 };
 
 const VIVA = { ...SOLICITUD, id: 's0', estado: 'GENERADA', enviada_en: null };
@@ -128,7 +133,7 @@ describe('SolicitudesEmisionPanel — la cola de revisión', () => {
         datos: { dni: '30111222', cbu_o_alias: 'juan.mp' },
         adjuntos: [
           { id: 'a1', nombre_original: 'dni.jpg', mime: 'image/jpeg', tamano_bytes: 10,
-            sha256: 'x', categoria: 'DNI_CEDULA', creado_en: '2026-09-20T13:00:00', en_drive: true },
+            sha256: 'x', categoria: 'DNI_CEDULA', creado_en: '2026-09-20T13:00:00', en_drive: true, subida_estado: 'OK' },
         ],
       }));
     }

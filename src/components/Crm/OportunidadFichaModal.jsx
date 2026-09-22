@@ -22,7 +22,9 @@ import SelectorCompania from './SelectorCompania';
 import IdentificacionRiesgo from './IdentificacionRiesgo';
 import { etiquetaOrigen, FUENTE_AHORRO_LABEL, RESULTADO_LOOP_LABEL } from './oportunidadCatalogos';
 import SolicitudEmisionModal from './SolicitudEmisionModal';
-import { puedePedirDatos } from './emisionApi';
+import {
+  eliminarOportunidad, listarSolicitudes, puedePedirDatos, tieneDatosVivos,
+} from './emisionApi';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -40,7 +42,11 @@ const FICHA_TABS = [
 
 // Ficha de una oportunidad puntual: datos, timeline unificado (interacciones +
 // tareas) y tareas propias, con acciones de registrar interacción y cerrar.
-const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => {
+// La palabra que hay que tipear para habilitar la baja. Mismo criterio que
+// la purga: un botón rojo no es una confirmación, es un botón.
+const PALABRA_BAJA = 'ELIMINAR';
+
+const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged, esAdmin = false }) => {
   const [detalle, setDetalle] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('datos');
@@ -77,6 +83,15 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
   const botonCotizacionRef = useRef(null);
   const [transicionDestino, setTransicionDestino] = useState(null);
   const [avisoPipeline, setAvisoPipeline] = useState(null);
+
+  // Baja de la oportunidad (C-6i punto 3). SÓLO ADMIN en la pantalla: el
+  // DELETE del backend es admin-o-agente, pero dar de baja una oportunidad
+  // la manda a LOOP con SIN_EFECTO y la cierra como PERDIDA, y eso no es
+  // algo que se ofrezca al lado de "Registrar interacción".
+  const [mostrarEliminar, setMostrarEliminar] = useState(false);
+  const [textoBaja, setTextoBaja] = useState('');
+  const [eliminando, setEliminando] = useState(false);
+  const [solicitudesConDatos, setSolicitudesConDatos] = useState([]);
 
   const [mostrarCierre, setMostrarCierre] = useState(false);
   const [cierreForm, setCierreForm] = useState({
@@ -227,6 +242,44 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
       setErrorAccion(err.message);
     } finally {
       setGuardandoInteraccion(false);
+    }
+  };
+
+  // LA BAJA NO BORRA UN SOLO DATO PERSONAL: manda la oportunidad a LOOP y
+  // la cierra. Si quedó una solicitud de emisión con el DNI y el CBU
+  // cargados, darla de baja los deja exactamente donde estaban, pero fuera
+  // de la vista de todos - que es como un dato se olvida. Por eso se mira
+  // ANTES de abrir la confirmación y se avisa ahí mismo.
+  const abrirBaja = async () => {
+    setErrorAccion(null);
+    setAvisoPipeline(null);
+    setTextoBaja('');
+    setSolicitudesConDatos([]);
+    setMostrarEliminar(true);
+    try {
+      const solicitudes = await listarSolicitudes(token, { oportunidad_id: oportunidadId, limit: 50 });
+      setSolicitudesConDatos(solicitudes.filter(tieneDatosVivos));
+    } catch {
+      // Que no se pueda consultar el listado NO bloquea la baja: sería
+      // atar una decisión comercial a un endpoint que puede estar caído.
+      // El aviso es lo que se pierde, y se dice.
+      setSolicitudesConDatos(null);
+    }
+  };
+
+  const eliminar = async () => {
+    if (eliminando) return;                        // guarda de reentrada (H-66)
+    setEliminando(true);
+    setErrorAccion(null);
+    try {
+      await eliminarOportunidad(token, oportunidadId);
+      setMostrarEliminar(false);
+      onChanged?.();
+      onClose?.();
+    } catch (err) {
+      setErrorAccion(err.message);
+    } finally {
+      setEliminando(false);
     }
   };
 
@@ -511,6 +564,18 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
                   </button>
                 </>
               )}
+              {/* La baja va ÚLTIMA y en rojo apagado: es la acción que no se
+                  deshace y no tiene por qué competir por el ojo con las del
+                  día a día. */}
+              {esAdmin && (
+                <button
+                  onClick={abrirBaja}
+                  className="inline-flex items-center gap-2 px-3 py-2 bg-red-600/20 hover:bg-red-600/40 border border-red-500/50 text-red-200 rounded-lg transition text-sm whitespace-nowrap"
+                >
+                  <Icon name="exclamation-triangle" />
+                  Eliminar oportunidad
+                </button>
+              )}
             </div>
           </div>
 
@@ -779,6 +844,72 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
           onCerrar={() => setTransicionDestino(null)}
           onAplicada={(r) => refrescarTrasPipeline(r, `Estado: ${r.estado_anterior} → ${r.estado_crm}`)}
         />
+      )}
+
+      {/* Sub-modal: baja de la oportunidad (C-6i punto 3) */}
+      {mostrarEliminar && (
+        <Modal title="Eliminar oportunidad" onClose={() => setMostrarEliminar(false)} maxWidth="max-w-lg">
+          <div className="space-y-5">
+            <div className="bg-red-500/10 border border-red-500/40 text-red-100 px-4 py-3 rounded-lg text-sm space-y-1">
+              <p className="font-semibold">La oportunidad pasa a LOOP y queda cerrada como perdida.</p>
+              <p className="text-red-200/90">
+                Se asienta como NO con SIN_EFECTO: nadie intervino ante la compañía actual, así que
+                no hay ahorro que declarar. La fila no se borra de la base.
+              </p>
+            </div>
+
+            {/* EL AVISO QUE IMPORTA: la baja no borra datos personales. */}
+            {solicitudesConDatos === null ? (
+              <div className="bg-slate-700/60 border border-slate-600 text-slate-300 px-4 py-2 rounded-lg text-sm">
+                No se pudo consultar si esta oportunidad tiene solicitudes de emisión con datos
+                cargados. Revisalo en "Solicitudes de emisión" antes de seguir.
+              </div>
+            ) : solicitudesConDatos.length > 0 ? (
+              <div className="bg-amber-500/15 border border-amber-500/40 text-amber-100 px-4 py-3 rounded-lg text-sm">
+                <p className="font-semibold">Primero purgá los datos de la solicitud.</p>
+                <p className="mt-1">
+                  Hay {solicitudesConDatos.length} solicitud(es) de emisión con el formulario del
+                  cliente todavía guardado (DNI, cobro, archivos). Dar de baja la oportunidad no los
+                  borra: los deja donde están y fuera de la vista. Andá a "Solicitudes de emisión",
+                  purgalos, y volvé.
+                </p>
+              </div>
+            ) : null}
+
+            <div>
+              <label className="block text-slate-400 text-sm mb-2" htmlFor="baja-confirmacion">
+                Escribí {PALABRA_BAJA} para confirmar
+              </label>
+              <input
+                id="baja-confirmacion"
+                type="text"
+                value={textoBaja}
+                onChange={(e) => setTextoBaja(e.target.value)}
+                disabled={eliminando}
+                autoComplete="off"
+                className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm"
+              />
+            </div>
+
+            {errorAccion && (
+              <div className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-2 rounded-lg text-sm">{errorAccion}</div>
+            )}
+
+            <div className="flex gap-4 pt-2">
+              <button type="button" onClick={() => setMostrarEliminar(false)} className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 rounded-lg transition">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={eliminar}
+                disabled={eliminando || textoBaja.trim().toUpperCase() !== PALABRA_BAJA}
+                className="flex-1 py-3 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg font-semibold transition"
+              >
+                {eliminando ? 'Eliminando...' : 'Confirmar baja'}
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {/* Sub-modal: cerrar oportunidad */}

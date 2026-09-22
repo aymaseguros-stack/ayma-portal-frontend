@@ -48,7 +48,7 @@ const subTabButtonClass = (active) =>
 
 const EmpresasPanel = ({
   token, abrirFichaIdInicial, onFichaAbierta, abrirGrupoFichaIdInicial, onGrupoFichaAbierta,
-  subTabInicial, onSubTabAbierto,
+  subTabInicial, onSubTabAbierto, esAdmin = false,
 }) => {
   // `subTabInicial` deja que otra pantalla abra Empresas directamente en una
   // sub-pestaña (el bloque ART del Dashboard entra por "Universo ART"). Se
@@ -340,6 +340,7 @@ const EmpresasPanel = ({
     return (
       <GruposPanel
         token={token}
+        esAdmin={esAdmin}
         tipos={['CONSORCIO', 'FLOTA', 'SOCIEDAD_HECHO']}
         tipoDefault="CONSORCIO"
         abrirFichaIdInicial={grupoFichaIdParaAbrir}
@@ -743,6 +744,7 @@ const EmpresasPanel = ({
       {oportunidadAbierta && (
         <OportunidadFichaModal
           token={token}
+          esAdmin={esAdmin}
           oportunidadId={oportunidadAbierta}
           onClose={() => setOportunidadAbierta(null)}
           onChanged={refrescarFichaActual}
