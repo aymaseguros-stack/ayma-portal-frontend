@@ -79,6 +79,7 @@ let pedidos;
 
 beforeEach(() => {
   pedidos = [];
+  localStorage.clear();
   globalThis.URL.createObjectURL = vi.fn(() => 'blob:miniatura');
   globalThis.URL.revokeObjectURL = vi.fn();
 });
@@ -289,7 +290,11 @@ describe('purga de datos (C-6i punto 2)', () => {
   });
 });
 
-describe('baja de la oportunidad (C-6i punto 3)', () => {
+// A partir de C-6l la ficha resuelve el rol de la SESIÓN, no de una prop:
+// el Pipeline no la pasaba y a un admin le escondía el botón.
+const sesionComo = (rol) => localStorage.setItem('ayma_rol', rol);
+
+describe('baja de la oportunidad (C-6l punto 2)', () => {
   const OPORTUNIDAD = {
     id: 'opp1', token: 'AYMA-OPP-1', track: 'AUTO', estado_crm: 'CLIENTE',
     resultado: 'EN_CURSO', prima_estimada: 41000, origen: 'REFERIDO',
@@ -306,22 +311,25 @@ describe('baja de la oportunidad (C-6i punto 3)', () => {
   });
 
   it('un EMPLEADO no ve "Eliminar oportunidad"', async () => {
+    sesionComo('EMPLEADO');
     globalThis.fetch = servidorFicha();
     render(<OportunidadFichaModal token="t" oportunidadId="opp1" onClose={() => {}} />);
     await screen.findByRole('button', { name: /Registrar interacción/i });
     expect(screen.queryByRole('button', { name: /Eliminar oportunidad/i })).toBeNull();
   });
 
-  it('un ADMIN confirma por escrito y recién ahí sale el DELETE', async () => {
+  it('un ADMIN elige motivo, confirma por escrito y recién ahí sale el DELETE', async () => {
+    sesionComo('ADMIN');
     globalThis.fetch = servidorFicha();
     const onClose = vi.fn();
-    render(<OportunidadFichaModal token="t" oportunidadId="opp1" esAdmin onClose={onClose} />);
+    render(<OportunidadFichaModal token="t" oportunidadId="opp1" onClose={onClose} />);
 
     fireEvent.click(await screen.findByRole('button', { name: /Eliminar oportunidad/i }));
     const confirmar = await screen.findByRole('button', { name: /^Confirmar baja$/ });
     expect(confirmar.disabled).toBe(true);
     expect(pedidos.filter((p) => p.metodo === 'DELETE')).toHaveLength(0);
 
+    fireEvent.click(screen.getByRole('button', { name: 'Prueba' }));
     fireEvent.change(screen.getByLabelText(/Escribí ELIMINAR/i), { target: { value: 'ELIMINAR' } });
     fireEvent.click(screen.getByRole('button', { name: /^Confirmar baja$/ }));
     await waitFor(() => expect(pedidos.filter((p) => p.metodo === 'DELETE')).toHaveLength(1));
@@ -329,8 +337,9 @@ describe('baja de la oportunidad (C-6i punto 3)', () => {
   });
 
   it('avisa que primero hay que purgar cuando queda una solicitud con datos', async () => {
+    sesionComo('ADMIN');
     globalThis.fetch = servidorFicha([{ ...SOLICITUD, estado: 'APROBADA' }]);
-    render(<OportunidadFichaModal token="t" oportunidadId="opp1" esAdmin onClose={() => {}} />);
+    render(<OportunidadFichaModal token="t" oportunidadId="opp1" onClose={() => {}} />);
 
     fireEvent.click(await screen.findByRole('button', { name: /Eliminar oportunidad/i }));
     await screen.findByText(/Primero purgá los datos de la solicitud/i);
@@ -340,7 +349,8 @@ describe('baja de la oportunidad (C-6i punto 3)', () => {
     globalThis.fetch = servidorFicha([
       { ...SOLICITUD, estado: 'PURGADA', purgada_en: '2026-09-22T15:00:00' },
     ]);
-    render(<OportunidadFichaModal token="t" oportunidadId="opp1" esAdmin onClose={() => {}} />);
+    sesionComo('ADMIN');
+    render(<OportunidadFichaModal token="t" oportunidadId="opp1" onClose={() => {}} />);
 
     fireEvent.click(await screen.findByRole('button', { name: /Eliminar oportunidad/i }));
     await screen.findByLabelText(/Escribí ELIMINAR/i);

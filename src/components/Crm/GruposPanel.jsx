@@ -38,7 +38,6 @@ const formatMoneda = (valor) => {
 // FLOTA, SOCIEDAD_HECHO) sin duplicar el componente.
 const GruposPanel = ({
   token, tipos, titulo = 'Grupos', tipoDefault, abrirFichaIdInicial, onFichaAbierta, encabezado,
-  esAdmin = false,
 }) => {
   const tipoInicial = tipoDefault || tipos[0];
   const secciones = useMemo(() => seccionesGrupoParaTipos(tipos), [tipos]);
@@ -668,7 +667,6 @@ const GruposPanel = ({
         <OportunidadFichaModal
           token={token}
           oportunidadId={oportunidadAbierta}
-          esAdmin={esAdmin}
           onClose={() => setOportunidadAbierta(null)}
           onChanged={refrescarFichaActual}
         />
