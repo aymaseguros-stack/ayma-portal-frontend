@@ -303,6 +303,13 @@ const DetalleSolicitud = ({ token, esAdmin, solicitud, onCerrar, onRefrescar, on
         // claro sale una sola vez y no se puede volver a pedir.
         setLink(r.link);
         setAviso(r.detalle || 'Se generó un link nuevo y el anterior quedó revocado.');
+        // EL ENCABEZADO TIENE QUE DECIR OBSERVADA (C-6q punto 3). El modal
+        // pinta `solicitud`, que es la fila del listado, y al quedarse
+        // abierto seguía mostrando "Pendiente de revisión" sobre una
+        // solicitud que ya se observó. Se recarga el listado: el detalle se
+        // referencia POR ID, así que la fila se reemplaza sin cerrar nada.
+        // Los datos en claro NO se vuelven a pedir: cada lectura se audita.
+        await onRefrescar?.();
       } else {
         onCambio();
       }
@@ -543,13 +550,19 @@ const DetalleSolicitud = ({ token, esAdmin, solicitud, onCerrar, onRefrescar, on
               </>
             )}
 
+            {/* APROBAR ESTÁ SIEMPRE HABILITADO (C-6q punto 2). Estaba
+                deshabilitado sin decir por qué -el `title` no se ve en una
+                tablet y no se ve nunca en un teclado-, y una pantalla que no
+                responde al clic se lee como colgada. QUIEN DECIDE ES EL
+                BACKEND: su 409 nombra cada archivo y su estado, y ese texto
+                aparece en el recuadro de error de abajo. El aviso amarillo
+                sigue estando: adelanta el motivo, no lo reemplaza. */}
             <div className="flex gap-3 flex-wrap">
               <button
                 type="button"
                 onClick={aprobar}
-                disabled={aprobando || enVuelo}
-                title={enVuelo ? 'No se aprueba con archivos sin terminar de subir.' : undefined}
-                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-semibold text-sm transition"
+                disabled={aprobando}
+                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-lg font-semibold text-sm transition"
               >
                 {aprobando ? 'Aprobando…' : 'Aprobar'}
               </button>

@@ -201,29 +201,14 @@ export const clienteDe = (s) => s?.cliente_nombre || null;
 // detalle decía "todavía subiendo" sobre un archivo muerto. La columna
 // `subida_estado` es la que decide; `en_drive` queda sólo para saber si hay
 // binario que descargar.
-export const SUBIDA_PENDIENTE = 'PENDIENTE';
-export const SUBIDA_EN_CURSO = 'EN_CURSO';
-export const SUBIDA_OK = 'OK';
-export const SUBIDA_FALLIDA = 'FALLIDA';
-export const ESTADOS_SUBIDA_EN_VUELO = [SUBIDA_PENDIENTE, SUBIDA_EN_CURSO];
-
-export const estaEnVuelo = (a) => ESTADOS_SUBIDA_EN_VUELO.includes(a?.subida_estado);
-export const fallo = (a) => a?.subida_estado === SUBIDA_FALLIDA;
-
-// El texto NO es decorativo: la salida depende del estado. En vuelo se
-// espera; FALLIDA no llega sola y hay que volver a pedir el archivo con
-// "Observar" + link nuevo, que es lo que el backend contesta en su 409.
-export const SUBIDA_TEXTO = {
-  [SUBIDA_PENDIENTE]: 'Todavía subiendo. Actualizá en unos segundos.',
-  [SUBIDA_EN_CURSO]: 'Todavía subiendo. Actualizá en unos segundos.',
-  [SUBIDA_FALLIDA]: 'La subida falló: no va a llegar sola. Observá la solicitud y pedí el archivo de nuevo.',
-};
-
-// Lo que bloquea "Aprobar". El backend contesta 409 igual -esto no lo
-// reemplaza-, pero ofrecer un botón que se sabe que va a rebotar es hacerle
-// perder el viaje a quien revisa.
-export const adjuntosQueBloquean = (adjuntos = []) =>
-  adjuntos.filter((a) => !a?.purgado_en && (estaEnVuelo(a) || fallo(a)));
+// El vocabulario vive en ./subidaAdjunto.js y se reexporta acá: lo leen dos
+// pantallas (el detalle de la solicitud y la pestaña Documentos de la ficha)
+// y dos copias es cómo una aprende a decir "falló" y la otra no.
+export {
+  SUBIDA_PENDIENTE, SUBIDA_EN_CURSO, SUBIDA_OK, SUBIDA_FALLIDA,
+  ESTADOS_SUBIDA_EN_VUELO, SUBIDA_TEXTO, estadoSubida, estaEnVuelo, fallo,
+  sePuedeDescargar, adjuntosQueBloquean,
+} from './subidaAdjunto';
 
 // Desde el listado, sin haber abierto los datos: el backend ya cuenta.
 export const bloqueadaPorSubidas = (s) =>

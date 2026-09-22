@@ -21,9 +21,10 @@
 // 5. UN EMPLEADO NO VE "PURGAR DATOS" NI "ELIMINAR OPORTUNIDAD". Las dos
 //    son de ADMIN en esta pantalla, y ofrecer un botón que rebota es
 //    hacerle perder el viaje a quien revisa.
-// 6. LA APROBACIÓN NO SE OFRECE CON ARCHIVOS EN VUELO. El backend contesta
-//    409 igual; acá se dice POR QUÉ y qué hacer, que es lo que el 409 no
-//    alcanza a explicar desde un cartel de error.
+// 6. LA APROBACIÓN AVISA, PERO NO SE APAGA (C-6q punto 2). El aviso dice
+//    POR QUÉ y qué hacer; el botón sigue habilitado y el que decide es el
+//    409 del backend, que nombra cada archivo. Un botón deshabilitado sin
+//    explicación a la vista se lee como una pantalla colgada.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
@@ -172,20 +173,33 @@ describe('cobro legible (C-6i punto 1)', () => {
   });
 });
 
-describe('aprobar con archivos en vuelo (C-6h punto 2)', () => {
-  it('deshabilita Aprobar y dice qué hacer', async () => {
-    globalThis.fetch = servidor({
-      listado: [{ ...SOLICITUD, archivos_en_vuelo: 1 }],
+describe('aprobar con archivos en vuelo (C-6h punto 2 / C-6q punto 2)', () => {
+  // EL BOTÓN YA NO SE DESHABILITA. Estaba apagado sin decir por qué y la
+  // pantalla se leía como colgada. Avisa antes y deja intentar; el que
+  // decide es el backend con su 409, que nombra cada archivo.
+  it('avisa qué falta pero deja tocar Aprobar, y muestra el 409 con los nombres', async () => {
+    const base = servidor({ listado: [{ ...SOLICITUD, archivos_en_vuelo: 1 }] });
+    globalThis.fetch = vi.fn((url, init) => {
+      if (String(url).includes('/aprobar')) {
+        registrar(url, init);
+        return Promise.resolve(respuesta(
+          { detail: 'No se puede aprobar: 1 archivo(s) de esta solicitud no terminaron de subir a Drive -> frente.jpg (EN_CURSO).' },
+          409,
+        ));
+      }
+      return base(url, init);
     });
     render(<SolicitudesEmisionPanel token="t" esAdmin />);
     await screen.findByText('AYMA-OPP-1');
     fireEvent.click(screen.getByRole('button', { name: 'Abrir' }));
 
     const boton = await screen.findByRole('button', { name: 'Aprobar' });
-    expect(boton.disabled).toBe(true);
+    expect(boton.disabled).toBe(false);
     expect(screen.getByText(/todavía subiendo a Drive/i)).toBeTruthy();
+
     fireEvent.click(boton);
-    expect(posts().filter((p) => p.url.includes('/aprobar'))).toHaveLength(0);
+    await screen.findByText(/frente\.jpg \(EN_CURSO\)/);
+    expect(posts().filter((p) => p.url.includes('/aprobar'))).toHaveLength(1);
   });
 
   it('con una subida FALLIDA manda a pedir el archivo de nuevo', async () => {
@@ -197,7 +211,7 @@ describe('aprobar con archivos en vuelo (C-6h punto 2)', () => {
     await screen.findByText('AYMA-OPP-1');
     fireEvent.click(screen.getByRole('button', { name: 'Abrir' }));
     await screen.findByText(/no van a llegar solos/i);
-    expect((await screen.findByRole('button', { name: 'Aprobar' })).disabled).toBe(true);
+    expect((await screen.findByRole('button', { name: 'Aprobar' })).disabled).toBe(false);
   });
 });
 

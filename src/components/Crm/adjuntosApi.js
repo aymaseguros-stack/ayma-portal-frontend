@@ -244,3 +244,23 @@ export const ICONO_MIME = {
 };
 
 export const iconoDeMime = (mime) => ICONO_MIME[mime] || 'document-text';
+
+// Reintento de la subida a Drive de UN archivo (C-6n,
+// POST /crm/adjuntos/{id}/reintentar-subida). No sube desde acá: el backend
+// reencola el mismo camino que la subida automática, que lee los bytes
+// conservados.
+//
+// EL 409 NO ES UN ERROR DE RED y hay tres: ya está en Drive, fue purgado, o
+// no quedó copia del archivo en el portal -los adjuntos anteriores a C-6n no
+// la tienen y hay que volver a pedírselos al cliente-. El mensaje del
+// backend dice cuál es, así que se muestra tal cual en vez de traducirlo: es
+// el backend el que sabe si hay algo con qué reintentar, y esta pantalla no
+// tiene el dato (`AdjuntoResponse` no declara `binario_conservado`).
+export const reintentarSubidaAdjunto = async (token, adjuntoId) => {
+  const res = await fetch(`${API_URL}/api/v1/crm/adjuntos/${adjuntoId}/reintentar-subida`, {
+    method: 'POST',
+    headers: authHeader(token),
+  });
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.json();
+};
