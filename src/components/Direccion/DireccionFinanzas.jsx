@@ -10,6 +10,7 @@ import {
   listarComisiones, listarGastos, resumenPresupuesto, seriePresupuesto, sumarMontos,
 } from './finanzasApi';
 import { listarProveedores } from './direccionApi';
+import { useAccionManual } from './accionManual';
 import { obtenerEstado } from './facturacionApi';
 import DireccionFacturacion from './DireccionFacturacion';
 import ModalFacturarComision from './ModalFacturarComision';
@@ -528,28 +529,33 @@ const ModalCopiar = ({ token, hacia, onCerrar, onConfirmado }) => {
   const desde = periodoDesplazado(hacia, -1);
   const [previa, setPrevia] = useState(null);
   const [error, setError] = useState(null);
-  const [cargando, setCargando] = useState(true);
-  const [confirmando, setConfirmando] = useState(false);
+  const { corriendo, correr } = useAccionManual();
+  const cargando = corriendo === 'simular';
+  const confirmando = corriendo === 'confirmar';
 
-  useEffect(() => {
-    let vivo = true;
-    (async () => {
-      try {
-        const r = await copiarAsignaciones(token, desde, hacia, true);
-        if (vivo) setPrevia(r);
-      } catch (err) { if (vivo) setError(err.message); }
-      finally { if (vivo) setCargando(false); }
-    })();
-    return () => { vivo = false; };
-  }, [token, desde, hacia]);
+  // LA SIMULACIÓN LA PIDE UN CLIC, NO EL MONTAJE (H-66). Hasta este PR el
+  // `dry_run=true` salía desde un `useEffect` con deps [token, desde, hacia]:
+  // abrir el modal mandaba un POST, y cualquier remonte -volver a la pestaña,
+  // una restauración del back/forward cache- lo mandaba de nuevo, sin que
+  // nadie lo pidiera. No escribía, pero es el patrón exacto que después nadie
+  // puede distinguir del que sí escribe. Ahora el modal abre en "Todavía no
+  // se corrió" y el botón es la única forma de que salga un pedido.
+  const simular = () => correr('simular', async () => {
+    setError(null);
+    try { setPrevia(await copiarAsignaciones(token, desde, hacia, true)); }
+    catch (err) { setError(err.message); setPrevia(null); }
+  });
 
-  const confirmar = async () => {
-    setConfirmando(true); setError(null);
+  const confirmar = () => correr('confirmar', async () => {
+    // Igual que en las migraciones: la precondición se vuelve a mirar acá y
+    // no sólo en `disabled`.
+    if (!previa || previa.a_copiar === 0) return;
+    setError(null);
     try {
       await copiarAsignaciones(token, desde, hacia, false);
       onConfirmado();
-    } catch (err) { setError(err.message); setConfirmando(false); }
-  };
+    } catch (err) { setError(err.message); }
+  });
 
   return (
     <Modal title="Copiar asignaciones del mes anterior" onClose={onCerrar} maxWidth="max-w-2xl">
@@ -559,7 +565,15 @@ const ModalCopiar = ({ token, hacia, onCerrar, onConfirmado }) => {
           <strong className="text-white">{periodoLegible(hacia)}</strong>.
         </p>
         {error && <div role="alert" className="bg-red-500/15 border border-red-500/50 rounded-lg p-3 text-red-200 text-sm">{error}</div>}
-        {cargando ? <Cargando texto="Calculando la propuesta…" /> : !previa ? null : (
+        {cargando ? <Cargando texto="Calculando la propuesta…" /> : !previa ? (
+          <div className="space-y-3">
+            <p className="text-slate-400 text-sm">
+              Todavía no se corrió. Apretá <strong>Simular la copia</strong>: el backend devuelve exactamente
+              lo que escribiría, sin escribir nada.
+            </p>
+            <button type="button" className={botonPrimario} onClick={simular}>Simular la copia</button>
+          </div>
+        ) : (
           <>
             <div className="bg-slate-900/60 border border-slate-700 rounded-lg p-3 text-sm">
               <p className="text-yellow-200 font-medium">
@@ -897,35 +911,41 @@ const ModalGasto = ({ token, periodo, proveedores, onCerrar, onGuardado }) => {
 const ModalRecurrentes = ({ token, periodo, proveedores, onCerrar, onConfirmado }) => {
   const [previa, setPrevia] = useState(null);
   const [error, setError] = useState(null);
-  const [cargando, setCargando] = useState(true);
-  const [confirmando, setConfirmando] = useState(false);
   const afuera = useMemo(() => proveedoresActivosSinDatos(proveedores), [proveedores]);
+  const { corriendo, correr } = useAccionManual();
+  const cargando = corriendo === 'simular';
+  const confirmando = corriendo === 'confirmar';
 
-  useEffect(() => {
-    let vivo = true;
-    (async () => {
-      try {
-        const r = await generarRecurrentes(token, periodo, true);
-        if (vivo) setPrevia(r);
-      } catch (err) { if (vivo) setError(err.message); }
-      finally { if (vivo) setCargando(false); }
-    })();
-    return () => { vivo = false; };
-  }, [token, periodo]);
+  // Mismo cambio que en ModalCopiar y por el mismo motivo (H-66): el
+  // `dry_run=true` salía del montaje y volvía a salir en cada remonte.
+  const simular = () => correr('simular', async () => {
+    setError(null);
+    try { setPrevia(await generarRecurrentes(token, periodo, true)); }
+    catch (err) { setError(err.message); setPrevia(null); }
+  });
 
-  const confirmar = async () => {
-    setConfirmando(true); setError(null);
+  const confirmar = () => correr('confirmar', async () => {
+    if (!previa) return;
+    setError(null);
     try {
       await generarRecurrentes(token, periodo, false);
       onConfirmado();
-    } catch (err) { setError(err.message); setConfirmando(false); }
-  };
+    } catch (err) { setError(err.message); }
+  });
 
   return (
     <Modal title={`Generar recurrentes de ${periodoLegible(periodo)}`} onClose={onCerrar} maxWidth="max-w-2xl">
       <div className="space-y-4">
         {error && <div role="alert" className="bg-red-500/15 border border-red-500/50 rounded-lg p-3 text-red-200 text-sm">{error}</div>}
-        {cargando ? <Cargando texto="Calculando la propuesta…" /> : !previa ? null : (
+        {cargando ? <Cargando texto="Calculando la propuesta…" /> : !previa ? (
+          <div className="space-y-3">
+            <p className="text-slate-400 text-sm">
+              Todavía no se corrió. Apretá <strong>Simular los recurrentes</strong>: el backend devuelve
+              exactamente lo que crearía, sin crear nada.
+            </p>
+            <button type="button" className={botonPrimario} onClick={simular}>Simular los recurrentes</button>
+          </div>
+        ) : (
           <>
             <div className="bg-slate-900/60 border border-slate-700 rounded-lg p-3 text-sm">
               <p className="text-yellow-200 font-medium">

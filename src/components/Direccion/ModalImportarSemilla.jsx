@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Modal from '../Modal';
+import { useAccionManual } from './accionManual';
 import { importarSemilla } from './facturacionApi';
 import { Campo, Tabla, botonPrimario, botonSecundario, inputClase } from './DireccionComunes';
 
@@ -18,6 +19,12 @@ import { Campo, Tabla, botonPrimario, botonSecundario, inputClase } from './Dire
 //
 // UN 4xx NO SE REINTENTA. Se muestra el texto del backend tal cual: es un
 // problema del archivo, y mandarlo otra vez da exactamente el mismo error.
+//
+// NADA SALE SIN UN CLIC, Y UN GESTO ES UN SOLO PEDIDO (H-66). El modal no
+// tiene un `useEffect` que pida nada y su estado muere al cerrarlo; lo que
+// faltaba era el guardián de reentrada: `disabled={trabajando}` llega un
+// render tarde, así que un doble clic sobre "Confirmar importación" mandaba
+// dos veces la misma semilla.
 
 const TABLAS = ['frentes', 'decisiones', 'workers', 'proveedores', 'hallazgos', 'credenciales'];
 
@@ -28,7 +35,8 @@ const ModalImportarSemilla = ({ token, onCerrar, onImportado }) => {
   const [previa, setPrevia] = useState(null);
   const [resultado, setResultado] = useState(null);
   const [error, setError] = useState(null);
-  const [trabajando, setTrabajando] = useState(false);
+  const { corriendo, correr: conGuardia } = useAccionManual();
+  const trabajando = Boolean(corriendo);
 
   const elegir = async (e) => {
     const file = e.target.files?.[0];
@@ -47,8 +55,16 @@ const ModalImportarSemilla = ({ token, onCerrar, onImportado }) => {
     }
   };
 
-  const correr = async (dryRun) => {
-    setTrabajando(true); setError(null);
+  const rechazados = previa?.rechazados || [];
+  // Habilitado SÓLO si lo que estoy mirando es una corrida en seco limpia.
+  const puedeConfirmar = Boolean(previa) && previa.escritura === false && rechazados.length === 0;
+
+  const correr = (dryRun) => conGuardia(dryRun ? 'simular' : 'importar', async () => {
+    // La confirmación se vuelve a mirar ACÁ ADENTRO y no sólo en `disabled`:
+    // lo que decide si sale el POST que escribe es esto, no un atributo del
+    // DOM que puede quedar un render atrás.
+    if (!dryRun && !puedeConfirmar) return;
+    setError(null);
     try {
       const r = await importarSemilla(token, datos, dryRun);
       if (dryRun) { setPrevia(r); setResultado(null); }
@@ -57,12 +73,8 @@ const ModalImportarSemilla = ({ token, onCerrar, onImportado }) => {
       // Un 4xx es el archivo, no la red: se muestra textual y no se
       // reintenta solo.
       setError(err.message);
-    } finally { setTrabajando(false); }
-  };
-
-  const rechazados = previa?.rechazados || [];
-  // Habilitado SÓLO si lo que estoy mirando es una corrida en seco limpia.
-  const puedeConfirmar = Boolean(previa) && previa.escritura === false && rechazados.length === 0;
+    }
+  });
 
   return (
     <Modal title="Importar semilla de Dirección" onClose={onCerrar}>
@@ -93,8 +105,8 @@ const ModalImportarSemilla = ({ token, onCerrar, onImportado }) => {
         )}
 
         {datos && !previa && (
-          <button className={botonPrimario} onClick={() => correr(true)} disabled={trabajando}>
-            {trabajando ? 'Simulando…' : 'Simular importación (dry run)'}
+          <button type="button" className={botonPrimario} onClick={() => correr(true)} disabled={trabajando}>
+            {corriendo === 'simular' ? 'Simulando…' : 'Simular importación (dry run)'}
           </button>
         )}
 
@@ -165,19 +177,20 @@ const ModalImportarSemilla = ({ token, onCerrar, onImportado }) => {
         )}
 
         <div className="flex gap-3 justify-end pt-2">
-          <button className={botonSecundario} onClick={onCerrar}>Cerrar</button>
+          <button type="button" className={botonSecundario} onClick={onCerrar}>Cerrar</button>
           {previa && !resultado && (
             <>
-              <button className={botonSecundario} onClick={() => correr(true)} disabled={trabajando}>
+              <button type="button" className={botonSecundario} onClick={() => correr(true)} disabled={trabajando}>
                 Volver a simular
               </button>
               <button
+                type="button"
                 className={botonPrimario}
                 disabled={!puedeConfirmar || trabajando}
                 title={puedeConfirmar ? undefined : 'Sólo se puede confirmar una corrida en seco sin filas rechazadas'}
                 onClick={() => correr(false)}
               >
-                {trabajando ? 'Importando…' : 'Confirmar importación'}
+                {corriendo === 'importar' ? 'Importando…' : 'Confirmar importación'}
               </button>
             </>
           )}

@@ -6,6 +6,7 @@ import {
   listarCredenciales, listarHallazgos, tomarSnapshotSalud,
 } from './direccionApi';
 import { ESTADOS_HALLAZGO, SEVERIDADES_HALLAZGO, SISTEMAS_HALLAZGO, etiqueta, fechaCorta } from './direccionConstantes';
+import { useAccionManual } from './accionManual';
 import DireccionDiagnosticos from './DireccionDiagnosticos';
 import {
   AvisoConflictoCodigo, Badge, Campo, Cargando, ErrorCarga, EstadoVacio, Panel, Tabla, botonPrimario, botonSecundario, inputClase,
@@ -416,7 +417,10 @@ const PestanaSalud = ({ token }) => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [tomando, setTomando] = useState(false);
+  // El snapshot ESCRIBE (POST /direccion/salud/snapshot), así que pasa por el
+  // guardián de reentrada de H-66: `disabled={tomando}` llega un render tarde
+  // y un doble clic tomaba dos mediciones del mismo instante.
+  const { corriendo: tomando, correr } = useAccionManual();
 
   const cargar = useCallback(async () => {
     setLoading(true); setError(null);
@@ -427,18 +431,17 @@ const PestanaSalud = ({ token }) => {
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  const snapshot = async () => {
-    setTomando(true); setError(null);
+  const snapshot = () => correr('snapshot', async () => {
+    setError(null);
     try { await tomarSnapshotSalud(token); await cargar(); }
     catch (err) { setError(err.message); }
-    finally { setTomando(false); }
-  };
+  });
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <p className="text-slate-400 text-sm">Histórico de los últimos 30 días.</p>
-        <button className={botonPrimario} onClick={snapshot} disabled={tomando}>
+        <button type="button" className={botonPrimario} onClick={snapshot} disabled={Boolean(tomando)}>
           {tomando ? 'Tomando…' : 'Tomar snapshot'}
         </button>
       </div>
