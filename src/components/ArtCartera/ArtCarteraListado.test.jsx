@@ -103,4 +103,67 @@ describe('ArtCarteraListado - rango de dotación', () => {
       cleanup();
     }
   });
+
+  // ART-42d, caso 1 de la evidencia de chrome: con el 422 activo se veían A
+  // LA VEZ el error, "No hay empresas para estos filtros" y el contador en 0.
+  it('con el rango inválido no se muestra el estado vacío ni el contador', async () => {
+    const detalle = 'dotacion_max (10) no puede ser menor que dotacion_min (50).';
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(pagina({ total: 9119, excluidas_sin_dotacion: null }))
+      .mockResolvedValue({ ok: false, status: 422, json: async () => ({ detail: detalle }) });
+
+    const { container, getByLabelText } = render(<ArtCarteraListado token="tok" onAbrirFicha={() => {}} />);
+    await waitFor(() => expect(container.textContent).toContain('9.119 empresas'));
+
+    fireEvent.change(getByLabelText('Dotación mínima'), { target: { value: '50' } });
+    fireEvent.change(getByLabelText('Dotación máxima'), { target: { value: '10' } });
+
+    await waitFor(() => expect(container.textContent).toContain(detalle));
+    expect(container.textContent).not.toContain('No hay empresas para estos filtros');
+    expect(container.textContent).toContain('Corregí el rango de dotación');
+    // Ni el contador del encabezado ni el "0 empresas" que lo reemplazaba.
+    expect(container.textContent).not.toContain('empresas');
+  });
+
+  // ART-42d, caso 2: Ctrl+A en Chrome/macOS no selecciona todo dentro de un
+  // input numérico, mueve el caret al principio, así que Ctrl+A + Suprimir
+  // sobre "50" deja "0" y viajaba dotacion_max=0 (422).
+  it.each(['dotacion_min', 'dotacion_max'])('un %s vaciado manda vacío, nunca 0', async (campo) => {
+    const fetchMock = vi.fn().mockResolvedValue(pagina({ excluidas_sin_dotacion: null }));
+    globalThis.fetch = fetchMock;
+    const etiqueta = campo === 'dotacion_min' ? 'Dotación mínima' : 'Dotación máxima';
+
+    const { container, getByLabelText } = render(<ArtCarteraListado token="tok" onAbrirFicha={() => {}} />);
+    await waitFor(() => expect(container.textContent).toContain('Acme SA'));
+    const input = getByLabelText(etiqueta);
+
+    fireEvent.change(input, { target: { value: '50' } });
+    await waitFor(() => expect(urlDe(fetchMock, fetchMock.mock.calls.length - 1)).toContain(`${campo}=50`));
+
+    // Lo que deja el borrado parcial: el campo se ve vacío y vale "0".
+    fireEvent.change(input, { target: { value: '0' } });
+    await waitFor(() => {
+      const url = urlDe(fetchMock, fetchMock.mock.calls.length - 1);
+      expect(url).not.toContain(`${campo}=`);
+    });
+    expect(input.value).toBe('');
+  });
+
+  it('un valor que no es un entero no viaja al backend', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(pagina({ excluidas_sin_dotacion: null }));
+    globalThis.fetch = fetchMock;
+
+    const { container, getByLabelText } = render(<ArtCarteraListado token="tok" onAbrirFicha={() => {}} />);
+    await waitFor(() => expect(container.textContent).toContain('Acme SA'));
+
+    // Ceros a la izquierda de un pegado y basura no numérica.
+    fireEvent.change(getByLabelText('Dotación mínima'), { target: { value: '0050' } });
+    fireEvent.change(getByLabelText('Dotación máxima'), { target: { value: ' 80x ' } });
+
+    await waitFor(() => {
+      const url = urlDe(fetchMock, fetchMock.mock.calls.length - 1);
+      expect(url).toContain('dotacion_min=50');
+      expect(url).not.toContain('dotacion_max');
+    });
+  });
 });
