@@ -21,6 +21,8 @@ import { FORM_LOOP_VACIO, payloadLoop, validarLoop } from './declaracionLoop';
 import SelectorCompania from './SelectorCompania';
 import IdentificacionRiesgo from './IdentificacionRiesgo';
 import { etiquetaOrigen, FUENTE_AHORRO_LABEL, RESULTADO_LOOP_LABEL } from './oportunidadCatalogos';
+import SolicitudEmisionModal from './SolicitudEmisionModal';
+import { puedePedirDatos } from './emisionApi';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -71,6 +73,7 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
   // `estado_crm`: el estado se deriva del acto registrado. Lo único explícito
   // son LOOP y RECUPERABLE, cada uno con sus campos obligatorios.
   const [mostrarCotizacion, setMostrarCotizacion] = useState(false);
+  const [mostrarSolicitudEmision, setMostrarSolicitudEmision] = useState(false);
   const botonCotizacionRef = useRef(null);
   const [transicionDestino, setTransicionDestino] = useState(null);
   const [avisoPipeline, setAvisoPipeline] = useState(null);
@@ -307,6 +310,12 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
   const cerrada = detalle && detalle.resultado !== 'EN_CURSO';
   const esCliente = detalle?.estado_crm === 'CLIENTE';
   const puedeCotizar = !cerrada && ESTADOS_QUE_COTIZAN.includes(detalle?.estado_crm);
+  // QR-EMI (C-6c). Las mismas dos condiciones que exige el backend: track
+  // AUTO/MOTO -el formulario pide tarjeta azul y fotos de inspección, que no
+  // es lo que necesita una ART- y la oportunidad en POTENCIAL (hay cotización
+  // entregada) o CLIENTE (ya se emitió y falta documentación). Ofrecerlo
+  // fuera de ahí es un 422 o un 409 asegurados.
+  const puedePedirEmision = puedePedirDatos(detalle);
 
   // Interacciones cuyo asunto delata un acto escrito a mano (ver actosAMano.js).
   // NO se convierten solas: el aviso lleva al botón y decide la persona.
@@ -452,6 +461,15 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
                 >
                   <Icon name="document-text" />
                   Registrar cotización entregada
+                </button>
+              )}
+              {puedePedirEmision && (
+                <button
+                  onClick={() => { setErrorAccion(null); setAvisoPipeline(null); setMostrarSolicitudEmision(true); }}
+                  className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition text-sm whitespace-nowrap"
+                >
+                  <Icon name="qr-code" />
+                  Pedir datos para emitir
                 </button>
               )}
               {!cerrada && (
@@ -740,6 +758,15 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
           oportunidad={{ id: oportunidadId }}
           onCerrar={() => setMostrarCotizacion(false)}
           onRegistrada={(r) => refrescarTrasPipeline(r, 'Cotización entregada registrada')}
+        />
+      )}
+
+      {/* Sub-modal: pedir datos para emitir (QR-EMI) */}
+      {mostrarSolicitudEmision && detalle && (
+        <SolicitudEmisionModal
+          token={token}
+          oportunidad={{ id: oportunidadId }}
+          onCerrar={() => setMostrarSolicitudEmision(false)}
         />
       )}
 

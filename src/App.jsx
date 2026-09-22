@@ -3,6 +3,7 @@ import CompliancePanel from './components/Admin/CompliancePanel';
 import IntelligencePanel from './components/Admin/IntelligencePanel';
 import MarketingStudio from './components/Admin/MarketingStudio';
 import PuntosContactoPanel from './components/Comercial/PuntosContactoPanel';
+import SolicitudesEmisionPanel from './components/Crm/SolicitudesEmisionPanel';
 import ComisionesReferidoPanel from './components/Comercial/ComisionesReferidoPanel';
 import RecuperablesPanel from './components/Admin/RecuperablesPanel';
 import Header from './components/Header';
@@ -2034,6 +2035,15 @@ function App() {
         {/* SEGUIMIENTOS DE HOY - cadencia post-cotización (backend PR #176) */}
         {state.activeTab === 'seguimientos' && isAdmin() && (
           <SeguimientosHoyPanel token={state.token} />
+        )}
+
+        {/* SOLICITUDES DE EMISIÓN (QR-EMI, C-6c).
+            `esAdmin` NO es decoración: cinco de los seis endpoints son
+            admin-o-agente y sólo el detalle -que devuelve el DNI y el CBU
+            descifrados, y deja el acceso en auditoria_accesos- es ADMIN.
+            El panel usa esta prop para ofrecer o no "Ver datos cargados". */}
+        {state.activeTab === 'solicitudes-emision' && isAdmin() && (
+          <SolicitudesEmisionPanel token={state.token} esAdmin={isAdmin()} />
         )}
 
         {/* PERSONAS (CRM v2) - incluye sub-pestaña "Grupos familiares" */}
