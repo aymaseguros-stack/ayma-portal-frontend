@@ -7,13 +7,19 @@ import {
 } from './adjuntosApi';
 import { SelectorAdjuntos, FilaAdjunto, AvisoDuplicadosAdjuntos } from './AdjuntosUI';
 import { OpcionesCategorias } from './categoriasAdjunto';
+import ExpedienteDocumentos from './ExpedienteDocumentos';
 
 // Pestaña "Documentos" de las fichas de persona, empresa y oportunidad: todos
 // los adjuntos de esa entidad (los de sus interacciones incluidos, porque el
 // backend hereda las FKs al subir), con filtros, alta sin interacción y
 // anulación con confirmación. DELETE anula: la fila y el archivo quedan como
 // rastro de auditoría.
-const DocumentosTab = ({ token, filtro, onCambio }) => {
+// `mostrarExpediente` (D-C26): sobre una OPORTUNIDAD, debajo de los adjuntos
+// del timeline se dibuja además el expediente (`documentos`), que es otra
+// tabla y el único de los dos módulos que tiene el reemplazo de documentos.
+// No se mezclan en una sola lista: "marcar como reemplazado" sobre un adjunto
+// del CRM sería un botón que contesta 404.
+const DocumentosTab = ({ token, filtro, onCambio, mostrarExpediente = false }) => {
   const [adjuntos, setAdjuntos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
@@ -192,6 +198,16 @@ const DocumentosTab = ({ token, filtro, onCambio }) => {
             </div>
           </div>
         </Modal>
+      )}
+
+      {mostrarExpediente && filtro.oportunidad_id && (
+        <div className="pt-4 border-t border-slate-700">
+          <ExpedienteDocumentos
+            token={token}
+            oportunidadId={filtro.oportunidad_id}
+            onCambio={onCambio}
+          />
+        </div>
       )}
 
       {aAnular && (

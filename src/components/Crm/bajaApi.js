@@ -24,6 +24,12 @@ export const MOTIVOS_BAJA = [
   { valor: MOTIVO_OTRO, label: 'Otro' },
 ];
 
+// Las etiquetas, DERIVADAS de MOTIVOS_BAJA y no escritas otra vez: una segunda
+// lista es la que queda incompleta el día que se agregue un motivo.
+export const MOTIVO_BAJA_LABEL = Object.fromEntries(
+  MOTIVOS_BAJA.map(({ valor, label }) => [valor, label]),
+);
+
 // La palabra que hay que tipear. Mismo criterio que la purga: un botón rojo
 // no es una confirmación, es un botón.
 export const PALABRA_BAJA = 'ELIMINAR';

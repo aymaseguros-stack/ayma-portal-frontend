@@ -22,20 +22,48 @@ export const CRM_TABS = [
   { id: 'empresas', label: 'Empresas' },
   { id: 'leads', label: 'Leads' },
   { id: 'recuperables', label: 'Recuperables' },
-  { id: 'marketing', label: 'Marketing' },
+  // D-C24: MARKETING ES UN GRUPO, no cuatro entradas sueltas. La fila del CRM
+  // venía con 14 pestañas y las cuatro de captación/análisis (Marketing,
+  // Puntos de contacto, Compliance, Intelligence) son la misma pregunta -de
+  // dónde viene el negocio y qué dice- pero ocupaban cuatro lugares en una
+  // barra que ya no entraba en pantalla. LAS RUTAS NO CAMBIAN: los `id` son
+  // los de siempre, y lo único distinto es que se despliegan desde un botón.
+  { id: 'grupo-marketing', label: 'Marketing', grupo: 'marketing' },
   // PUNTOS DE CONTACTO (C-12B). Son SUB-PESTAÑAS del CRM, no una entrada
   // nueva de la barra superior (decisión D-C12-1): el CRM es el módulo
   // comercial y esta fila es su sub-menú. Van pegadas a Marketing y Leads
   // porque son la misma pregunta -de dónde viene el negocio-, sólo que
   // medida por una entidad nuestra y no por un utm_source que el navegador
   // pierde en el primer reenvío por WhatsApp.
-  { id: 'puntos-contacto', label: 'Puntos de contacto' },
+  // COMISIONES DE REFERIDO QUEDA FUERA DEL GRUPO (pedido D-C24): es dinero, no
+  // marketing. Va pegada a lo de comisiones - y acá hay que decirlo: en el CRM
+  // NO existe una pestaña "Comisiones". Las comisiones liquidadas viven en
+  // Dirección → Finanzas, que es otra sección y otro permiso, así que lo más
+  // cerca que se puede poner es el último lugar de la fila del CRM, plana y
+  // separada del grupo.
   { id: 'comisiones-referido', label: 'Comisiones de referido' },
+];
+
+// Las cuatro del desplegable "Marketing". El orden es el que tenían en la
+// barra: Marketing, Puntos de contacto, Compliance, Intelligence.
+export const MARKETING_TABS = [
+  { id: 'marketing', label: 'Marketing' },
+  { id: 'puntos-contacto', label: 'Puntos de contacto' },
   { id: 'compliance', label: 'Compliance' },
   { id: 'intelligence', label: 'Intelligence' },
 ];
 
-export const CRM_TAB_IDS = CRM_TABS.map(t => t.id);
+export const MARKETING_TAB_IDS = MARKETING_TABS.map(t => t.id);
+
+// Los ids REALES del CRM: los de la barra (sin el pseudo-id del grupo, que no
+// es una ruta) más los cuatro que ahora cuelgan del desplegable. Es lo que usa
+// `seccionDeTab` para saber qué tab pertenece al CRM, y dejar afuera a los del
+// grupo haría que estando en Compliance el CRM dejara de estar resaltado y su
+// sub-menú desapareciera.
+export const CRM_TAB_IDS = [
+  ...CRM_TABS.filter(t => !t.grupo).map(t => t.id),
+  ...MARKETING_TAB_IDS,
+];
 
 // Sub-pestañas propias de la vista "Siniestros" (fila 1): "En curso" y
 // "Resueltos" filtran la misma lista por estado (distinto de CERRADO /

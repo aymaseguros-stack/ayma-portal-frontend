@@ -4,6 +4,8 @@ import {
   DIRECCION_TABS,
   DIRECCION_TAB_IDS,
   MAIL_TAB_IDS,
+  MARKETING_TABS,
+  MARKETING_TAB_IDS,
   SEGUROS_TABS,
   SEGUROS_TAB_IDS,
   SUB_TABS_POR_SECCION,
@@ -45,10 +47,43 @@ describe('puntos de contacto y comisiones de referido (C-12B)', () => {
     expect(seccionDeTab('comisiones-referido')).toBe('crm');
   });
 
-  it('están en el submenú del CRM', () => {
-    const ids = SUB_TABS_POR_SECCION.crm.map(t => t.id);
-    expect(ids).toContain('puntos-contacto');
-    expect(ids).toContain('comisiones-referido');
+  // D-C24: Puntos de contacto pasó al desplegable "Marketing" y Comisiones de
+  // referido quedó plana. Lo que se sigue exigiendo es lo de C-12B -que las
+  // dos se ALCANCEN desde el submenú del CRM-, no en qué lugar de la fila
+  // están: agrupar no puede ser una forma de esconder.
+  it('se alcanzan desde el submenú del CRM', () => {
+    const planas = SUB_TABS_POR_SECCION.crm.map(t => t.id);
+    const alcanzables = [...planas, ...MARKETING_TAB_IDS];
+    expect(alcanzables).toContain('puntos-contacto');
+    expect(planas).toContain('comisiones-referido');
+  });
+});
+
+// D-C24: el grupo "Marketing" agrupa cuatro pestañas que ya existían. Las
+// RUTAS no cambian -sus ids son los de siempre- y por eso `seccionDeTab` las
+// tiene que seguir devolviendo como CRM: si no, estando en Compliance el CRM
+// dejaría de estar resaltado y su sub-menú desaparecería.
+describe('grupo Marketing (D-C24)', () => {
+  it('agrupa Marketing, Puntos de contacto, Compliance e Intelligence', () => {
+    expect(MARKETING_TABS.map(t => t.id)).toEqual([
+      'marketing', 'puntos-contacto', 'compliance', 'intelligence',
+    ]);
+  });
+
+  it('las cuatro siguen siendo del CRM', () => {
+    MARKETING_TAB_IDS.forEach(id => expect(seccionDeTab(id)).toBe('crm'));
+  });
+
+  it('el pseudo-id del grupo no es una ruta', () => {
+    // 'grupo-marketing' existe sólo para dibujar el botón. Si se colara en
+    // CRM_TAB_IDS, `seccionDeTab` lo trataría como una pantalla que no existe.
+    expect(CRM_TAB_IDS).not.toContain('grupo-marketing');
+  });
+
+  it('Comisiones de referido queda FUERA del grupo', () => {
+    // Es dinero, no marketing (pedido D-C24).
+    expect(MARKETING_TAB_IDS).not.toContain('comisiones-referido');
+    expect(SUB_TABS_POR_SECCION.crm.map(t => t.id)).toContain('comisiones-referido');
   });
 });
 
