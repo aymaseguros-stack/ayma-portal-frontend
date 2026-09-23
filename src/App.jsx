@@ -33,7 +33,11 @@ import { normalizeList, formatApiError, authHeader, SESSION_EXPIRED_EVENT } from
 import { fechaCorta, fechaHora } from './utils/fechas';
 import { extraerRol, esRolAdmin } from './utils/roles';
 import { guardarRolDeSesion, limpiarRolDeSesion } from './utils/sesion';
-import { anularLead } from './utils/leadsApi';
+import { anularLead, listarLeads, estadosDeLead } from './utils/leadsApi';
+import SelectorVisibilidad from './components/Crm/SelectorVisibilidad';
+import { ACTIVOS } from './components/Crm/visibilidadListados';
+import AltaEncadenada from './components/Crm/AltaEncadenada';
+import OportunidadFichaModal from './components/Crm/OportunidadFichaModal';
 
 // API Configuration
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
@@ -232,6 +236,23 @@ function App() {
   // mensaje, vehículo, utm_*, fbclid, gclid, page_url, la hora) no se veía en
   // ninguna pantalla.
   const [leadAbierto, setLeadAbierto] = useState(null);
+  // L-2: la visibilidad del listado de leads, con el MISMO vocabulario que
+  // Personas (el selector y las etiquetas viven una sola vez, en
+  // visibilidadListados). Sólo ADMIN; el backend contesta 403 si llega igual.
+  const [visibilidadLeads, setVisibilidadLeads] = useState(ACTIVOS);
+  // L-1: el estado del lead. El desplegable se arma con el CENSO de la columna
+  // (GET /leads/estados) y no con una constante: por `leads.estado` pasaron
+  // tres vocabularios distintos, así que una lista copiada dejaría fuera del
+  // filtro a leads que existen - y un filtro vacío se lee como "no hay leads
+  // así".
+  const [estadoLead, setEstadoLead] = useState('');
+  const [estadosLeadDisponibles, setEstadosLeadDisponibles] = useState([]);
+  // C-17: crear la oportunidad DESDE el lead, que es lo que hace que viaje el
+  // `lead_id` y que la ficha de riesgo nazca precargada con el vehículo que el
+  // cliente ya escribió. Sin este camino el `lead_id` no tendría desde dónde
+  // salir y la precarga sería código muerto.
+  const [oportunidadDesdeLead, setOportunidadDesdeLead] = useState(null);
+  const [oportunidadRecienCreada, setOportunidadRecienCreada] = useState(null);
 
   // Estado para marcar cliente como recuperable
   const [recuperableCliente, setRecuperableCliente] = useState(null);
@@ -459,7 +480,9 @@ function App() {
   const cargarLeads = async () => {
     if (!state.token) return;
     try {
-      const res = await fetchAPI('/api/v1/leads/', state.token);
+      const res = await listarLeads(state.token, {
+        visibilidad: visibilidadLeads, estadoLead: estadoLead || undefined,
+      });
       setState(prev => ({ ...prev, leads: normalizeList(res).items, leadsError: null }));
     } catch (err) {
       console.error('Error recargando leads:', err);
@@ -477,6 +500,17 @@ function App() {
   // relectura al entrar alcanza; no hace falta un polling.
   useEffect(() => {
     if (state.activeTab === 'leads' && state.token && isAdmin()) cargarLeads();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.activeTab, state.token, visibilidadLeads, estadoLead]);
+
+  // El censo de estados se pide una vez al entrar a la pestaña. Que falle NO
+  // rompe el listado: se queda sin desplegable de estado, que es una capacidad
+  // de menos, no una pantalla rota.
+  useEffect(() => {
+    if (state.activeTab !== 'leads' || !state.token || !isAdmin()) return;
+    estadosDeLead(state.token)
+      .then((data) => setEstadosLeadDisponibles(data.estados || []))
+      .catch((err) => console.warn('[leads] no se pudo censar los estados:', err.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.activeTab, state.token]);
 
@@ -1405,6 +1439,29 @@ function App() {
         {state.activeTab === 'leads' && isAdmin() && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold">Leads</h2>
+
+            <div className="flex flex-wrap items-start gap-4">
+              <SelectorVisibilidad
+                valor={visibilidadLeads}
+                onCambio={setVisibilidadLeads}
+                esAdmin={isAdmin()}
+                id="leads-visibilidad"
+              />
+              <div>
+                <label className="block text-slate-400 text-xs mb-1" htmlFor="leads-estado">Estado del lead</label>
+                <select
+                  id="leads-estado"
+                  value={estadoLead}
+                  onChange={(e) => setEstadoLead(e.target.value)}
+                  className="px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700 text-white text-sm"
+                >
+                  <option value="">Todos</option>
+                  {estadosLeadDisponibles.map((e) => (
+                    <option key={e.estado} value={e.estado}>{e.estado} ({e.cantidad})</option>
+                  ))}
+                </select>
+              </div>
+            </div>
             
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 text-center">
@@ -1493,6 +1550,20 @@ function App() {
                             }`}>
                               {lead.estado}
                             </span>
+                            {/* L-2: la anulación gana motivo, fecha y autor.
+                                Antes `estado='anulado'` decía QUE estaba
+                                anulado y nada más: el motivo se escribía encima
+                                de `notas` en texto libre. Los leads anulados
+                                antes del backend PR #194 traen los tres en
+                                null -no se guardaron nunca-, y ahí no se
+                                muestra nada: un dato inventado sería peor. */}
+                            {anulado && (lead.anulacion_motivo || lead.anulado_en) && (
+                              <p className="text-slate-500 text-xs mt-1">
+                                {lead.anulacion_motivo || 'sin motivo'}
+                                {lead.anulado_en && ` · ${fechaHora(lead.anulado_en)}`}
+                                {lead.anulado_por && ` · por ${lead.anulado_por}`}
+                              </p>
+                            )}
                           </td>
                           <td className="px-4 py-3 text-center">
                             <div className="flex items-center justify-center gap-2">
@@ -1504,7 +1575,14 @@ function App() {
                                 Ver detalle
                               </button>
                               {lead.persona_id ? (
-                                <span className="text-xs text-slate-500">Ya convertido</span>
+                                <button
+                                  onClick={() => setOportunidadDesdeLead(lead)}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 rounded transition text-sm whitespace-nowrap"
+                                  title="Crea la oportunidad vinculada a esta persona y precarga la ficha de riesgo con el vehículo del lead"
+                                >
+                                  <Icon name="plus" size={14} />
+                                  Crear oportunidad
+                                </button>
                               ) : anulado ? null : (
                                 <button
                                   onClick={() => convertirLeadEnPersona(lead.id)}
@@ -1537,6 +1615,38 @@ function App() {
                 </div>
               )}
             </div>
+
+            {oportunidadDesdeLead && (
+              <AltaEncadenada
+                token={state.token}
+                raiz={{
+                  tipo: 'oportunidad',
+                  preset: {
+                    tipo: 'persona',
+                    persona_id: oportunidadDesdeLead.persona_id,
+                    nombre: oportunidadDesdeLead.nombre,
+                    lead_id: oportunidadDesdeLead.id,
+                  },
+                }}
+                onCerrar={() => setOportunidadDesdeLead(null)}
+                onResuelto={(creada) => {
+                  setOportunidadDesdeLead(null);
+                  cargarLeads();
+                  // Se abre en "Riesgo": es donde está lo que hay que
+                  // completar para poder mandarla a cotizar.
+                  if (creada?.id) setOportunidadRecienCreada(creada.id);
+                }}
+              />
+            )}
+
+            {oportunidadRecienCreada && (
+              <OportunidadFichaModal
+                token={state.token}
+                oportunidadId={oportunidadRecienCreada}
+                tabInicial="riesgo"
+                onClose={() => setOportunidadRecienCreada(null)}
+              />
+            )}
 
             {leadAbierto && (
               <LeadDetalleModal

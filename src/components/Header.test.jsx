@@ -10,7 +10,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import Header from './Header';
-import { CRM_TABS, MAIL_TABS, SEGUROS_TABS } from './navTabs';
+import { CRM_TABS, MAIL_TABS, MARKETING_TABS, SEGUROS_TABS } from './navTabs';
 
 // ScoringIndicator hace fetch al montar; lo neutralizamos.
 vi.mock('./ScoringIndicator', () => ({ default: () => null }));
@@ -122,8 +122,21 @@ describe('alcanzabilidad', () => {
     });
     expect(secciones).toEqual(['dashboard', 'mail', 'crm', 'direccion', 'clientes', 'seguros', 'denuncia', 'soporte']);
 
-    CRM_TABS.forEach(t => fireEvent.click(screen.getAllByText(t.label)[0]));
-    expect(tabs).toEqual(CRM_TABS.map(t => t.id));
+    // D-C24: las pestañas planas siguen siendo un clic. El botón "Marketing"
+    // no navega -abre el desplegable-, así que se lo excluye de esta vuelta y
+    // se verifica aparte que sus cuatro ítems sí navegan.
+    const planas = CRM_TABS.filter(t => !t.grupo);
+    planas.forEach(t => fireEvent.click(screen.getAllByText(t.label)[0]));
+    expect(tabs).toEqual(planas.map(t => t.id));
+
+    // El grupo: un clic lo abre y cada ítem lleva a SU ruta de siempre.
+    // Agrupar no puede dejar una pantalla sin forma de llegar.
+    fireEvent.click(screen.getAllByRole('button').find(b => b.textContent.replace('▾', '').trim() === 'Marketing'));
+    MARKETING_TABS.forEach((t) => {
+      fireEvent.click(screen.getAllByText(t.label).at(-1));
+      fireEvent.click(screen.getAllByRole('button').find(b => b.textContent.replace('▾', '').trim() === 'Marketing'));
+    });
+    expect(tabs.slice(planas.length)).toEqual(MARKETING_TABS.map(t => t.id));
   });
 });
 

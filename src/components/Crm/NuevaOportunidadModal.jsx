@@ -168,6 +168,14 @@ const NuevaOportunidadModal = ({
         probabilidad_cierre: form.probabilidad_cierre === '' ? null : Number(form.probabilidad_cierre),
         fecha_cierre_estimada: form.fecha_cierre_estimada || null,
         notas: form.notas || null,
+        // C-17: si la oportunidad nace de un lead, el backend PRECARGA la
+        // ficha de riesgo con lo que el lead ya trae (marca, modelo, año,
+        // versión, cobertura, código postal). Es el dato que el cliente ya
+        // escribió una vez: volver a pedirlo es cómo se pierde.
+        //
+        // La precarga NO propaga: si falla, el alta se crea igual. Lo que
+        // manda el cuerpo gana sobre el lead.
+        lead_id: preset?.lead_id || null,
       };
       const res = await fetch(`${API_URL}/api/v1/crm/oportunidades`, {
         method: 'POST',

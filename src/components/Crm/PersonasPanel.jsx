@@ -13,7 +13,10 @@ import GruposPanel from './GruposPanel';
 import Timeline from './Timeline';
 import DocumentosTab from './DocumentosTab';
 import BajaModal from './BajaModal';
-import { darDeBajaPersona } from './bajaApi';
+import SelectorVisibilidad, { MarcaDeBaja } from './SelectorVisibilidad';
+import { ACTIVOS } from './visibilidadListados';
+import { darDeBajaPersona, MOTIVO_BAJA_LABEL } from './bajaApi';
+import { fechaCorta } from '../../utils/fechas';
 import { useEsAdmin } from '../../utils/sesion';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
@@ -74,6 +77,10 @@ const PersonasPanel = ({
   const [error, setError] = useState(null);
 
   const [query, setQuery] = useState('');
+  // L-2: la visibilidad del listado. Sólo ADMIN ve el selector, y el backend
+  // contesta 403 -no 401- a un agente que la mande igual: esconder el control
+  // no es el control.
+  const [visibilidad, setVisibilidad] = useState(ACTIVOS);
   const [buscando, setBuscando] = useState(false);
   const [resultadosBusqueda, setResultadosBusqueda] = useState(null);
 
@@ -100,7 +107,10 @@ const PersonasPanel = ({
 
   const headers = { ...authHeader(token), 'Content-Type': 'application/json' };
 
-  useEffect(() => { cargarPersonas(); }, []);
+  // Se relee al cambiar la visibilidad (L-2), que es lo único que cambia el
+  // universo del listado.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { cargarPersonas(); }, [visibilidad]);
 
   // Navegación directa desde "Convertir en persona" (tab Leads)
   useEffect(() => {
@@ -146,7 +156,11 @@ const PersonasPanel = ({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_URL}/api/v1/crm/personas`, { headers });
+      const url = new URL(`${API_URL}/api/v1/crm/personas`);
+      // El default no se manda: `activos` es lo que el endpoint ya hacía, y
+      // mandarlo igual no cambiaría nada salvo ensuciar el log del backend.
+      if (visibilidad !== ACTIVOS) url.searchParams.set('estado', visibilidad);
+      const res = await fetch(url.toString(), { headers });
       if (!res.ok) throw new Error(await formatApiError(res));
       setPersonas(normalizeList(await res.json()).items);
     } catch (err) {
@@ -299,6 +313,15 @@ const PersonasPanel = ({
         </button>
       </div>
 
+      <div className="flex flex-wrap items-start gap-4">
+        <SelectorVisibilidad
+          valor={visibilidad}
+          onCambio={setVisibilidad}
+          esAdmin={esAdmin}
+          id="personas-visibilidad"
+        />
+      </div>
+
       <div className="relative max-w-md">
         <Icon name="magnifying-glass" className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
         <input
@@ -341,7 +364,20 @@ const PersonasPanel = ({
                     onClick={() => abrirFicha(p.id)}
                     className="hover:bg-slate-700/30 transition cursor-pointer"
                   >
-                    <td className="px-4 py-3 text-sm font-medium">{p.nombre} {p.apellido || ''}</td>
+                    <td className="px-4 py-3 text-sm font-medium">
+                      <span className={p.dada_de_baja_en ? 'line-through text-slate-500' : ''}>
+                        {p.nombre} {p.apellido || ''}
+                      </span>
+                      {/* L-2: motivo, fecha y quién, los tres. "Está de baja" no
+                          deja decidir nada; "duplicado, el 12/09, por Sebastián"
+                          sí, que es lo que se necesita cuando uno está depurando
+                          y se pregunta si este registro ya se resolvió. */}
+                      {p.dada_de_baja_en && (
+                        <div className="mt-1">
+                          <MarcaDeBaja fila={p} motivoLabel={MOTIVO_BAJA_LABEL} formatearFecha={fechaCorta} />
+                        </div>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-sm text-slate-400">{p.numero_documento || '-'}</td>
                     <td className="px-4 py-3 text-sm text-slate-400">{p.celular || '-'}</td>
                     <td className="px-4 py-3 text-sm text-slate-400">{p.email || '-'}</td>

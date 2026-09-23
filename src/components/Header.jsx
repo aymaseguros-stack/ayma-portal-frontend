@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ScoringIndicator from './ScoringIndicator';
-import { SUB_TABS_POR_SECCION, seccionDeTab } from './navTabs';
+import { SUB_TABS_POR_SECCION, seccionDeTab, MARKETING_TABS, MARKETING_TAB_IDS } from './navTabs';
 
 // Barra superior (D-NAV-1), en este orden:
 //   Dashboard · Mail · CRM | Dirección | Clientes · Seguros ... Denuncia · Soporte
@@ -59,6 +59,35 @@ const tabButtonClass = (active) =>
     active ? 'bg-blue-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
   }`;
 
+// D-C24: el grupo "Marketing" de la fila 2 del CRM. Cuatro pestañas que ya
+// existían (Marketing, Puntos de contacto, Compliance, Intelligence) pasan a
+// colgar de un botón. LAS RUTAS NO CAMBIAN: cada ítem setea el mismo
+// `activeTab` de siempre; lo único distinto es dónde se lo clickea.
+//
+// SE DESPLIEGA EN UNA FILA PROPIA, NO EN UN PANEL ABSOLUTO. El primer intento
+// fue un menú `absolute` dentro del <nav>, y el <nav> es `overflow-x-auto`:
+// un contenedor con overflow en un eje RECORTA también el otro, así que el
+// panel estaba en el DOM y no se veía. Es exactamente el bug que la ficha de
+// oportunidad ya documenta con los botones que quedaban fuera del modal. Una
+// fila debajo no puede recortarse.
+const GrupoMarketing = ({ items, label, activeTab, abierto, onToggle, claseBoton }) => {
+  const activo = items.some((t) => t.id === activeTab);
+  return (
+    <button
+      onClick={onToggle}
+      aria-haspopup="true"
+      aria-expanded={abierto}
+      className={claseBoton(activo)}
+    >
+      {/* El label en su propio nodo de texto: pegarle el caret adentro
+          ("Marketing ▾") hace que el botón deje de coincidir con una búsqueda
+          por su nombre, que es como lo encuentra un lector de pantalla. */}
+      <span>{label}</span>
+      <span aria-hidden="true" className="ml-1 text-xs opacity-70">▾</span>
+    </button>
+  );
+};
+
 const Header = ({
   displayName, rol, activeTab, setActiveTab, isAdmin, onLogout, token,
   onSeccionChange,
@@ -76,6 +105,20 @@ const Header = ({
   const subTabs = subTabsDeSeccion
     ? subTabsDeSeccion.filter((t) => isAdmin || t.id === 'polizas')
     : null;
+
+  // D-C24: el grupo desplegado. Se cierra al elegir un ítem y al cambiar de
+  // sección: un menú que queda abierto después de navegar tapa la pantalla a
+  // la que uno acaba de llegar.
+  // Guarda la SECCIÓN en la que se abrió, no un booleano suelto: así se cierra
+  // solo al cambiar de sección sin un setState dentro de un efecto (que
+  // dispara un render en cascada, y eslint lo marca con razón).
+  const [seccionConGrupoAbierto, setSeccionConGrupoAbierto] = useState(null);
+  const grupoAbierto = seccionConGrupoAbierto === seccionActiva;
+  const setGrupoAbierto = (v) => setSeccionConGrupoAbierto(v ? seccionActiva : null);
+  // Estando parado EN una del grupo, la fila se muestra sí o sí: si no, la
+  // pestaña activa no estaría a la vista en ningún lado y el usuario no
+  // sabría dónde está.
+  const enElGrupo = MARKETING_TAB_IDS.includes(activeTab);
 
   // Menú del badge de rol: única entrada al día es "Seguridad" (2FA).
   const [menuRolAbierto, setMenuRolAbierto] = useState(false);
@@ -182,6 +225,17 @@ const Header = ({
           <div className="border-t border-slate-700/60 py-2">
             <nav className="nav-scroll flex items-center gap-1 overflow-x-auto">
               {subTabs.map((tab) => (
+                tab.grupo === 'marketing' ? (
+                  <GrupoMarketing
+                    key={tab.id}
+                    label={tab.label}
+                    items={MARKETING_TABS}
+                    activeTab={activeTab}
+                    abierto={grupoAbierto}
+                    onToggle={() => setGrupoAbierto((v) => !v)}
+                    claseBoton={tabButtonClass}
+                  />
+                ) : (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
@@ -193,8 +247,23 @@ const Header = ({
                 >
                   {tab.label}
                 </button>
+                )
               ))}
             </nav>
+
+            {(grupoAbierto || enElGrupo) && subTabs.some((t) => t.grupo === 'marketing') && (
+              <nav className="nav-scroll flex items-center gap-1 overflow-x-auto mt-2 pl-3 border-l-2 border-blue-500/50">
+                {MARKETING_TABS.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => { setActiveTab(t.id); setGrupoAbierto(false); }}
+                    className={tabButtonClass(activeTab === t.id)}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </nav>
+            )}
           </div>
         )}
       </div>

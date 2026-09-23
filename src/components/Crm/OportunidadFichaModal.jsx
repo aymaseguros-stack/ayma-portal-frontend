@@ -28,6 +28,8 @@ import {
 import { darDeBajaOportunidad } from './bajaApi';
 import BajaModal from './BajaModal';
 import { useEsAdmin } from '../../utils/sesion';
+import RiesgoTab from './RiesgoTab';
+import IdCorto from './IdCorto';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -36,8 +38,12 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onr
 // primera vez son DATO y PROSPECTO: ahí es la acción principal del día a día.
 const ESTADOS_QUE_COTIZAN = ['DATO', 'PROSPECTO'];
 
+// C-17: "Riesgo" va SEGUNDA, pegada a Datos. Es la pestaña en la que se
+// trabaja para poder cotizar -o sea, la razón por la que la mayoría abre esta
+// ficha-, y dejarla al final la convertiría en la que nadie encuentra.
 const FICHA_TABS = [
   { id: 'datos', label: 'Datos' },
+  { id: 'riesgo', label: 'Riesgo' },
   { id: 'timeline', label: 'Timeline' },
   { id: 'tareas', label: 'Tareas' },
   { id: 'documentos', label: 'Documentos' },
@@ -52,11 +58,15 @@ const FICHA_TABS = [
 // resuelve de la sesión (utils/sesion.js), que es la misma fuente que usa
 // isAdmin() en App.jsx, y así el séptimo call site tampoco lo puede romper.
 // El permiso lo sigue aplicando el backend: `require_admin` en el DELETE.
-const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => {
+// `tabInicial` (C-17): el alta desde el Pipeline abre la ficha directamente en
+// "Riesgo". Una oportunidad recién creada no tiene nada más que mirar en Datos
+// y sí una ficha vacía que alguien tiene que llenar para poder cotizar: llevar
+// hasta ahí es la diferencia entre que la ficha se cargue o no se cargue.
+const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged, tabInicial = 'datos' }) => {
   const esAdmin = useEsAdmin();
   const [detalle, setDetalle] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('datos');
+  const [tab, setTab] = useState(tabInicial);
 
   const [timelineRefreshKey, setTimelineRefreshKey] = useState(0);
 
@@ -398,6 +408,10 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
           {/* Encabezado */}
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-xs text-blue-400">{detalle.token}</span>
+            {/* C-6m: el id corto, copiable. El `token` (AYMA-OPP-...) es del
+                expediente del vault; el id corto es con el que se busca esta
+                oportunidad en el buscador del Pipeline. */}
+            <IdCorto valor={detalle.id_corto} idCompleto={detalle.id} />
             <span className="px-2 py-1 bg-slate-700 rounded text-xs font-medium">{detalle.track}</span>
             <span className={`px-2 py-1 rounded text-xs font-medium ${ESTADO_CRM_BADGE[detalle.estado_crm] || 'bg-slate-500/20 text-slate-400'}`}>
               {detalle.estado_crm}
@@ -405,6 +419,11 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
             {cerrada && (
               <span className={`px-2 py-1 rounded text-xs font-medium ${detalle.resultado === 'GANADA' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                 {detalle.resultado}
+              </span>
+            )}
+            {detalle.no_colocable_en && (
+              <span className="px-2 py-1 bg-slate-600/50 text-slate-300 rounded text-xs font-medium">
+                NO COLOCABLE
               </span>
             )}
             <span className="ml-auto font-semibold">{formatMoneda(detalle.prima_estimada)}</span>
@@ -650,6 +669,14 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
             </div>
           )}
 
+          {tab === 'riesgo' && (
+            <RiesgoTab
+              token={token}
+              oportunidad={detalle}
+              onCambio={async () => { await cargarDetalle(); onChanged?.(); }}
+            />
+          )}
+
           {tab === 'timeline' && (
             <Timeline
               key={timelineRefreshKey}
@@ -666,6 +693,7 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged }) => 
               token={token}
               filtro={{ oportunidad_id: oportunidadId }}
               onCambio={async () => { await cargarDetalle(); onChanged?.(); }}
+              mostrarExpediente
             />
           )}
 
