@@ -19,6 +19,7 @@ import { interaccionesQueParecenActo } from './actosAMano';
 import DeclaracionLoop from './DeclaracionLoop';
 import { FORM_LOOP_VACIO, payloadLoop, validarLoop } from './declaracionLoop';
 import SelectorCompania from './SelectorCompania';
+import { EtapaSaidaDato } from './EtapaSaida';
 import IdentificacionRiesgo from './IdentificacionRiesgo';
 import { etiquetaOrigen, FUENTE_AHORRO_LABEL, RESULTADO_LOOP_LABEL } from './oportunidadCatalogos';
 import SolicitudEmisionModal from './SolicitudEmisionModal';
@@ -615,7 +616,7 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged, tabIn
                 oportunidad={detalle}
                 onGuardado={async () => { await cargarDetalle(); onChanged?.(); }}
               />
-              <Dato label="Etapa SAIDA" valor={detalle.etapa_saida} />
+              <EtapaSaidaDato valor={detalle.etapa_saida} />
               <Dato label="Origen" valor={etiquetaOrigen(detalle.origen)} />
               <Dato label="Probabilidad de cierre" valor={detalle.probabilidad_cierre !== null && detalle.probabilidad_cierre !== undefined ? `${detalle.probabilidad_cierre}%` : null} />
               <Dato label="Fecha de cierre estimada" valor={detalle.fecha_cierre_estimada} />

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Icon } from '../Icons';
 import Modal from '../Modal';
 import { authHeader } from '../../utils/api';
-import { TRACKS_VALIDOS, ETAPAS_SAIDA_VALIDAS } from './oportunidadConstants';
+import { TRACKS_VALIDOS } from './oportunidadConstants';
 import { ORIGENES_DE_PERSONA, ORIGEN_LABEL } from './oportunidadCatalogos';
 import { etiquetaEmpresa, etiquetaPersona } from './altaEncadenada';
 import { BotonAnidar } from './altaEncadenadaUI';
@@ -45,7 +45,6 @@ const NuevaOportunidadModal = ({
 
   const [form, setForm] = useState({
     track: preset?.track || '',
-    etapa_saida: '',
     origen: '',
     prima_estimada: '',
     probabilidad_cierre: '',
@@ -162,7 +161,8 @@ const NuevaOportunidadModal = ({
         grupo_id: entidad.grupo_id || null,
         track: form.track,
         estado_crm: 'DATO',
-        etapa_saida: form.etapa_saida || null,
+        // D-C33: la etapa SAIDA NO se manda. La deriva el backend del estado
+        // y de los actos registrados; si llegara, la ignora con un WARNING.
         origen: form.origen || null,
         prima_estimada: form.prima_estimada === '' ? null : Number(form.prima_estimada),
         probabilidad_cierre: form.probabilidad_cierre === '' ? null : Number(form.probabilidad_cierre),
@@ -331,18 +331,6 @@ const NuevaOportunidadModal = ({
           >
             <option value="">Elegí un track...</option>
             {TRACKS_VALIDOS.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-slate-400 text-sm mb-2">Etapa SAIDA</label>
-          <select
-            value={form.etapa_saida}
-            onChange={set('etapa_saida')}
-            className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm"
-          >
-            <option value="">Sin especificar</option>
-            {ETAPAS_SAIDA_VALIDAS.map(e => <option key={e} value={e}>{e}</option>)}
           </select>
         </div>
 

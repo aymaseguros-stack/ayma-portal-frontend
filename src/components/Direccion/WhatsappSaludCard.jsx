@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { CONFIG_LABEL, horaMeta, saludWhatsapp } from '../Crm/whatsappApi';
 import { Cargando, ErrorCarga, Panel, botonSecundario } from './DireccionComunes';
+import { cartelSalud } from './direccionConstantes';
 
 // C-4c · Estado de la integración de WhatsApp (GET /admin/whatsapp/salud).
 //
@@ -37,7 +38,11 @@ const WhatsappSaludCard = ({ token }) => {
 
   const faltan = new Set(datos?.faltan || []);
   const config = datos?.configuracion || {};
-  const alerta = datos?.estado === 'ALERTA';
+  // C-4a3: el veredicto es del backend (whatsapp.evaluar_estado) y vale
+  // OK | DEGRADADO | ALERTA. No se recalcula acá: hasta C-4a3 el front
+  // pintaba verde todo lo que no fuera ALERTA, o sea OK con las cuatro
+  // credenciales vacías.
+  const estado = datos?.estado || null;
   const fallidos = (datos?.texto_por_estado?.FALLIDO || 0) + (datos?.media_por_estado?.FALLIDO || 0);
 
   return (
@@ -58,11 +63,10 @@ const WhatsappSaludCard = ({ token }) => {
           <>
             <div
               role="status"
-              className={`rounded-lg border p-3 text-sm font-semibold ${
-                alerta ? 'bg-red-500/15 border-red-500/50 text-red-200' : 'bg-green-500/15 border-green-500/50 text-green-200'
-              }`}
+              data-estado={estado || 'SIN_DATO'}
+              className={`rounded-lg border p-3 text-sm font-semibold ${cartelSalud(estado)}`}
             >
-              {alerta ? 'ALERTA' : 'OK'}
+              {estado || 'SIN DATO'}
               {!config.WHATSAPP_ENABLED && ' · módulo apagado (el webhook contesta 200 sin procesar)'}
               {(datos.alertas || []).length > 0 && (
                 <ul className="mt-2 list-disc pl-5 font-normal space-y-1">

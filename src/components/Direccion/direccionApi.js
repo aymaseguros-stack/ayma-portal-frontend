@@ -156,6 +156,15 @@ export const crearCredencial = (token, datos) =>
 export const editarCredencial = (token, id, datos) =>
   pedir(token, `/seguridad/credenciales/${encodeURIComponent(id)}`, { metodo: 'PATCH', cuerpo: datos });
 
+// GET /api/v1/admin/salud (salud.py, fuera de /direccion). Estado global
+// OK | DEGRADADO | ALERTA, con `senales_en_alerta[]`, `senales_degradadas[]`
+// y el detalle de cada señal en `senales`.
+export const saludSistema = async (token) => {
+  const res = await fetch(`${API_URL}/api/v1/admin/salud`, { headers: headers(token) });
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.json();
+};
+
 export const historicoSalud = (token, dias = 30) =>
   lista(token, '/seguridad/salud/historico', { query: { dias } });
 export const tomarSnapshotSalud = (token) =>
