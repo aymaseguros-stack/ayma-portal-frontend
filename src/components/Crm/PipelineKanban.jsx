@@ -11,6 +11,7 @@ import {
 } from './oportunidadConstants';
 import BuscadorOportunidades from './BuscadorOportunidades';
 import IdCorto from './IdCorto';
+import { EtapaSaidaChip } from './EtapaSaida';
 import { colaParaCotizar } from './riesgoApi';
 import { fechaCorta } from '../../utils/fechas';
 
@@ -67,7 +68,7 @@ const OportunidadCard = ({ token, o, onDragStart, onClick }) => {
             no colocable
           </span>
         )}
-        {o.etapa_saida && <span className="px-2 py-0.5 bg-slate-700/60 text-slate-400 rounded text-xs">{o.etapa_saida}</span>}
+        <EtapaSaidaChip valor={o.etapa_saida} />
         {/* C-15: la patente en la tarjeta. Es como se reconoce de qué riesgo
             se trata sin abrir la ficha, que era la pregunta que había que ir
             a buscar a las notas. */}

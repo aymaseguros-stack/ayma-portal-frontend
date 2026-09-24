@@ -90,7 +90,22 @@ export const CLASES_ESTADO = {
   FALSO: 'bg-slate-600/40 text-slate-400',
   ACEPTADO: 'bg-purple-500/20 text-purple-300',
   OK: 'bg-green-500/20 text-green-300',
+  // C-4a3: tercer valor de salud. Ámbar: algo apagado o a medio configurar,
+  // no una cosa rota (eso es ALERTA, rojo). DEGRADADO no manda mail.
+  DEGRADADO: 'bg-amber-500/20 text-amber-300',
+  ALERTA: 'bg-red-500/20 text-red-300',
 };
+
+// Cartel de estado de salud (global y WhatsApp): OK · DEGRADADO · ALERTA.
+// Un valor desconocido NO se pinta verde: se muestra gris, porque un OK
+// inventado es justo lo que C-4a3 vino a sacar.
+export const CARTEL_SALUD = {
+  OK: 'bg-green-500/15 border-green-500/50 text-green-200',
+  DEGRADADO: 'bg-amber-500/15 border-amber-500/50 text-amber-200',
+  ALERTA: 'bg-red-500/15 border-red-500/50 text-red-200',
+};
+export const cartelSalud = (estado) =>
+  CARTEL_SALUD[estado] || 'bg-slate-700/40 border-slate-600 text-slate-300';
 
 // Los montos llegan como string (Decimal serializado en el backend): se
 // formatea sin sumar monedas distintas, igual que el backend.

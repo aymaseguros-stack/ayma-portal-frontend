@@ -8,6 +8,7 @@ import {
 import { ESTADOS_HALLAZGO, SEVERIDADES_HALLAZGO, SISTEMAS_HALLAZGO, etiqueta, fechaCorta } from './direccionConstantes';
 import { useAccionManual } from './accionManual';
 import DireccionDiagnosticos from './DireccionDiagnosticos';
+import SaludSistemaCard from './SaludSistemaCard';
 import WhatsappSaludCard from './WhatsappSaludCard';
 import {
   AvisoConflictoCodigo, Badge, Campo, Cargando, ErrorCarga, EstadoVacio, Panel, Tabla, botonPrimario, botonSecundario, inputClase,
@@ -448,6 +449,10 @@ const PestanaSalud = ({ token }) => {
       </div>
 
       {error && !loading && <ErrorCarga mensaje={error} que="el histórico de salud" onReintentar={cargar} />}
+
+      {/* C-4a3: el estado global en vivo, con DEGRADADO en ámbar y las
+          señales degradadas aparte de las que están en alerta. */}
+      <SaludSistemaCard token={token} />
 
       {/* C-4c: la integración de WhatsApp, con lo que falta configurar en rojo. */}
       <WhatsappSaludCard token={token} />
