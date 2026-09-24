@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { listarTandas, obtenerBandejaCotizaciones } from './artCotizacionesApi';
+import React, { useCallback, useEffect, useState } from 'react';
+import { listarPropuestasDotacion, listarTandas, obtenerBandejaCotizaciones } from './artCotizacionesApi';
 import {
   CANALES_TANDA,
   ESTADO_PAR,
@@ -13,6 +13,7 @@ import {
 import { ASEGURADORAS_ART, aseguradoraLabel, decimalAr, numeroAr } from './artCarteraConstants';
 import { fechaCorta } from '../../utils/fechas';
 import ArtRespuestaCotizacionModal from './ArtRespuestaCotizacionModal';
+import ArtDotacionPropuestas from './ArtDotacionPropuestas';
 
 const labelClass = 'block text-slate-400 text-xs mb-1';
 const selectClass = 'px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm';
@@ -55,6 +56,12 @@ const ArtCotizacionesBandejas = ({ token }) => {
   const [recarga, setRecarga] = useState(0);
   const [parRespuesta, setParRespuesta] = useState(null);
   const [aviso, setAviso] = useState(null);
+  // La bandeja "Dotación propuesta" (@CERVI, OPERACIONES-0009) no es una
+  // etapa del circuito: es una solapa más que reemplaza filtros y tabla.
+  const [dotacion, setDotacion] = useState(false);
+  const [nDotacion, setNDotacion] = useState(null);
+  const [recargaDotacion, setRecargaDotacion] = useState(0);
+  const refrescarDotacion = useCallback(() => setRecargaDotacion((n) => n + 1), []);
 
   // El filtro de respuesta sólo existe en Recibidas.
   const respuestaEfectiva = etapa === 'RECIBIDA' ? respuesta : '';
@@ -67,7 +74,21 @@ const ArtCotizacionesBandejas = ({ token }) => {
     return () => { cancelado = true; };
   }, [token]);
 
+  // (n) = PENDIENTE de los dos grupos, de `por_revision` del backend.
   useEffect(() => {
+    let cancelado = false;
+    listarPropuestasDotacion(token, { limit: 1 })
+      .then((r) => {
+        if (cancelado) return;
+        const pr = r?.por_revision;
+        setNDotacion(pr ? (pr.lote ?? 0) + (pr.individual ?? 0) : (r?.total ?? null));
+      })
+      .catch(() => { if (!cancelado) setNDotacion(null); });
+    return () => { cancelado = true; };
+  }, [token, recargaDotacion]);
+
+  useEffect(() => {
+    if (dotacion) return undefined;
     let cancelado = false;
     (async () => {
       setLoading(true);
@@ -84,7 +105,7 @@ const ArtCotizacionesBandejas = ({ token }) => {
       }
     })();
     return () => { cancelado = true; };
-  }, [token, etapa, canal, tandaId, aseguradora, respuestaEfectiva, recarga]);
+  }, [token, etapa, canal, tandaId, aseguradora, respuestaEfectiva, recarga, dotacion]);
 
   const items = Array.isArray(data?.items) ? data.items : [];
   const porEtapa = data?.resumen?.por_etapa || {};
@@ -98,9 +119,9 @@ const ArtCotizacionesBandejas = ({ token }) => {
           <button
             key={e.id}
             type="button"
-            onClick={() => setEtapa(e.id)}
-            className={solapaClass(etapa === e.id)}
-            aria-pressed={etapa === e.id}
+            onClick={() => { setDotacion(false); setEtapa(e.id); }}
+            className={solapaClass(!dotacion && etapa === e.id)}
+            aria-pressed={!dotacion && etapa === e.id}
           >
             {e.label}
             <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full bg-slate-900/60" data-testid={`contador-${e.id}`}>
@@ -108,8 +129,22 @@ const ArtCotizacionesBandejas = ({ token }) => {
             </span>
           </button>
         ))}
+        <button
+          type="button"
+          onClick={() => setDotacion(true)}
+          className={solapaClass(dotacion)}
+          aria-pressed={dotacion}
+        >
+          Dotación propuesta
+          <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full bg-slate-900/60" data-testid="contador-DOTACION">
+            {nDotacion ?? '—'}
+          </span>
+        </button>
       </nav>
 
+      {dotacion && <ArtDotacionPropuestas token={token} onCambio={refrescarDotacion} />}
+
+      {!dotacion && (<>
       <div className="bg-slate-800 rounded-2xl border border-slate-700 p-4 flex items-end gap-4 flex-wrap">
         <div>
           <label className={labelClass} htmlFor="bj-canal">Canal</label>
@@ -232,6 +267,7 @@ const ArtCotizacionesBandejas = ({ token }) => {
           {numeroAr(items.length)} de {numeroAr(data.total ?? items.length)} pares en la bandeja.
         </p>
       )}
+      </>)}
 
       {parRespuesta && (
         <ArtRespuestaCotizacionModal
