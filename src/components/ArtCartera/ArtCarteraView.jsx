@@ -11,7 +11,7 @@ import ArtAnalisisBoard from './ArtAnalisisBoard';
 import ArtMercadoBoard from './ArtMercadoBoard';
 import ArtRelevamientoAlicuotas from './ArtRelevamientoAlicuotas';
 import ArtPerformanceBoard from './ArtPerformanceBoard';
-import ArtAccionComercialBoard from './ArtAccionComercialBoard';
+import ArtAccionComercialView from './ArtAccionComercialView';
 
 const SUB_TABS = [
   { id: 'cartera', label: 'Universo' },
@@ -57,7 +57,8 @@ const subTabButtonClass = (active) =>
 // ítems de menú. GET /art/accion-comercial/lista
 // (app/api/v1/art_accion_comercial.py) - a quién llamar hoy, con el detalle
 // de empresa en modal sobre la lista y no en pantalla propia, para no perder
-// la fila siguiente mientras se llama.
+// la fila siguiente mientras se llama. Adentro tiene su propia sub-pestaña
+// "Cotizaciones" (OPERACIONES-0008, ArtAccionComercialView.jsx).
 // `encabezado` lo inyecta EmpresasPanel (título "Empresas" + sus
 // sub-pestañas) porque este módulo pasó a ser la sub-pestaña "Universo ART"
 // de CRM > Empresas (D-NAV-1): dejó de tener un ítem propio en la barra
@@ -130,7 +131,7 @@ const ArtCarteraView = ({ token, encabezado = null }) => {
       </nav>
 
       {subTab === 'cartera' && <ArtCarteraListado token={token} onAbrirFicha={abrirFicha} />}
-      {subTab === 'accion-comercial' && <ArtAccionComercialBoard token={token} />}
+      {subTab === 'accion-comercial' && <ArtAccionComercialView token={token} />}
       {subTab === 'desbloqueos' && <ArtDesbloqueosBoard token={token} onAbrirFicha={abrirFicha} />}
       {subTab === 'tecnica-vencida' && <ArtTecnicaVencidaBoard token={token} onAbrirFicha={abrirFicha} />}
       {subTab === 'referencial-tarifas' && <ArtReferencialTarifasBoard token={token} />}
