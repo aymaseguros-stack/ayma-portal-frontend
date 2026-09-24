@@ -201,6 +201,26 @@ const CeldaDotacion = ({ fila }) => {
   );
 };
 
+// OPERACIONES-0008: "Pedida (n)" cuando hay algo pedido a una compañía que
+// todavía no volvió. `pedido_en_curso` y `pedidos_abiertos` vienen en la
+// fila (PEDIDA sin respuesta y TECNICA en revisión); acá sólo se muestran.
+export const BadgePedidoEnCurso = ({ fila }) => {
+  if (!fila?.pedido_en_curso) return null;
+  const abiertos = Array.isArray(fila.pedidos_abiertos) ? fila.pedidos_abiertos : [];
+  const detalle = abiertos
+    .map((p) => `${aseguradoraLabel(p.aseguradora)} · ${p.tipo === 'TECNICA' ? 'en técnica' : 'pedida'} · ${p.dias} d${p.tanda_id ? ` · tanda #${p.tanda_id}` : ''}`)
+    .join('\n');
+  return (
+    <span
+      className={`${badgeBase} block w-fit mt-1 bg-blue-500/20 text-blue-300`}
+      title={detalle || 'Pedido de cotización en curso'}
+      data-testid="badge-pedido-en-curso"
+    >
+      Pedida ({abiertos.length})
+    </span>
+  );
+};
+
 const CeldaCompaniaSugerida = ({ fila }) => {
   if (fila.compania_sugerida) {
     return (
@@ -534,6 +554,7 @@ const ArtAccionComercialBoard = ({ token }) => {
                     >
                       {fila.razon_social || fila.cuit || 'Sin razón social'}
                     </button>
+                    <BadgePedidoEnCurso fila={fila} />
                     {noElegible && (
                       <span
                         className={`${badgeBase} block w-fit mt-1 bg-red-500/20 text-red-300`}

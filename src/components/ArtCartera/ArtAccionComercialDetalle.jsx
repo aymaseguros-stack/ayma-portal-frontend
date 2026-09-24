@@ -3,6 +3,8 @@ import Modal from '../Modal';
 import { obtenerEmpresaArt } from './artCarteraApi';
 import { aseguradoraLabel, numeroAr } from './artCarteraConstants';
 import { fechaCorta } from '../../utils/fechas';
+import { BadgeEstadoPar, TextoRespuesta } from './ArtTandasBoard';
+import { canalLabel } from './artCotizacionesConstants';
 
 // Motivos de descarte por colocabilidad (ART-76, PR #136). El texto sale
 // del código canónico que manda el backend; un código que no esté acá se
@@ -75,6 +77,7 @@ const ArtAccionComercialDetalle = ({ token, fila, onCerrar }) => {
     ? fila.companias_descartadas_no_colocables
     : [];
   const antiguedad = ficha?.antiguedad_total_meses;
+  const pedidos = Array.isArray(ficha?.pedidos) ? ficha.pedidos : [];
 
   return (
     <Modal title={fila?.razon_social || fila?.cuit || 'Empresa'} onClose={onCerrar} maxWidth="max-w-3xl">
@@ -168,6 +171,46 @@ const ArtAccionComercialDetalle = ({ token, fila, onCerrar }) => {
                             {c.fecha_fin ? fechaCorta(c.fecha_fin) : <span className="text-green-400">vigente</span>}
                           </td>
                           <td className="px-3 py-2 text-slate-400">{c.motivo_baja || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Bloque>
+
+            <Bloque
+              titulo={`Pedidos de cotización (${pedidos.length})`}
+              nota="Por par empresa–aseguradora, el más nuevo primero. El estado lo deriva el backend (OPERACIONES-0008)."
+            >
+              {pedidos.length === 0 ? (
+                <p className="text-sm text-slate-500">Sin pedidos de cotización registrados.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="text-xs uppercase text-slate-400 border-b border-slate-700">
+                      <tr>
+                        <th className="text-left px-3 py-2">Aseguradora</th>
+                        <th className="text-left px-3 py-2">Pedida</th>
+                        <th className="text-left px-3 py-2">Canal / tanda</th>
+                        <th className="text-left px-3 py-2">Estado</th>
+                        <th className="text-left px-3 py-2">Respuesta</th>
+                        <th className="text-left px-3 py-2">Días resp.</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-700/60">
+                      {pedidos.map((p) => (
+                        <tr key={p.evento_id}>
+                          <td className="px-3 py-2 text-slate-200">{aseguradoraLabel(p.aseguradora)}</td>
+                          <td className="px-3 py-2 text-slate-300">{fechaCorta(p.fecha_pedido) || '—'}</td>
+                          <td className="px-3 py-2 text-slate-300">
+                            {canalLabel(p.canal)}{p.tanda_id ? ` · #${p.tanda_id}` : ' · suelto'}
+                          </td>
+                          <td className="px-3 py-2"><BadgeEstadoPar estado={p.estado} /></td>
+                          <td className="px-3 py-2"><TextoRespuesta respuesta={p.respuesta} /></td>
+                          <td className="px-3 py-2 text-slate-300">
+                            {p.dias_respuesta === null || p.dias_respuesta === undefined ? '—' : `${p.dias_respuesta} d`}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

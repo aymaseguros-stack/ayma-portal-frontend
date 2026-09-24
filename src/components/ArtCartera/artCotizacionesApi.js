@@ -1,0 +1,99 @@
+// Cliente HTTP del circuito de cotizaciones ART (OPERACIONES-0008, backend
+// PR #204 y #205): bandejas, respuesta de la compañía, tandas a canal y la
+// dotación DECLARADA. Mismo patrón que artCarteraApi.js: fetch crudo +
+// authHeader/formatApiError.
+//
+// NINGÚN CÁLCULO ACÁ. Las etapas, los estados derivados de cada par, los
+// contadores, el SLA y las impedidas los resuelve el backend; este módulo
+// sólo arma el pedido y devuelve la respuesta tal cual.
+//
+// LOS TRES ENDPOINTS QUE ESCRIBEN POR TANDA SON `dry_run=true` POR DEFAULT
+// EN EL BACKEND. Por eso `dryRun` viaja SIEMPRE explícito en la query
+// string (nunca en el body: ahí es 422) y el default de acá también es
+// `true`: escribir tiene que ser una decisión que se ve en el código que
+// llama, no un olvido.
+import { authHeader, formatApiError } from '../../utils/api';
+import { API_URL } from './artCarteraApi';
+
+const headers = (token) => ({ ...authHeader(token), 'Content-Type': 'application/json' });
+
+const query = (params = {}) => {
+  const qs = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== '') qs.set(k, v);
+  });
+  const s = qs.toString();
+  return s ? `?${s}` : '';
+};
+
+// El error lleva `.status`: el 409 de la dotación (la empresa tiene F.931)
+// y el 422 de una respuesta mal armada se muestran en el modal, no como
+// "no se pudo cargar".
+const fallar = async (res) => {
+  const err = new Error(await formatApiError(res));
+  err.status = res.status;
+  throw err;
+};
+
+const getJson = async (token, path) => {
+  const res = await fetch(`${API_URL}${path}`, { headers: headers(token) });
+  if (!res.ok) await fallar(res);
+  return res.json();
+};
+
+const postJson = async (token, path, body) => {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) await fallar(res);
+  return res.json();
+};
+
+// GET /art/cotizaciones/bandeja - una fila por par empresa-aseguradora en la
+// etapa que derivan sus eventos. `resumen.por_etapa` cuenta con todos los
+// filtros menos `etapa`: son los contadores de las solapas.
+export const obtenerBandejaCotizaciones = (token, {
+  etapa, canal, tanda_id, aseguradora, respuesta, limit = 500, offset = 0,
+} = {}) => getJson(
+  token,
+  `/api/v1/art/cotizaciones/bandeja${query({ etapa, canal, tanda_id, aseguradora, respuesta, limit, offset })}`,
+);
+
+// POST /art/cotizaciones/respuesta - lo que contestó la compañía. No tiene
+// dry_run en el backend: la confirmación la pide el modal antes de llamar.
+export const registrarRespuestaCotizacion = (token, body) => postJson(
+  token, '/api/v1/art/cotizaciones/respuesta', body,
+);
+
+// GET /art/tandas - enviadas / devueltas / faltan / sin_respuesta, derivado.
+export const listarTandas = (token) => getJson(token, '/api/v1/art/tandas');
+
+// GET /art/tandas/{id} - por empresa y por par, el estado derivado.
+export const obtenerTanda = (token, tandaId) => getJson(
+  token, `/api/v1/art/tandas/${encodeURIComponent(tandaId)}`,
+);
+
+// GET /art/tandas/propuesta - SOLO LECTURA: la próxima tanda sugerida.
+export const proponerTanda = (token, { canal, n = 20 } = {}) => getJson(
+  token, `/api/v1/art/tandas/propuesta${query({ canal, n })}`,
+);
+
+// POST /art/tandas?dry_run= - arma la tanda. Con dryRun=true (default) el
+// backend recorre la MISMA decisión y no escribe nada.
+export const armarTanda = (token, body, { dryRun = true } = {}) => postJson(
+  token, `/api/v1/art/tandas${query({ dry_run: dryRun ? 'true' : 'false' })}`, body,
+);
+
+// POST /art/empresas/{id}/dotacion?dry_run= (ADMIN) - dotación DECLARADA.
+// 409 si la empresa tiene F.931: un dato declarado no pisa uno confirmado.
+export const declararDotacion = (token, empresaId, { dotacion, nota }, { dryRun = true } = {}) => {
+  const body = { dotacion, fuente: 'DECLARADA' };
+  if (nota && nota.trim()) body.nota = nota.trim();
+  return postJson(
+    token,
+    `/api/v1/art/empresas/${encodeURIComponent(empresaId)}/dotacion${query({ dry_run: dryRun ? 'true' : 'false' })}`,
+    body,
+  );
+};
