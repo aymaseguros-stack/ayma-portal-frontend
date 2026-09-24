@@ -38,6 +38,7 @@ import SelectorVisibilidad from './components/Crm/SelectorVisibilidad';
 import { ACTIVOS } from './components/Crm/visibilidadListados';
 import AltaEncadenada from './components/Crm/AltaEncadenada';
 import OportunidadFichaModal from './components/Crm/OportunidadFichaModal';
+import WhatsappBandeja from './components/Crm/WhatsappBandeja';
 
 // API Configuration
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
@@ -240,6 +241,9 @@ function App() {
   // Personas (el selector y las etiquetas viven una sola vez, en
   // visibilidadListados). Sólo ADMIN; el backend contesta 403 si llega igual.
   const [visibilidadLeads, setVisibilidadLeads] = useState(ACTIVOS);
+  // C-4c: sub-pestaña de Leads. La bandeja de WhatsApp sin clasificar vive
+  // ACÁ y no en una ruta nueva: es la otra mitad de la misma pregunta.
+  const [subTabLeads, setSubTabLeads] = useState('lista');
   // L-1: el estado del lead. El desplegable se arma con el CENSO de la columna
   // (GET /leads/estados) y no con una constante: por `leads.estado` pasaron
   // tres vocabularios distintos, así que una lista copiada dejaría fuera del
@@ -1438,8 +1442,38 @@ function App() {
         {/* LEADS - Solo Admin */}
         {state.activeTab === 'leads' && isAdmin() && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold">Leads</h2>
+            <div className="flex items-center gap-4 flex-wrap">
+              <h2 className="text-2xl font-bold">Leads</h2>
+              <div className="flex gap-1" role="tablist" aria-label="Sub-pestañas de Leads">
+                {[
+                  { id: 'lista', label: 'Leads' },
+                  { id: 'whatsapp', label: 'WhatsApp sin clasificar' },
+                ].map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={subTabLeads === t.id}
+                    onClick={() => setSubTabLeads(t.id)}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition ${
+                      subTabLeads === t.id ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
+            {subTabLeads === 'whatsapp' && (
+              <WhatsappBandeja
+                token={state.token}
+                onClasificado={(accion) => { if (accion === 'alta') cargarLeads(); }}
+                onVerPersona={(personaId) => { setPersonaFichaAAbrir(personaId); setActiveTab('personas'); }}
+              />
+            )}
+
+            {subTabLeads === 'lista' && (<>
             <div className="flex flex-wrap items-start gap-4">
               <SelectorVisibilidad
                 valor={visibilidadLeads}
@@ -1615,6 +1649,7 @@ function App() {
                 </div>
               )}
             </div>
+            </>)}
 
             {oportunidadDesdeLead && (
               <AltaEncadenada
