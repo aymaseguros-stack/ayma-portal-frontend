@@ -30,6 +30,7 @@ import BajaModal from './BajaModal';
 import { useEsAdmin } from '../../utils/sesion';
 import RiesgoTab from './RiesgoTab';
 import IdCorto from './IdCorto';
+import WhatsappSeccion from './WhatsappSeccion';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -47,6 +48,10 @@ const FICHA_TABS = [
   { id: 'timeline', label: 'Timeline' },
   { id: 'tareas', label: 'Tareas' },
   { id: 'documentos', label: 'Documentos' },
+  // C-4c: los WhatsApp vinculados a ESTA oportunidad. El backend los vincula
+  // sólo si la persona tenía una única oportunidad abierta (D-C28); el resto
+  // queda en la ficha de la persona.
+  { id: 'whatsapp', label: 'WhatsApp' },
 ];
 
 // Ficha de una oportunidad puntual: datos, timeline unificado (interacciones +
@@ -686,6 +691,10 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged, tabIn
               destinatarioEmail={detalle.email}
               oportunidadId={oportunidadId}
             />
+          )}
+
+          {tab === 'whatsapp' && (
+            <WhatsappSeccion token={token} oportunidadId={oportunidadId} />
           )}
 
           {tab === 'documentos' && (

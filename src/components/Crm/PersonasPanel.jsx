@@ -13,6 +13,8 @@ import GruposPanel from './GruposPanel';
 import Timeline from './Timeline';
 import DocumentosTab from './DocumentosTab';
 import BajaModal from './BajaModal';
+import WhatsappSeccion from './WhatsappSeccion';
+import MarcasContacto from './MarcasContacto';
 import SelectorVisibilidad, { MarcaDeBaja } from './SelectorVisibilidad';
 import { ACTIVOS } from './visibilidadListados';
 import { darDeBajaPersona, MOTIVO_BAJA_LABEL } from './bajaApi';
@@ -40,6 +42,8 @@ const FICHA_TABS = [
   { id: 'polizas', label: 'Pólizas' },
   { id: 'actividad', label: 'Actividad' },
   { id: 'documentos', label: 'Documentos' },
+  // C-4c: metadata de sus WhatsApp y el toggle "Excluir WhatsApp" (ADMIN).
+  { id: 'whatsapp', label: 'WhatsApp' },
 ];
 
 // Colores por estado_crm, según la convención del embudo CRM.
@@ -425,6 +429,7 @@ const PersonasPanel = ({
             <p className="text-slate-400 text-center py-8">Cargando ficha...</p>
           ) : (
             <div className="space-y-6">
+              <MarcasContacto persona={ficha} />
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div className="flex gap-1 overflow-x-auto">
                   {FICHA_TABS.map(t => (
@@ -593,6 +598,18 @@ const PersonasPanel = ({
 
               {fichaTab === 'actividad' && (
                 <Timeline token={token} tipo="persona" id={ficha.id} destinatarioEmail={ficha.email} />
+              )}
+
+              {fichaTab === 'whatsapp' && (
+                <WhatsappSeccion
+                  token={token}
+                  personaId={ficha.id}
+                  persona={ficha}
+                  esAdmin={esAdmin}
+                  // El PATCH devuelve la persona sin las listas de la ficha:
+                  // se funden los campos para no vaciar empresas/oportunidades.
+                  onPersonaActualizada={(p) => setFicha((prev) => ({ ...prev, ...p }))}
+                />
               )}
             </div>
           )}
