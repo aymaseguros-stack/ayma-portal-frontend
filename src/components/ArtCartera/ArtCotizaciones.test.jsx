@@ -77,17 +77,19 @@ beforeEach(() => {
 });
 
 describe('Bandejas', () => {
-  it('muestra las cinco solapas con el contador del backend', async () => {
+  it('muestra las cinco solapas + Dotación propuesta con el contador del backend', async () => {
     mockFetch({
       'GET /api/v1/art/cotizaciones/bandeja': bandeja([par()]),
       'GET /api/v1/art/tandas': { total: 0, items: [] },
+      'GET /api/v1/art/dotacion-propuestas': { total: 7, items: [], limit: 1, offset: 0, revision: 'todas', por_revision: { lote: 5, individual: 2 } },
     });
     render(<ArtCotizacionesBandejas token={TOKEN} />);
     await screen.findByText('ACME SA');
 
     const nav = screen.getByRole('navigation', { name: 'Bandejas' });
+    await waitFor(() => expect(screen.getByTestId('contador-DOTACION').textContent).toBe('7'));
     const solapas = within(nav).getAllByRole('button').map((b) => b.textContent);
-    expect(solapas).toEqual(['Pedidas4', 'En técnica1', 'Recibidas2', 'Entregadas1', 'Cerradas1']);
+    expect(solapas).toEqual(['Pedidas4', 'En técnica1', 'Recibidas2', 'Entregadas1', 'Cerradas1', 'Dotación propuesta7']);
     expect(screen.getByTestId('contador-RECIBIDA').textContent).toBe('2');
   });
 

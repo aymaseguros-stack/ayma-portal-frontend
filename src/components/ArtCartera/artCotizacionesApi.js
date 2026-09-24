@@ -97,3 +97,76 @@ export const declararDotacion = (token, empresaId, { dotacion, nota }, { dryRun 
     body,
   );
 };
+
+// ---------------------------------------------------------------------------
+// @CERVI - propuestas de dotación (OPERACIONES-0009, backend PR #207 y #208)
+// ---------------------------------------------------------------------------
+// D-OP9-1: el worker PROPONE, una persona confirma. Nada de lo que sigue
+// escribe en la empresa salvo `aceptar` / `aceptar-lote`, y los dos son
+// require_admin en el backend.
+
+// GET /art/workers/cervi/metrica - ventana_40 y % de comisión de Bloque 3
+// sobre dotación MEDIA o más. Sólo lectura.
+export const obtenerMetricaCervi = (token) => getJson(token, '/api/v1/art/workers/cervi/metrica');
+
+// GET /art/workers/cervi/ciiu-sin-cuadro - los CIIU omitidos por no tener
+// Cuadro 1. `origen` CORRIDA | RECALCULADO. Sólo lectura.
+export const obtenerCiiuSinCuadro = (token) => getJson(token, '/api/v1/art/workers/cervi/ciiu-sin-cuadro');
+
+// GET /art/dotacion-propuestas - una página. `por_revision` cuenta los dos
+// grupos con el filtro de estado y sin el de revisión.
+export const listarPropuestasDotacion = (token, {
+  estado = 'PENDIENTE', revision = 'todas', limit = 100, offset = 0,
+} = {}) => getJson(
+  token,
+  `/api/v1/art/dotacion-propuestas${query({ estado, revision, limit, offset })}`,
+);
+
+// Todas las páginas (limit=100 + offset hasta `total`), mismo criterio que
+// la lista de Acción comercial. Devuelve la ÚLTIMA página con `items`
+// acumulados, así `total` y `por_revision` siguen siendo los del backend.
+export const listarTodasPropuestasDotacion = async (token, { estado = 'PENDIENTE', revision = 'todas' } = {}) => {
+  const LIMIT = 100;
+  let offset = 0;
+  let items = [];
+  let pagina;
+  do {
+    pagina = await listarPropuestasDotacion(token, { estado, revision, limit: LIMIT, offset });
+    const lote = Array.isArray(pagina?.items) ? pagina.items : [];
+    items = items.concat(lote);
+    offset += LIMIT;
+    if (lote.length === 0) break;
+  } while (offset < (pagina?.total ?? 0));
+  return { ...pagina, items };
+};
+
+// POST /art/dotacion-propuestas/{id}/aceptar - `valor` opcional: si difiere
+// del propuesto la propuesta queda EDITADA. 409 = fuente superior.
+export const aceptarPropuestaDotacion = (token, id, { valor } = {}) => {
+  const body = {};
+  if (valor !== undefined && valor !== null) body.valor = valor;
+  return postJson(token, `/api/v1/art/dotacion-propuestas/${encodeURIComponent(id)}/aceptar`, body);
+};
+
+// POST /art/dotacion-propuestas/{id}/rechazar - `motivo` obligatorio.
+export const rechazarPropuestaDotacion = (token, id, motivo) => postJson(
+  token, `/api/v1/art/dotacion-propuestas/${encodeURIComponent(id)}/rechazar`, { motivo },
+);
+
+// POST /art/dotacion-propuestas/aceptar-lote - cada id con su valor
+// PROPUESTO (el lote no acepta valores). Un grande sale REQUIERE_REVISION
+// salvo que venga en `forzar_ids`; desde esta pantalla nunca se fuerza.
+export const aceptarLotePropuestasDotacion = (token, ids, { forzarIds = [] } = {}) => {
+  const body = { ids };
+  if (forzarIds.length) body.forzar_ids = forzarIds;
+  return postJson(token, '/api/v1/art/dotacion-propuestas/aceptar-lote', body);
+};
+
+// POST /art/workers/cervi/corrida?dry_run=&limit= (ADMIN). En seco no
+// escribe nada, ni la corrida. Mismo criterio que la tanda: `dryRun`
+// explícito y `true` por default.
+export const correrCervi = (token, { limit = 50 } = {}, { dryRun = true } = {}) => postJson(
+  token,
+  `/api/v1/art/workers/cervi/corrida${query({ dry_run: dryRun ? 'true' : 'false', limit })}`,
+  {},
+);
