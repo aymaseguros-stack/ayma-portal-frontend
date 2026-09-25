@@ -675,3 +675,36 @@ describe('ArtAccionComercialBoard - masa_confianza, fuente de masa y techo', () 
     });
   });
 });
+
+// D-OP10-1 (backend #219): `resumen.techo_baja_no_sumado` = las filas de
+// masa BAJA que los totales de comisión ya no suman.
+describe('renglón "Techo no sumado" (D-OP10-1)', () => {
+  const mockConTecho = (techo) => {
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        total: 1,
+        items: [fila()],
+        resumen: { cobertura_verificacion: 10, periodo_mercado: '2026-08', techo_baja_no_sumado: techo },
+      }),
+    }));
+  };
+
+  it('se muestra con cantidad, comisión actual y oferta, con el tooltip', async () => {
+    mockConTecho({ cantidad: 3, suma_comision_actual: '1234567.89', suma_comision_oferta: '800000.00' });
+    render(<ArtAccionComercialBoard token={TOKEN} />);
+    const renglon = await screen.findByTestId('techo-no-sumado');
+    expect(renglon.textContent).toBe(
+      'Techo no sumado (masa BAJA): 3 empresas · ≤ $ 1.234.568 comisión actual · ≤ $ 800.000 oferta',
+    );
+    expect(renglon.getAttribute('title')).toBe('Estimación con dotación de planilla. Se confirma con el F931.');
+  });
+
+  it('no se muestra con cantidad 0', async () => {
+    mockConTecho({ cantidad: 0, suma_comision_actual: '0', suma_comision_oferta: '0' });
+    render(<ArtAccionComercialBoard token={TOKEN} />);
+    await screen.findByText('ACME SA');
+    expect(screen.queryByTestId('techo-no-sumado')).toBeNull();
+  });
+});

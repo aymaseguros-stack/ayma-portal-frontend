@@ -189,3 +189,22 @@ describe('navegación y errores', () => {
     expect(container.textContent).not.toMatch(/\b0\b/);
   });
 });
+
+// D-OP10-1 (backend #219): `art.techo_baja_no_sumado`. Este bloque no
+// calcula oferta (`suma_comision_oferta` null): el renglón no la muestra.
+describe('ART: renglón "Techo no sumado" (D-OP10-1)', () => {
+  const conTecho = (techo) => ({ ...CON_DATOS, art: { ...CON_DATOS.art, techo_baja_no_sumado: techo } });
+
+  it('se muestra debajo de la comisión en juego, sin tramo de oferta', async () => {
+    montar(conTecho({ cantidad: 1, suma_comision_actual: '89000.00', suma_comision_oferta: null }));
+    const renglon = await screen.findByTestId('techo-no-sumado');
+    expect(renglon.textContent).toBe('Techo no sumado (masa BAJA): 1 empresa · ≤ ARS 89.000,00 comisión actual');
+    expect(renglon.getAttribute('title')).toBe('Estimación con dotación de planilla. Se confirma con el F931.');
+  });
+
+  it('no se muestra con cantidad 0', async () => {
+    montar(conTecho({ cantidad: 0, suma_comision_actual: '0.00', suma_comision_oferta: null }));
+    expect(await screen.findByText('ART')).toBeTruthy();
+    expect(screen.queryByTestId('techo-no-sumado')).toBeNull();
+  });
+});
