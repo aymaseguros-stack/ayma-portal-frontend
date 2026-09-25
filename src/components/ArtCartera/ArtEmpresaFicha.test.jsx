@@ -370,7 +370,7 @@ describe('ArtEmpresaFicha - F.931', () => {
 
     await findByText('F.931 declarado');
     expect(getByText('$ 52.000.000')).toBeTruthy();
-    expect(getByText('2026-08')).toBeTruthy();
+    expect(getByText('08/2026')).toBeTruthy();
     expect(getByText('Quitar F.931')).toBeTruthy();
   });
 

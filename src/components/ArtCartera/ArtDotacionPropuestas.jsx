@@ -25,6 +25,8 @@ import { decimalAr, numeroAr } from './artCarteraConstants';
 import { useEsAdmin } from '../../utils/sesion';
 import ArtCorridaCerviModal from './ArtCorridaCerviModal';
 import ArtDotacionRechazadas from './ArtDotacionRechazadas';
+import ArtF931Propuestas from './ArtF931Propuestas';
+import { listarTodasPropuestasF931 } from './artF931Api';
 
 const thClass = 'text-left px-3 py-2 font-medium whitespace-nowrap';
 const tdClass = 'px-3 py-2';
@@ -168,6 +170,10 @@ const ArtDotacionPropuestas = ({ token, onCambio }) => {
   const [nRechazadas, setNRechazadas] = useState(null);
   const [loadingRech, setLoadingRech] = useState(true);
   const [errorRech, setErrorRech] = useState(null);
+  const [f931, setF931] = useState([]);
+  const [nF931, setNF931] = useState(null);
+  const [loadingF931, setLoadingF931] = useState(true);
+  const [errorF931, setErrorF931] = useState(null);
   const [recarga, setRecarga] = useState(0);
   const [seleccion, setSeleccion] = useState(() => new Set());
   const [valores, setValores] = useState({});
@@ -227,6 +233,18 @@ const ArtDotacionPropuestas = ({ token, onCambio }) => {
       })
       .catch((err) => { if (!cancelado) setErrorRech(err.message); })
       .finally(() => { if (!cancelado) setLoadingRech(false); });
+    // OPERACIONES-0010: F.931 subidos en PDF que no validaron (ADMIN en el
+    // backend; un 403 queda como error de la solapa, no de la bandeja).
+    setLoadingF931(true);
+    listarTodasPropuestasF931(token, { estado: 'PROPUESTO' })
+      .then((r) => {
+        if (cancelado) return;
+        setF931(r.items || []);
+        setNF931(Number.isFinite(r.total) ? r.total : (r.items || []).length);
+        setErrorF931(null);
+      })
+      .catch((err) => { if (!cancelado) setErrorF931(err.message); })
+      .finally(() => { if (!cancelado) setLoadingF931(false); });
     return () => { cancelado = true; };
   }, [token, recarga]);
 
@@ -356,6 +374,11 @@ const ArtDotacionPropuestas = ({ token, onCambio }) => {
             <p className="text-xs text-slate-500 mt-1">{numeroAr(metrica.bloque3_empresas)} empresas en Bloque 3</p>
           )}
         </div>
+        <p className="sm:col-span-2 text-sm text-slate-300" data-testid="metrica-f931">
+          Dotación ALTA: <strong>{metrica ? (numeroAr(metrica.empresas_dotacion_alta) ?? '—') : '—'}</strong>
+          {' · '}
+          F931 cargados: <strong>{metrica ? (numeroAr(metrica.f931_cargados) ?? '—') : '—'}</strong>
+        </p>
         {errorMetrica && (
           <p role="alert" className="sm:col-span-2 text-sm text-red-300">No se pudo leer la métrica: {errorMetrica}</p>
         )}
@@ -371,6 +394,9 @@ const ArtDotacionPropuestas = ({ token, onCambio }) => {
           </button>
           <button type="button" className={grupoClass(grupo === 'rechazadas')} aria-pressed={grupo === 'rechazadas'} onClick={() => setGrupo('rechazadas')}>
             Rechazadas ({nRechazadas === null ? '…' : numeroAr(nRechazadas)})
+          </button>
+          <button type="button" className={grupoClass(grupo === 'f931')} aria-pressed={grupo === 'f931'} onClick={() => setGrupo('f931')}>
+            F931 ({nF931 === null ? '…' : numeroAr(nF931)})
           </button>
         </nav>
         <div className="flex items-center gap-2">
@@ -405,6 +431,11 @@ const ArtDotacionPropuestas = ({ token, onCambio }) => {
           Mientras un rechazo esté vigente, CERVI no vuelve a proponer la empresa. Reabrir no borra el rechazo: la próxima corrida la vuelve a proponer.
         </p>
       )}
+      {grupo === 'f931' && (
+        <p className="text-xs text-slate-500">
+          F.931 subidos en PDF que no pasaron la validación. Aceptar lo aplica (dotación ALTA · F931); rechazar no toca la empresa. Los dos piden motivo.
+        </p>
+      )}
       {grupo === 'individual' && (
         <p className="text-xs text-slate-500">
           Grandes (ratio &gt; 50 o planilla ≥ 500): el promedio del sector las subdeclara. Se aceptan de a una, con el valor precargado de la planilla.
@@ -433,7 +464,20 @@ const ArtDotacionPropuestas = ({ token, onCambio }) => {
       )}
 
       <div className="grid gap-4 xl:grid-cols-[1fr_16rem]">
-        {grupo === 'rechazadas' ? (
+        {grupo === 'f931' ? (
+          <div className="space-y-2">
+            {errorF931 && (
+              <p role="alert" className="text-sm text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">{errorF931}</p>
+            )}
+            <ArtF931Propuestas
+              token={token}
+              filas={f931}
+              loading={loadingF931}
+              esAdmin={esAdmin}
+              onCambio={refrescar}
+            />
+          </div>
+        ) : grupo === 'rechazadas' ? (
           <div className="space-y-2">
             {errorRech && (
               <p role="alert" className="text-sm text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">{errorRech}</p>
@@ -611,7 +655,7 @@ const ArtDotacionPropuestas = ({ token, onCambio }) => {
         </aside>
       </div>
 
-      {!loading && grupo !== 'rechazadas' && (
+      {!loading && grupo !== 'rechazadas' && grupo !== 'f931' && (
         <p className="text-xs text-slate-500">
           {numeroAr(filas.length)} propuestas en este grupo. Al aceptar, la empresa queda con dotación DECLARADA · confianza MEDIA.
         </p>
