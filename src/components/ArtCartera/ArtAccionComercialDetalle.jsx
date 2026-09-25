@@ -32,12 +32,32 @@ const Dato = ({ label, children }) => (
   </div>
 );
 
+// ART-99: causa del hueco (historial_art.causa_de_baja en el backend). Un
+// código que no esté acá se muestra crudo.
+const CAUSA_HUECO = {
+  FALTA_DE_PAGO: 'Falta de pago',
+  RESCISION_ART: 'Rescisión de la ART',
+  BAJA_EMPLEADOR: 'Baja del empleador',
+  SIN_DATO: 'Causa sin dato',
+};
+
+// ART-99: `huecos` pasó de cantidad a lista; `huecos_cantidad` es la
+// cantidad. Se acepta el formato viejo por si el backend todavía no se
+// desplegó.
+const cantidadHuecos = (h) => {
+  if (h.huecos_cantidad !== null && h.huecos_cantidad !== undefined) return h.huecos_cantidad;
+  if (Array.isArray(h.huecos)) return h.huecos.length;
+  return h.huecos ?? 0;
+};
+
 // ART-97 (backend PR #210): `historial_art` de GET /art/empresas/{cuit}.
 // Todo se calcula en el backend (historial_art.py); acá sólo se muestra.
 // Sin `fecha_ultimo_cambio` la empresa nunca cambió de ART.
 export const HistorialArt = ({ h }) => {
   if (!h) return <p className="text-sm text-slate-500">Sin historial calculado.</p>;
   const prop = propensionInfo(h.propension_cambio);
+  const nHuecos = cantidadHuecos(h);
+  const detalleHuecos = Array.isArray(h.huecos) ? h.huecos : [];
   return (
     <dl className="text-sm space-y-1" data-testid="historial-art">
       <Dato label="Contrato vigente">{meses(h.meses_contrato_vigente) ?? <span className="text-slate-500">Ninguno vigente</span>}</Dato>
@@ -47,9 +67,35 @@ export const HistorialArt = ({ h }) => {
         {meses(h.permanencia_promedio_meses) ?? '—'} / {meses(h.permanencia_mediana_meses) ?? '—'}
       </Dato>
       <Dato label="Huecos">
-        {numeroAr(h.huecos ?? 0)}
-        {h.huecos ? ` · ${meses(h.meses_sin_cobertura_total ?? 0)} sin cobertura` : ''}
+        {numeroAr(nHuecos)}
+        {nHuecos ? ` · ${meses(h.meses_sin_cobertura_total ?? 0)} sin cobertura` : ''}
+        {detalleHuecos.length > 0 && (
+          <ul className="mt-1 space-y-0.5 text-xs text-slate-300" data-testid="historial-art-huecos">
+            {detalleHuecos.map((x) => (
+              <li key={`${x.desde}-${x.hasta}`}>
+                {fechaCorta(x.desde)} → {fechaCorta(x.hasta)} · {numeroAr(x.dias)} {x.dias === 1 ? 'día' : 'días'}
+                {' · '}
+                <span className={x.causa === 'FALTA_DE_PAGO' ? 'text-red-300' : undefined}>
+                  {CAUSA_HUECO[x.causa] || x.causa}
+                </span>
+                {x.misma_art
+                  ? ' · volvió a la misma ART'
+                  : ` · ${aseguradoraLabel(x.art_saliente) || x.art_saliente || '?'} → ${aseguradoraLabel(x.art_entrante) || x.art_entrante || '?'}`}
+              </li>
+            ))}
+          </ul>
+        )}
       </Dato>
+      {h.riesgo_deuda_historica !== undefined && (
+        <Dato label="Riesgo deuda histórica">
+          {h.riesgo_deuda_historica === null ? sinDato : (
+            <span className={h.riesgo_deuda_historica ? 'text-red-300' : 'text-slate-300'}>
+              {h.riesgo_deuda_historica ? 'Sí — falta de pago en los últimos 5 años' : 'No'}
+              {h.ultima_falta_de_pago ? ` · última falta de pago ${fechaCorta(h.ultima_falta_de_pago)}` : ''}
+            </span>
+          )}
+        </Dato>
+      )}
       <Dato label="Último cambio">
         {h.fecha_ultimo_cambio
           ? `${fechaCorta(h.fecha_ultimo_cambio)}${h.meses_desde_ultimo_cambio !== null && h.meses_desde_ultimo_cambio !== undefined ? ` · hace ${meses(h.meses_desde_ultimo_cambio)}` : ''}`
