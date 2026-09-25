@@ -17,7 +17,7 @@
 // distingan; y que el CSV se pida con Authorization y formato=csv.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, cleanup, fireEvent, within } from '@testing-library/react';
 import ArtAccionComercialBoard from './ArtAccionComercialBoard';
 
 afterEach(cleanup);
@@ -91,7 +91,7 @@ const urlDeLaLista = () => String(
 );
 
 describe('ArtAccionComercialBoard', () => {
-  it('muestra las diez columnas en el orden pedido', async () => {
+  it('muestra las once columnas en el orden pedido', async () => {
     mockLista([fila()]);
     render(<ArtAccionComercialBoard token={TOKEN} />);
     await screen.findByText('ACME SA');
@@ -99,7 +99,7 @@ describe('ArtAccionComercialBoard', () => {
     const encabezados = screen.getAllByRole('columnheader').map((th) => th.textContent);
     expect(encabezados).toEqual([
       'Razón social', 'Vencimiento', 'Dotación', 'Alícuota actual', 'Alícuota mercado',
-      'Delta pp', 'Comisión actual', 'Compañía sugerida', 'Vía', 'Teléfono',
+      'Delta pp', 'Comisión actual', 'Propensión', 'Compañía sugerida', 'Vía', 'Teléfono',
     ]);
   });
 
@@ -114,7 +114,7 @@ describe('ArtAccionComercialBoard', () => {
     // ART-47: todo nombre que viaje tiene que ser uno de PARAMS_LISTA.
     const validos = [
       'dias_ventana', 'tramo', 'provincia', 'aseguradora_actual',
-      'solo_accionables', 'solo_cotizadas', 'solo_elegibles',
+      'solo_accionables', 'solo_cotizadas', 'solo_elegibles', 'propension',
       'limit', 'offset', 'orden', 'formato',
     ];
     [...url.searchParams.keys()].forEach((k) => expect(validos).toContain(k));
@@ -502,6 +502,74 @@ describe('ArtAccionComercialBoard', () => {
       const llamada = globalThis.fetch.mock.calls.find(([u]) => String(u).includes('formato=csv'));
       expect(llamada).toBeTruthy();
       expect(new URL(String(llamada[0]), 'http://localhost').searchParams.get('limit')).toBeNull();
+    });
+  });
+
+  // ART-97 (backend PR #210): propensión al cambio de ART.
+  describe('propensión (ART-97)', () => {
+    const FILAS = [
+      fila({ empresa_id: 'r', razon_social: 'ROTA SA', propension_cambio: 'ROTATIVA', cambios_ultimos_5_anios: 3 }),
+      fila({ empresa_id: 'm', razon_social: 'MODE SA', propension_cambio: 'MODERADA', cambios_ultimos_5_anios: 1 }),
+      fila({ empresa_id: 'e', razon_social: 'ESTA SA', propension_cambio: 'ESTABLE', cambios_ultimos_5_anios: 0 }),
+      fila({ empresa_id: 's', razon_social: 'SINH SA', propension_cambio: 'SIN_HISTORIAL', cambios_ultimos_5_anios: 0 }),
+    ];
+    const filaDe = (nombre) => screen.getByRole('button', { name: nombre }).closest('tr');
+
+    it('badge por propensión con color y tooltip; SIN_HISTORIAL vacío', async () => {
+      mockLista(FILAS);
+      render(<ArtAccionComercialBoard token={TOKEN} />);
+      await screen.findByText('ROTA SA');
+
+      const rota = filaDe('ROTA SA').querySelector('[data-testid="badge-propension"]');
+      expect(rota.textContent).toBe('Rotativa');
+      expect(rota.className).toContain('green');
+      expect(rota.getAttribute('title')).toBe('3 cambios de ART en los últimos 5 años');
+
+      const mode = filaDe('MODE SA').querySelector('[data-testid="badge-propension"]');
+      expect(mode.className).toContain('amber');
+      expect(mode.getAttribute('title')).toBe('1 cambio de ART en los últimos 5 años');
+
+      const esta = filaDe('ESTA SA').querySelector('[data-testid="badge-propension"]');
+      expect(esta.className).toContain('slate');
+
+      expect(filaDe('SINH SA').querySelector('[data-testid="badge-propension"]')).toBeNull();
+    });
+
+    it('filtro multi en pantalla, sin volver a pedir la lista', async () => {
+      mockLista(FILAS);
+      render(<ArtAccionComercialBoard token={TOKEN} />);
+      await screen.findByText('ROTA SA');
+      const pedidos = globalThis.fetch.mock.calls.length;
+
+      const grupo = screen.getByRole('group', { name: 'Propensión' });
+      fireEvent.click(within(grupo).getByLabelText('Rotativa'));
+      fireEvent.click(within(grupo).getByLabelText('Moderada'));
+
+      expect(screen.getByText('ROTA SA')).toBeTruthy();
+      expect(screen.getByText('MODE SA')).toBeTruthy();
+      expect(screen.queryByText('ESTA SA')).toBeNull();
+      expect(screen.queryByText('SINH SA')).toBeNull();
+      expect(globalThis.fetch.mock.calls.length).toBe(pedidos);
+      expect(screen.getByText(/el endpoint filtra de a una/)).toBeTruthy();
+    });
+
+    it('con UNA propensión el CSV la manda como ?propension=; con dos, no', async () => {
+      mockLista(FILAS);
+      render(<ArtAccionComercialBoard token={TOKEN} />);
+      await screen.findByText('ROTA SA');
+      const grupo = screen.getByRole('group', { name: 'Propensión' });
+      const csvUrls = () => globalThis.fetch.mock.calls.map(([u]) => String(u)).filter((u) => u.includes('formato=csv'));
+
+      fireEvent.click(within(grupo).getByLabelText('Rotativa'));
+      fireEvent.click(screen.getByRole('button', { name: /CSV/ }));
+      await waitFor(() => expect(csvUrls().length).toBe(1));
+      expect(new URL(csvUrls()[0]).searchParams.get('propension')).toBe('ROTATIVA');
+
+      fireEvent.click(within(grupo).getByLabelText('Estable'));
+      await waitFor(() => expect(screen.getByRole('button', { name: /CSV/ }).disabled).toBe(false));
+      fireEvent.click(screen.getByRole('button', { name: /CSV/ }));
+      await waitFor(() => expect(csvUrls().length).toBe(2));
+      expect(new URL(csvUrls()[1]).searchParams.get('propension')).toBeNull();
     });
   });
 });

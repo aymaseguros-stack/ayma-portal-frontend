@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Modal from '../Modal';
 import { obtenerEmpresaArt } from './artCarteraApi';
-import { aseguradoraLabel, numeroAr } from './artCarteraConstants';
+import { aseguradoraLabel, numeroAr, propensionInfo } from './artCarteraConstants';
 import { fechaCorta } from '../../utils/fechas';
 import { BadgeEstadoPar, TextoRespuesta } from './ArtTandasBoard';
 import { canalLabel } from './artCotizacionesConstants';
@@ -20,6 +20,51 @@ const DOTACION_CONFIANZA_TEXTO = {
   ALTA: 'ALTA — origen confirmado (F931)',
   MEDIA: 'MEDIA — ventanilla SRT, contrato o padrón ARCA',
   BAJA: 'BAJA — planilla histórica, rango MiPyME o sin origen identificable',
+};
+
+const meses = (n) => (n === null || n === undefined ? null : `${numeroAr(n)} ${n === 1 ? 'mes' : 'meses'}`);
+const sinDato = <span className="text-slate-500">Sin dato</span>;
+
+const Dato = ({ label, children }) => (
+  <div className="flex gap-2">
+    <dt className="text-slate-400 w-44 shrink-0">{label}</dt>
+    <dd className="text-slate-200">{children}</dd>
+  </div>
+);
+
+// ART-97 (backend PR #210): `historial_art` de GET /art/empresas/{cuit}.
+// Todo se calcula en el backend (historial_art.py); acá sólo se muestra.
+// Sin `fecha_ultimo_cambio` la empresa nunca cambió de ART.
+export const HistorialArt = ({ h }) => {
+  if (!h) return <p className="text-sm text-slate-500">Sin historial calculado.</p>;
+  const prop = propensionInfo(h.propension_cambio);
+  return (
+    <dl className="text-sm space-y-1" data-testid="historial-art">
+      <Dato label="Contrato vigente">{meses(h.meses_contrato_vigente) ?? <span className="text-slate-500">Ninguno vigente</span>}</Dato>
+      <Dato label="Contratos">{numeroAr(h.cantidad_contratos ?? 0)}</Dato>
+      <Dato label="Cambios de ART">{numeroAr(h.cambios_de_art ?? 0)}</Dato>
+      <Dato label="Permanencia prom. / mediana">
+        {meses(h.permanencia_promedio_meses) ?? '—'} / {meses(h.permanencia_mediana_meses) ?? '—'}
+      </Dato>
+      <Dato label="Huecos">
+        {numeroAr(h.huecos ?? 0)}
+        {h.huecos ? ` · ${meses(h.meses_sin_cobertura_total ?? 0)} sin cobertura` : ''}
+      </Dato>
+      <Dato label="Último cambio">
+        {h.fecha_ultimo_cambio
+          ? `${fechaCorta(h.fecha_ultimo_cambio)}${h.meses_desde_ultimo_cambio !== null && h.meses_desde_ultimo_cambio !== undefined ? ` · hace ${meses(h.meses_desde_ultimo_cambio)}` : ''}`
+          : 'Nunca cambió'}
+      </Dato>
+      <Dato label="Cambios en 5 años">{numeroAr(h.cambios_ultimos_5_anios ?? 0)}</Dato>
+      <Dato label="Propensión">
+        {prop ? (
+          <span className={prop.clase ? `text-[11px] px-1.5 py-0.5 rounded ${prop.clase}` : 'text-slate-400'} title={prop.detalle}>
+            {prop.label}
+          </span>
+        ) : sinDato}
+      </Dato>
+    </dl>
+  );
 };
 
 const Bloque = ({ titulo, children, nota }) => (
@@ -97,16 +142,24 @@ const ArtAccionComercialDetalle = ({ token, fila, onCerrar }) => {
 
         {!loading && !error && (
           <>
-            <Bloque
-              titulo="Antigüedad total en ART"
-              nota="Suma de todos los contratos del historial, huecos excluidos (no es la del contrato vigente)."
-            >
-              <p className="text-2xl font-bold text-white">
-                {antiguedad === null || antiguedad === undefined
-                  ? <span className="text-slate-500 text-base font-normal">Sin dato</span>
-                  : `${antiguedad} meses`}
-              </p>
-            </Bloque>
+            <div className="grid gap-6 sm:grid-cols-[12rem_1fr]">
+              <Bloque
+                titulo="Antigüedad total en ART"
+                nota="Suma de todos los contratos del historial, huecos excluidos (no es la del contrato vigente)."
+              >
+                <p className="text-2xl font-bold text-white">
+                  {antiguedad === null || antiguedad === undefined
+                    ? <span className="text-slate-500 text-base font-normal">Sin dato</span>
+                    : `${antiguedad} meses`}
+                </p>
+              </Bloque>
+              <Bloque
+                titulo="Historial ART"
+                nota="Renovar con la misma ART no es cambio. Propensión: cambios en los últimos 5 años (ART-97)."
+              >
+                <HistorialArt h={ficha?.historial_art} />
+              </Bloque>
+            </div>
 
             <Bloque
               titulo="Dotación"

@@ -6,7 +6,9 @@ import {
   descargarCsvAccionComercial,
   obtenerListaCompletaAccionComercial,
 } from './artCarteraApi';
-import { aseguradoraLabel, decimalAr, numeroAr, pesosAr } from './artCarteraConstants';
+import {
+  PROPENSIONES_CAMBIO, aseguradoraLabel, decimalAr, numeroAr, pesosAr, propensionInfo,
+} from './artCarteraConstants';
 import { descargarBlobComoArchivo } from './descargaArchivo';
 import { fechaCorta } from '../../utils/fechas';
 import ArtAccionComercialDetalle from './ArtAccionComercialDetalle';
@@ -121,7 +123,7 @@ const inputClass = 'px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 te
 const thClass = 'text-left px-3 py-2 font-medium whitespace-nowrap';
 const badgeBase = 'inline-block text-[11px] px-1.5 py-0.5 rounded whitespace-nowrap';
 
-const COLUMNAS = 10;
+const COLUMNAS = 11;
 
 const FilaSkeleton = () => (
   <tr className="animate-pulse">
@@ -201,6 +203,23 @@ const CeldaDotacion = ({ fila }) => {
   );
 };
 
+// ART-97: propensión al cambio de ART (la calcula el backend sobre el
+// historial SRT). SIN_HISTORIAL va vacío: menos de 12 meses no dicen nada.
+// El tooltip lleva `cambios_ultimos_5_anios`, que viaja en la misma fila.
+export const BadgePropension = ({ fila }) => {
+  const info = propensionInfo(fila?.propension_cambio);
+  if (!info || info.id === 'SIN_HISTORIAL') return null;
+  const cambios = fila?.cambios_ultimos_5_anios;
+  const tooltip = cambios === null || cambios === undefined
+    ? info.detalle
+    : `${numeroAr(cambios)} ${cambios === 1 ? 'cambio' : 'cambios'} de ART en los últimos 5 años`;
+  return (
+    <span className={`${badgeBase} ${info.clase}`} title={tooltip} data-testid="badge-propension">
+      {info.label}
+    </span>
+  );
+};
+
 // OPERACIONES-0008: "Pedida (n)" cuando hay algo pedido a una compañía que
 // todavía no volvió. `pedido_en_curso` y `pedidos_abiertos` vienen en la
 // fila (PEDIDA sin respuesta y TECNICA en revisión); acá sólo se muestran.
@@ -266,6 +285,10 @@ const ArtAccionComercialBoard = ({ token }) => {
   const [busqueda, setBusqueda] = useState('');
   const [fuenteAlicuota, setFuenteAlicuota] = useState('');
   const [telefono, setTelefono] = useState('');
+  // ART-97: multi. El endpoint filtra UNA propensión (`?propension=`), así
+  // que la lista se filtra en la pantalla (ya están todas las filas) y al
+  // CSV sólo viaja cuando hay exactamente una elegida.
+  const [propensiones, setPropensiones] = useState(() => new Set());
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -335,11 +358,17 @@ const ArtAccionComercialBoard = ({ token }) => {
     if (fuenteAlicuota && f.alicuota_actual_fuente !== fuenteAlicuota) return false;
     if (telefono === 'con' && !f.telefono_principal) return false;
     if (telefono === 'sin' && f.telefono_principal) return false;
+    if (propensiones.size && !propensiones.has(f.propension_cambio)) return false;
     if (!filaCoincideBusqueda(f, busqueda)) return false;
     return true;
-  }), [items, fuenteAlicuota, telefono, busqueda]);
+  }), [items, fuenteAlicuota, telefono, propensiones, busqueda]);
 
   const hayFiltroDePantalla = Boolean(fuenteAlicuota || telefono || busqueda.trim());
+  const togglePropension = (id) => setPropensiones((prev) => {
+    const s = new Set(prev);
+    if (s.has(id)) s.delete(id); else s.add(id);
+    return s;
+  });
   // El buscador vacía la tabla por una razón distinta a los otros filtros
   // (no hay coincidencias para lo tipeado), y el estado vacío lo dice.
   const sinResultadosDeBusqueda = Boolean(busqueda.trim()) && filas.length === 0;
@@ -349,7 +378,10 @@ const ArtAccionComercialBoard = ({ token }) => {
     setErrorCsv(null);
     setAvisoExport(null);
     try {
-      const { blob, exportacion } = await descargarCsvAccionComercial(token, filtrosServidor);
+      const filtrosCsv = propensiones.size === 1
+        ? { ...filtrosServidor, propension: [...propensiones][0] }
+        : filtrosServidor;
+      const { blob, exportacion } = await descargarCsvAccionComercial(token, filtrosCsv);
       descargarBlobComoArchivo(blob, 'accion-comercial-art.csv');
       // Sólo se avisa cuando el backend DIJO que cortó. Sin truncamiento no
       // se muestra nada: un cartel en cada descarga se deja de leer.
@@ -359,7 +391,7 @@ const ArtAccionComercialBoard = ({ token }) => {
     } finally {
       setDescargando(false);
     }
-  }, [token, filtrosServidor]);
+  }, [token, filtrosServidor, propensiones]);
 
   const resumen = data?.resumen || null;
 
@@ -457,6 +489,28 @@ const ArtAccionComercialBoard = ({ token }) => {
             {TELEFONOS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
           </select>
         </div>
+        <fieldset>
+          <legend className={labelClass}>Propensión</legend>
+          <div className="flex items-center gap-1 flex-wrap">
+            {PROPENSIONES_CAMBIO.map((p) => (
+              <label
+                key={p.id}
+                className={`flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border cursor-pointer ${
+                  propensiones.has(p.id) ? 'border-blue-500 bg-blue-500/20 text-white' : 'border-slate-600 bg-slate-700 text-slate-300'
+                }`}
+                title={p.detalle}
+              >
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={propensiones.has(p.id)}
+                  onChange={() => togglePropension(p.id)}
+                />
+                {p.label}
+              </label>
+            ))}
+          </div>
+        </fieldset>
         <label className="flex items-center gap-2 text-sm text-slate-300 pb-2">
           <input
             type="checkbox"
@@ -467,6 +521,13 @@ const ArtAccionComercialBoard = ({ token }) => {
           Solo elegibles para traspaso
         </label>
       </div>
+
+      {propensiones.size > 1 && (
+        <p className="text-xs text-amber-300/90 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">
+          Con más de una propensión elegida el filtro se aplica en la pantalla: el endpoint filtra de a una, así que el
+          CSV sale sin filtro de propensión. Elegí una sola para exportarla filtrada.
+        </p>
+      )}
 
       {hayFiltroDePantalla && (
         <p className="text-xs text-amber-300/90 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">
@@ -521,6 +582,7 @@ const ArtAccionComercialBoard = ({ token }) => {
               <th className={thClass}>Alícuota mercado</th>
               <th className={thClass}>Delta pp</th>
               <th className={thClass}>Comisión actual</th>
+              <th className={thClass}>Propensión</th>
               <th className={thClass}>Compañía sugerida</th>
               <th className={thClass}>Vía</th>
               <th className={thClass}>Teléfono</th>
@@ -596,6 +658,7 @@ const ArtAccionComercialBoard = ({ token }) => {
                       <span className="text-slate-200">{pesosAr(fila.comision_actual_estimada)}</span>
                     )}
                   </td>
+                  <td className="px-3 py-3"><BadgePropension fila={fila} /></td>
                   <td className="px-3 py-3"><CeldaCompaniaSugerida fila={fila} /></td>
                   <td className="px-3 py-3">
                     {fila.via_colocacion === 'OTRO_PRODUCTOR' ? (
@@ -624,7 +687,7 @@ const ArtAccionComercialBoard = ({ token }) => {
       {!loading && (
         <p className="text-xs text-slate-500">
           {numeroAr(filas.length)} de {numeroAr(totalBackend)} filas traídas
-          {hayFiltroDePantalla ? ' (filtros de pantalla aplicados)' : ''}.
+          {hayFiltroDePantalla || propensiones.size ? ' (filtros de pantalla aplicados)' : ''}.
         </p>
       )}
 

@@ -11,7 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup, fireEvent, within } from '@testing-library/react';
 import ArtDotacionPropuestas from './ArtDotacionPropuestas';
 import ArtCotizacionesBandejas from './ArtCotizacionesBandejas';
-import { planAceptacion, alertaInfo, datosPropuesta } from './artCerviConstants';
+import { planAceptacion, alertaInfo, datosPropuesta, enNomencladorClae } from './artCerviConstants';
 import { CLAVE_ROL } from '../../utils/sesion';
 
 afterEach(cleanup);
@@ -61,22 +61,53 @@ const pagina = (items, revision) => ({
   por_revision: { lote: LOTE.length, individual: GRANDES.length },
 });
 
+const RECHAZADAS = [
+  prop({
+    id: 10, empresa_id: 'e10', razon_social: 'COTO', estado: 'RECHAZADA', valor_propuesto: 42, dotacion_previa: 14100,
+    motivo_rechazo: 'Promedio no aplica a supermercado', resuelto_en: '2026-09-24T12:00:00', resuelto_por: 'admin@ayma.com.ar',
+    rechazo_vigente: true, motivo_reapertura: null,
+  }),
+  prop({
+    id: 11, empresa_id: 'e11', razon_social: 'HAVANNA', estado: 'RECHAZADA', valor_propuesto: 63,
+    motivo_rechazo: 'Subdeclara', resuelto_en: '2026-09-20T12:00:00',
+    rechazo_vigente: false, motivo_reapertura: 'DOTACION_NUEVA',
+  }),
+  prop({
+    id: 12, empresa_id: 'e12', razon_social: 'ARGENTA TOWER', estado: 'RECHAZADA', valor_propuesto: 21,
+    motivo_rechazo: 'Otro', resuelto_en: '2026-09-19T12:00:00',
+    rechazo_vigente: false, motivo_reapertura: 'REABIERTA', reabierta_en: '2026-09-24T15:00:00', reabierta_por: 'admin@ayma.com.ar',
+  }),
+];
+
 const METRICA = {
   ventana_40: { total: 40, medias_o_mas: 12 },
-  bloque3_pct_comision_sobre_media: '31.47',
+  bloque3_pct_comision_sobre_media: '0.44',
   bloque3_comision_total: '1000', bloque3_comision_media_o_mas: '314.7', bloque3_empresas: 180,
 };
 
 const CIIUS = {
-  corrida_id: 9, corrida_inicio: '2026-09-23T10:00:00', origen: 'CORRIDA', total_ciius: 2, total_empresas: 5,
-  items: [{ ciiu: '011111', empresas: 4, empresa_ids: [] }, { ciiu: null, empresas: 1, empresa_ids: [] }],
+  corrida_id: 9, corrida_inicio: '2026-09-23T10:00:00', origen: 'CORRIDA', total_ciius: 7, total_empresas: 12,
+  items: [
+    { ciiu: '011111', empresas: 4, empresa_ids: [] },
+    { ciiu: '999999', empresas: 7, empresa_ids: [] },
+    { ciiu: null, empresas: 1, empresa_ids: [] },
+  ],
 };
 
 const mockFetch = (extra = {}) => {
   const rutas = {
-    'GET /api/v1/art/dotacion-propuestas': (u) => (
-      u.searchParams.get('revision') === 'individual' ? pagina(GRANDES, 'individual') : pagina(LOTE, 'lote')
-    ),
+    'GET /api/v1/art/dotacion-propuestas': (u) => {
+      if (u.searchParams.get('estado') === 'RECHAZADA') return pagina(RECHAZADAS, 'todas');
+      return u.searchParams.get('revision') === 'individual' ? pagina(GRANDES, 'individual') : pagina(LOTE, 'lote');
+    },
+    // Catálogo CLAE del buscador de CIIU: 011111 está; 999999 no.
+    'GET /api/v1/art/ciiu': (u) => {
+      const q = u.searchParams.get('q');
+      const items = q === '011111'
+        ? [{ codigo: '011111', descripcion: 'Cultivo de arroz', seccion: 'A', en_catalogo_vigente: true }]
+        : [];
+      return { total: items.length, items, limit: 50, truncado: false };
+    },
     'GET /api/v1/art/workers/cervi/metrica': METRICA,
     'GET /api/v1/art/workers/cervi/ciiu-sin-cuadro': CIIUS,
     ...extra,
@@ -137,10 +168,10 @@ describe('Bandeja Dotación propuesta', () => {
     await screen.findByText('ACME SA');
 
     expect(screen.getByTestId('metrica-ventana40').textContent).toContain('12 / 40');
-    expect(screen.getByTestId('metrica-bloque3').textContent).toContain('31,5%');
+    expect(screen.getByTestId('metrica-bloque3').textContent).toContain('0,44 %');
     expect(screen.getByTestId('contador-lote').textContent).toBe('2');
     expect(screen.getByTestId('contador-individual').textContent).toBe('1');
-    expect(screen.getByTestId('contador-ciiu').textContent).toBe('(2)');
+    expect(screen.getByTestId('titulo-ciiu').textContent).toBe('CIIU sin Cuadro 1 · 7 códigos · 12 empresas');
     expect(screen.getByText('Sin CIIU')).toBeTruthy();
 
     const fila = screen.getByTestId('propuesta-1');
@@ -339,5 +370,104 @@ describe('Bandeja Dotación propuesta', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Dotación propuesta/ }));
     await screen.findByText('ACME SA');
     expect(screen.queryByLabelText('Canal')).toBeNull();
+  });
+});
+
+describe('ART-96 · formato y solapa Rechazadas', () => {
+  it('% comisión Bloque 3 con dos decimales fijos', async () => {
+    mockFetch({ 'GET /api/v1/art/workers/cervi/metrica': { ...METRICA, bloque3_pct_comision_sobre_media: '12.5' } });
+    render(<ArtDotacionPropuestas token={TOKEN} />);
+    await waitFor(() => expect(screen.getByTestId('metrica-bloque3').textContent).toContain('12,50 %'));
+  });
+
+  it('lista estado=RECHAZADA con motivo, fecha, vigente y por qué dejó de estarlo', async () => {
+    mockFetch();
+    render(<ArtDotacionPropuestas token={TOKEN} />);
+    const tab = await screen.findByRole('button', { name: 'Rechazadas (3)' });
+    fireEvent.click(tab);
+
+    const coto = await screen.findByTestId('rechazada-10');
+    expect(coto.textContent).toContain('Promedio no aplica a supermercado');
+    expect(within(coto).getByTestId('vigente-10').textContent).toBe('Sí');
+    expect(within(coto).getByRole('button', { name: 'Reabrir' })).toBeTruthy();
+
+    const havanna = screen.getByTestId('rechazada-11');
+    expect(within(havanna).getByTestId('vigente-11').textContent).toBe('No');
+    expect(havanna.textContent).toContain('La empresa recibió una dotación nueva');
+
+    const argenta = screen.getByTestId('rechazada-12');
+    expect(argenta.textContent).toContain('Reabierta a mano');
+    expect(argenta.textContent).toContain('admin@ayma.com.ar');
+    // Ya reabierta: no hay nada que reabrir.
+    expect(within(argenta).queryByRole('button', { name: 'Reabrir' })).toBeNull();
+
+    const url = llamadas('GET', '/api/v1/art/dotacion-propuestas')
+      .map(([u]) => new URL(String(u)))
+      .find((u) => u.searchParams.get('estado') === 'RECHAZADA');
+    expect(url).toBeTruthy();
+  });
+
+  it('Reabrir llama a /reabrir y recarga', async () => {
+    mockFetch({
+      'POST /api/v1/art/dotacion-propuestas/{id}/reabrir': {
+        id: 10, estado: 'RECHAZADA', empresa_id: 'e10', reabierta_en: '2026-09-25T10:00:00', cambio: true,
+      },
+    });
+    render(<ArtDotacionPropuestas token={TOKEN} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Rechazadas (3)' }));
+    fireEvent.click(within(await screen.findByTestId('rechazada-10')).getByRole('button', { name: 'Reabrir' }));
+
+    await waitFor(() => expect(llamadas('POST', '/api/v1/art/dotacion-propuestas/10/reabrir').length).toBe(1));
+    expect(await screen.findByText(/la próxima corrida de CERVI vuelve a proponer/)).toBeTruthy();
+  });
+
+  it('un 409 de /reabrir se muestra con el detail del backend', async () => {
+    const detail = 'La empresa tiene un rechazo más nuevo (#15): se reabre ése.';
+    mockFetch({ 'POST /api/v1/art/dotacion-propuestas/{id}/reabrir': { __status: 409, detail } });
+    render(<ArtDotacionPropuestas token={TOKEN} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Rechazadas (3)' }));
+    const havanna = await screen.findByTestId('rechazada-11');
+    fireEvent.click(within(havanna).getByRole('button', { name: 'Reabrir' }));
+
+    const alerta = await within(havanna).findByRole('alert');
+    expect(alerta.textContent).toContain('409');
+    expect(alerta.textContent).toContain(detail);
+  });
+
+  it('sin rol ADMIN no hay botón Reabrir', async () => {
+    localStorage.setItem(CLAVE_ROL, 'EMPLEADO');
+    mockFetch();
+    render(<ArtDotacionPropuestas token={TOKEN} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Rechazadas (3)' }));
+    await screen.findByTestId('rechazada-10');
+    expect(screen.queryByRole('button', { name: 'Reabrir' })).toBeNull();
+  });
+});
+
+describe('ART-98 · CIIU fuera del CLAE', () => {
+  it('enNomencladorClae compara a 6 dígitos y no decide sin datos', () => {
+    expect(enNomencladorClae('11111', [{ codigo: '011111' }])).toBe(true);
+    expect(enNomencladorClae('999999', [{ codigo: '999990' }])).toBe(false);
+    expect(enNomencladorClae(null, [])).toBeNull();
+    expect(enNomencladorClae('011111', undefined)).toBeNull();
+  });
+
+  it('marca sólo el código que no está en el catálogo CLAE', async () => {
+    mockFetch();
+    render(<ArtDotacionPropuestas token={TOKEN} />);
+    const viejo = await screen.findByTestId('ciiu-999999');
+    await waitFor(() => expect(within(viejo).getByTestId('marca-clanae97').textContent)
+      .toBe('código ClaNAE-97: requiere resolución T30'));
+    await waitFor(() => expect(llamadas('GET', '/api/v1/art/ciiu').length).toBe(2));
+    expect(within(screen.getByTestId('ciiu-011111')).queryByTestId('marca-clanae97')).toBeNull();
+    expect(within(screen.getByTestId('ciiu-sin')).queryByTestId('marca-clanae97')).toBeNull();
+  });
+
+  it('si el catálogo no contesta, no marca', async () => {
+    mockFetch({ 'GET /api/v1/art/ciiu': { __status: 500, detail: 'caído' } });
+    render(<ArtDotacionPropuestas token={TOKEN} />);
+    await screen.findByTestId('ciiu-999999');
+    await waitFor(() => expect(llamadas('GET', '/api/v1/art/ciiu').length).toBe(2));
+    expect(screen.queryByTestId('marca-clanae97')).toBeNull();
   });
 });

@@ -12,6 +12,7 @@ import React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/react';
 import ArtAccionComercialBoard from './ArtAccionComercialBoard';
+import { fechaCorta } from '../../utils/fechas';
 
 afterEach(cleanup);
 
@@ -54,10 +55,10 @@ const FICHA = {
   antiguedad_total_meses: 92,
 };
 
-const mockTodo = (overFila = {}) => {
+const mockTodo = (overFila = {}, overFicha = {}) => {
   globalThis.fetch = vi.fn(async (url) => {
     if (String(url).includes('/art/empresas/')) {
-      return { ok: true, status: 200, json: async () => FICHA };
+      return { ok: true, status: 200, json: async () => ({ ...FICHA, ...overFicha }) };
     }
     return {
       ok: true,
@@ -67,8 +68,8 @@ const mockTodo = (overFila = {}) => {
   });
 };
 
-const abrirDetalle = async (overFila = {}) => {
-  mockTodo(overFila);
+const abrirDetalle = async (overFila = {}, overFicha = {}) => {
+  mockTodo(overFila, overFicha);
   render(<ArtAccionComercialBoard token={TOKEN} />);
   fireEvent.click(await screen.findByRole('button', { name: 'ACME SA' }));
 };
@@ -119,5 +120,55 @@ describe('detalle de empresa de acción comercial', () => {
     expect(await screen.findByText(/Compañías descartadas por colocabilidad \(1\)/)).toBeTruthy();
     expect(screen.getByText('Autorización revocada por la SSN')).toBeTruthy();
     expect(screen.getByText(/Mediana que habría ganado: 5.2%/)).toBeTruthy();
+  });
+
+  // ART-97 (backend PR #210): bloque "Historial ART" al lado de la antigüedad.
+  const HISTORIAL = {
+    antiguedad_total_meses: 92,
+    meses_contrato_vigente: 40,
+    cantidad_contratos: 4,
+    cambios_de_art: 2,
+    permanencia_promedio_meses: 30,
+    permanencia_mediana_meses: 28,
+    huecos: 1,
+    meses_sin_cobertura_total: 3,
+    fecha_ultimo_cambio: '2023-05-01',
+    meses_desde_ultimo_cambio: 40,
+    cambios_ultimos_5_anios: 2,
+    meses_de_datos: 95,
+    propension_cambio: 'ROTATIVA',
+  };
+
+  it('muestra el bloque Historial ART con todos los campos', async () => {
+    await abrirDetalle({}, { historial_art: HISTORIAL });
+    const bloque = await screen.findByTestId('historial-art');
+    const t = bloque.textContent;
+    expect(t).toContain('Contrato vigente40 meses');
+    expect(t).toContain('Contratos4');
+    expect(t).toContain('Cambios de ART2');
+    expect(t).toContain('30 meses / 28 meses');
+    expect(t).toContain('Huecos1 · 3 meses sin cobertura');
+    expect(t).toContain(`Último cambio${fechaCorta('2023-05-01')} · hace 40 meses`);
+    expect(t).not.toContain('Nunca cambió');
+    expect(t).toContain('Cambios en 5 años2');
+    expect(t).toContain('Rotativa');
+    // Al lado de la antigüedad total, que sigue saliendo.
+    expect(screen.getByText('92 meses')).toBeTruthy();
+  });
+
+  it('sin fecha_ultimo_cambio dice "Nunca cambió" y sin contrato vigente lo aclara', async () => {
+    await abrirDetalle({}, {
+      historial_art: {
+        ...HISTORIAL, fecha_ultimo_cambio: null, meses_desde_ultimo_cambio: null,
+        cambios_de_art: 0, cambios_ultimos_5_anios: 0, huecos: 0, meses_sin_cobertura_total: 0,
+        meses_contrato_vigente: null, propension_cambio: 'ESTABLE',
+      },
+    });
+    const t = (await screen.findByTestId('historial-art')).textContent;
+    expect(t).toContain('Último cambioNunca cambió');
+    expect(t).toContain('Contrato vigenteNinguno vigente');
+    expect(t).toContain('Huecos0');
+    expect(t).not.toContain('sin cobertura');
+    expect(t).toContain('Estable');
   });
 });

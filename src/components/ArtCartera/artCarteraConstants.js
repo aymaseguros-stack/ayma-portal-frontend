@@ -440,3 +440,18 @@ export const porcentajeDeFraccion = (valor, opciones = { maximumFractionDigits: 
   if (!Number.isFinite(numero)) return null;
   return `${(numero * 100).toLocaleString('es-AR', opciones)}%`;
 };
+
+// ART-97 (backend PR #210): propensión al cambio de ART, calculada en
+// lectura sobre el historial de contratos SRT. ROTATIVA va en VERDE a
+// propósito: es la que conviene comercialmente (ya cambió dos veces en 5
+// años, vuelve a cambiar). SIN_HISTORIAL no muestra badge: menos de 12
+// meses de datos no dicen nada. Un valor fuera del mapa se muestra crudo.
+export const PROPENSIONES_CAMBIO = [
+  { id: 'ROTATIVA', label: 'Rotativa', clase: 'bg-green-500/20 text-green-300', detalle: '2 o más cambios de ART en 5 años' },
+  { id: 'MODERADA', label: 'Moderada', clase: 'bg-amber-500/20 text-amber-300', detalle: '1 cambio de ART en 5 años' },
+  { id: 'ESTABLE', label: 'Estable', clase: 'bg-slate-500/30 text-slate-300', detalle: 'Sin cambios de ART en 5 años' },
+  { id: 'SIN_HISTORIAL', label: 'Sin historial', clase: '', detalle: 'Menos de 12 meses de datos' },
+];
+
+export const propensionInfo = (id) => PROPENSIONES_CAMBIO.find((p) => p.id === id)
+  || (id ? { id, label: id, clase: 'bg-slate-600/40 text-slate-300', detalle: '' } : null);
