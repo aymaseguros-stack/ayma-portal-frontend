@@ -13,6 +13,7 @@ import {
 import { descargarBlobComoArchivo } from './descargaArchivo';
 import { fechaCorta } from '../../utils/fechas';
 import ArtAccionComercialDetalle from './ArtAccionComercialDetalle';
+import TechoNoSumado from './TechoNoSumado';
 
 // El backend siempre trabaja con una ventana rodante: "todos" es su tope
 // (DIAS_VENTANA_MAX = 365), no "sin ventana". La etiqueta lo dice.
@@ -451,6 +452,7 @@ const ArtAccionComercialBoard = ({ token }) => {
               {resumen.periodo_mercado ? ` · mercado ${resumen.periodo_mercado}` : ''}
             </p>
           )}
+          {resumen && <TechoNoSumado techo={resumen.techo_baja_no_sumado} className="text-xs mt-0.5" />}
         </div>
         <button
           type="button"

@@ -490,3 +490,7 @@ export const fuenteMasaLabel = (fuente, periodo) => {
 
 // ART-90: una comisión calculada sobre masa BAJA es un techo, no una cifra.
 export const TOOLTIP_COMISION_TECHO = 'Techo: masa estimada sin F931';
+
+// D-OP10-1 (backend #219): los totales de comisión suman sólo masa ALTA y
+// MEDIA; las BAJA llegan aparte en `techo_baja_no_sumado`.
+export const TOOLTIP_TECHO_NO_SUMADO = 'Estimación con dotación de planilla. Se confirma con el F931.';

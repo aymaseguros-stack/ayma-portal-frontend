@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Icon } from '../Icons';
 import { obtenerResumenDireccion } from '../Direccion/finanzasApi';
 import { formatearMonto, etiqueta } from '../Direccion/direccionConstantes';
+import TechoNoSumado from '../ArtCartera/TechoNoSumado';
 
 // Los cuatro bloques del resumen de Dirección en el Dashboard principal.
 // GET /api/v1/dashboard/resumen-direccion (ADMIN-only, require_admin en el
@@ -171,6 +172,11 @@ const ResumenDireccion = ({ token, onIrSiniestros, onIrUniversoArt, onIrComision
                     {formatearMonto(art.comision_estimada_en_juego, 'ARS')}
                   </p>
                 )}
+                <TechoNoSumado
+                  techo={art.techo_baja_no_sumado}
+                  formatear={(v) => formatearMonto(v, 'ARS')}
+                  className="text-[10px] mt-1"
+                />
                 {art.empresas_sin_comision_estimable > 0 && (
                   <p className="text-[10px] text-slate-500 mt-1">
                     {art.empresas_sin_comision_estimable} empresa(s) de la ventana no aportan comisión estimable
