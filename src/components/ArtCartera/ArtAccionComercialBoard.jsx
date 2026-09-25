@@ -7,7 +7,8 @@ import {
   obtenerListaCompletaAccionComercial,
 } from './artCarteraApi';
 import {
-  PROPENSIONES_CAMBIO, RIESGOS_DEUDA, aseguradoraLabel, decimalAr, numeroAr, pesosAr, propensionInfo,
+  PROPENSIONES_CAMBIO, RIESGOS_DEUDA, MASA_CONFIANZAS, masaConfianzaInfo, fuenteMasaLabel,
+  TOOLTIP_COMISION_TECHO, aseguradoraLabel, decimalAr, numeroAr, pesosAr, propensionInfo,
 } from './artCarteraConstants';
 import { descargarBlobComoArchivo } from './descargaArchivo';
 import { fechaCorta } from '../../utils/fechas';
@@ -279,6 +280,34 @@ const CeldaCompaniaSugerida = ({ fila }) => {
 //
 // El orden lo resuelve el backend con `orden=ventana_asc` (vencimiento ASC,
 // comisión actual DESC a igual fecha) y la pantalla no reordena.
+// ART-90 / ART-108 (backend #217 / #218): con qué masa se calculó la
+// comisión de la fila (F931 del período o Cuadro 1) y qué tan firme es.
+const MasaDeFila = ({ fila }) => {
+  const info = masaConfianzaInfo(fila.masa_confianza);
+  const fuente = fuenteMasaLabel(fila.masa_fuente, fila.masa_periodo);
+  if (!info && !fuente) return null;
+  return (
+    <span className="flex items-center gap-1 mt-1 flex-wrap">
+      {info && (
+        <span className={`${badgeBase} ${info.clase}`} title={info.detalle} data-testid="chip-masa-confianza">
+          Masa {info.label}
+        </span>
+      )}
+      {fuente && <span className="text-[11px] text-slate-500" data-testid="masa-fuente">{fuente}</span>}
+    </span>
+  );
+};
+
+// ART-90: masa BAJA → la comisión es un techo. La cifra no cambia (el
+// backend sólo la pondera x0,5 para ordenar); se muestra como "≤ $X".
+const CeldaComisionActual = ({ fila }) => (fila.comision_es_techo === true ? (
+  <span className="text-slate-300" title={TOOLTIP_COMISION_TECHO} data-testid="comision-techo">
+    ≤ {pesosAr(fila.comision_actual_estimada)}
+  </span>
+) : (
+  <span className="text-slate-200">{pesosAr(fila.comision_actual_estimada)}</span>
+));
+
 const ArtAccionComercialBoard = ({ token }) => {
   const [soloElegibles, setSoloElegibles] = useState(false);
   const [ventana, setVentana] = useState(VENTANA_DEFAULT);
@@ -293,6 +322,9 @@ const ArtAccionComercialBoard = ({ token }) => {
   // propensión: se filtra en la pantalla y al CSV viaja como ?riesgo_deuda=.
   const [riesgoDeuda, setRiesgoDeuda] = useState('');
   const valorRiesgoDeuda = RIESGOS_DEUDA.find((r) => r.id === riesgoDeuda)?.valor ?? null;
+  // ART-90: `?masa_confianza=` lo filtra el backend (uno solo; fuera de
+  // ALTA/MEDIA/BAJA es 422), así que viaja en filtrosServidor y al CSV.
+  const [masaConfianza, setMasaConfianza] = useState('');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -315,7 +347,8 @@ const ArtAccionComercialBoard = ({ token }) => {
     dias_ventana: VENTANAS.find((v) => v.id === ventana)?.dias ?? 365,
     solo_elegibles: soloElegibles,
     orden: ORDEN_ACCION_COMERCIAL_DEFAULT,
-  }), [ventana, soloElegibles]);
+    ...(masaConfianza ? { masa_confianza: masaConfianza } : {}),
+  }), [ventana, soloElegibles, masaConfianza]);
 
   // D-1: se piden TODAS las páginas. El backend pagina de a 500 como mucho y
   // devuelve el `total` real; presentar la primera página como si fuera el
@@ -539,6 +572,18 @@ const ArtAccionComercialBoard = ({ token }) => {
             ))}
           </div>
         </fieldset>
+        <div>
+          <label className={labelClass} htmlFor="ac-masa-confianza">Confianza de la masa</label>
+          <select
+            id="ac-masa-confianza"
+            className={selectClass}
+            value={masaConfianza}
+            onChange={(e) => setMasaConfianza(e.target.value)}
+          >
+            <option value="">Todas</option>
+            {MASA_CONFIANZAS.map((c) => <option key={c.id} value={c.id}>{c.label} · {c.detalle}</option>)}
+          </select>
+        </div>
         <label className="flex items-center gap-2 text-sm text-slate-300 pb-2">
           <input
             type="checkbox"
@@ -661,7 +706,10 @@ const ArtAccionComercialBoard = ({ token }) => {
                       <span className="block text-xs text-slate-500">{fila.dias_a_vencimiento} días</span>
                     )}
                   </td>
-                  <td className="px-3 py-3"><CeldaDotacion fila={fila} /></td>
+                  <td className="px-3 py-3">
+                    <CeldaDotacion fila={fila} />
+                    <MasaDeFila fila={fila} />
+                  </td>
                   <td className="px-3 py-3"><CeldaAlicuotaActual fila={fila} /></td>
                   <td className="px-3 py-3 text-slate-300 whitespace-nowrap">
                     {fila.alicuota_mercado_tramo === null || fila.alicuota_mercado_tramo === undefined
@@ -682,9 +730,7 @@ const ArtAccionComercialBoard = ({ token }) => {
                       <span className="text-slate-500" title={fila.motivo_sin_comision_actual || ''}>
                         {fila.motivo_sin_comision_actual || 'Sin dato'}
                       </span>
-                    ) : (
-                      <span className="text-slate-200">{pesosAr(fila.comision_actual_estimada)}</span>
-                    )}
+                    ) : <CeldaComisionActual fila={fila} />}
                   </td>
                   <td className="px-3 py-3"><BadgePropension fila={fila} /></td>
                   <td className="px-3 py-3"><CeldaCompaniaSugerida fila={fila} /></td>

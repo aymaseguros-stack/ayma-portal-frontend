@@ -464,3 +464,29 @@ export const RIESGOS_DEUDA = [
 
 export const propensionInfo = (id) => PROPENSIONES_CAMBIO.find((p) => p.id === id)
   || (id ? { id, label: id, clase: 'bg-slate-600/40 text-slate-300', detalle: '' } : null);
+
+// OPERACIONES-0010 FE (backend #217 ART-90 / #218 ART-108). `masa_confianza`
+// es LA confianza de la masa efectiva: ALTA sólo con masa de un F.931
+// VIGENTE; si no, la de la dotación efectiva con techo MEDIA. Un chip
+// distinto del de la grilla (confianzaMasaInfo) a propósito: acá el eje es
+// "¿hay F.931 detrás?" y el verde se reserva para eso.
+export const MASA_CONFIANZAS = [
+  { id: 'ALTA', label: 'ALTA', clase: 'bg-green-500/20 text-green-300', detalle: 'Masa del F.931 vigente' },
+  { id: 'MEDIA', label: 'MEDIA', clase: 'bg-amber-500/20 text-amber-300', detalle: 'Dotación declarada, masa estimada' },
+  { id: 'BAJA', label: 'BAJA', clase: 'bg-slate-600/40 text-slate-300', detalle: 'Masa estimada sin F.931' },
+];
+
+export const masaConfianzaInfo = (id) => MASA_CONFIANZAS.find((c) => c.id === id)
+  || (id ? { id, label: id, clase: 'bg-slate-600/40 text-slate-300', detalle: '' } : null);
+
+// `masa_fuente` (ART-108) + `masa_periodo` ('MM/AAAA', sólo con F931).
+export const fuenteMasaLabel = (fuente, periodo) => {
+  if (!fuente) return null;
+  if (fuente === 'F931') return periodo ? `F931 · ${periodo}` : 'F931';
+  if (fuente === 'CUADRO1') return 'Cuadro 1';
+  if (fuente === 'REFERENCIA_SALARIAL') return 'Referencia salarial';
+  return fuente;
+};
+
+// ART-90: una comisión calculada sobre masa BAJA es un techo, no una cifra.
+export const TOOLTIP_COMISION_TECHO = 'Techo: masa estimada sin F931';

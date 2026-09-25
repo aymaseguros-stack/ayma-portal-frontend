@@ -630,3 +630,48 @@ describe('ArtAccionComercialBoard', () => {
     });
   });
 });
+
+// OPERACIONES-0010 FE · ART-90 / ART-108 (backend #217 / #218).
+describe('ArtAccionComercialBoard - masa_confianza, fuente de masa y techo', () => {
+  it('chip de confianza y fuente de masa por fila (F931 mm/aaaa | Cuadro 1)', async () => {
+    mockLista([
+      fila({ empresa_id: 'a', razon_social: 'CON F931', masa_confianza: 'ALTA', masa_fuente: 'F931', masa_periodo: '08/2026' }),
+      fila({ empresa_id: 'b', razon_social: 'PLANILLA', masa_confianza: 'BAJA', masa_fuente: 'CUADRO1', masa_periodo: null, comision_es_techo: true }),
+    ]);
+    render(<ArtAccionComercialBoard token={TOKEN} />);
+    await screen.findByText('CON F931');
+    const chips = screen.getAllByTestId('chip-masa-confianza');
+    expect(chips.map((c) => c.textContent)).toEqual(['Masa ALTA', 'Masa BAJA']);
+    expect(chips[0].className).toContain('green');
+    expect(chips[1].className).not.toContain('green');
+    expect(screen.getAllByTestId('masa-fuente').map((c) => c.textContent)).toEqual(['F931 · 08/2026', 'Cuadro 1']);
+  });
+
+  it('"≤ $" y tooltip SÓLO con comision_es_techo=true', async () => {
+    mockLista([
+      fila({ empresa_id: 'a', razon_social: 'FIRME', comision_actual_estimada: 130000, comision_es_techo: false, masa_confianza: 'ALTA' }),
+      fila({ empresa_id: 'b', razon_social: 'TECHO', comision_actual_estimada: 39000, comision_es_techo: true, masa_confianza: 'BAJA' }),
+    ]);
+    render(<ArtAccionComercialBoard token={TOKEN} />);
+    await screen.findByText('TECHO');
+    const techos = screen.getAllByTestId('comision-techo');
+    expect(techos).toHaveLength(1);
+    expect(techos[0].textContent).toBe('≤ $ 39.000');
+    expect(techos[0].getAttribute('title')).toBe('Techo: masa estimada sin F931');
+    expect(screen.getByText('$ 130.000')).toBeTruthy();
+    expect(screen.queryByText('≤ $ 130.000')).toBeNull();
+  });
+
+  it('filtro de confianza de masa viaja como ?masa_confianza= (sin él, no viaja)', async () => {
+    mockLista([fila()]);
+    render(<ArtAccionComercialBoard token={TOKEN} />);
+    await screen.findByText('ACME SA');
+    expect(new URL(urlDeLaLista()).searchParams.has('masa_confianza')).toBe(false);
+
+    fireEvent.change(screen.getByLabelText('Confianza de la masa'), { target: { value: 'ALTA' } });
+    await waitFor(() => {
+      const urls = globalThis.fetch.mock.calls.map(([u]) => new URL(String(u)));
+      expect(urls.some((u) => u.searchParams.get('masa_confianza') === 'ALTA')).toBe(true);
+    });
+  });
+});

@@ -282,29 +282,121 @@ describe('Bandeja: solapa F931 y métrica', () => {
   });
 });
 
-describe('Ficha: F931 aplicado', () => {
-  it('muestra ALTA · F931 con período, dotación, masa y alícuota variable; y el botón de subida', async () => {
+describe('Ficha: F931 aplicado (ART-90 / ART-108)', () => {
+  const EMPRESA = {
+    id: 'emp-1', cuit: '30-71234567-9', razon_social: 'Acme SA', dotacion: 42,
+    masa_salarial_f931: '19600000.00', dotacion_f931: 14, f931_periodo: '2026-08', f931_cargado_en: '2026-09-25T10:00:00',
+  };
+  const APLICADO = (over = {}) => ({
+    id: 9, periodo: '2026-08-01', rectificativa: 0, dotacion_f931: 14, masa_f931: '19600000.00',
+    lrt_fijo: '1050.00', lrt_variable: '411600.00', lrt_total: '412650.00', alicuota_variable_f931: '2.1000',
+    vigente: true, motivo_no_vigente: null, ...over,
+  });
+  const mockFicha = (extra) => {
     globalThis.fetch = vi.fn(async (url) => {
       const u = new URL(String(url));
-      if (u.pathname === '/api/v1/art/f931/propuestas') {
-        return respuesta({ total: 1, limit: 500, offset: 0, items: [FILA({ id: 9, empresa_id: 'emp-1', estado: 'APLICADO', motivo_validacion: null })] });
-      }
       if (u.pathname.includes('/documentos')) return respuesta([]);
       if (u.pathname.includes('/propuestas')) return respuesta({ total: 0, items: [] });
       return respuesta({
-        empresa: {
-          id: 'emp-1', cuit: '30-71234567-9', razon_social: 'Acme SA', dotacion: 42,
-          masa_salarial_f931: '19600000.00', dotacion_f931: 14, f931_periodo: '2026-08', f931_cargado_en: '2026-09-25T10:00:00',
-        },
-        aseguradoras: [], historial: [], historial_contratos: [], contrato_actual: null, calculo: null,
+        empresa: EMPRESA, aseguradoras: [], historial: [], historial_contratos: [], contrato_actual: null, calculo: null,
+        ...extra,
       });
+    });
+  };
+
+  it('vigente: ALTA · F931 con período, alícuota variable del bloque y sin paginar /f931/propuestas', async () => {
+    mockFicha({
+      f931_aplicado: APLICADO(), masa_confianza: 'ALTA', dotacion_confianza_efectiva: 'ALTA',
+      masa_efectiva_mensual: '19600000.00', masa_fuente: 'F931', masa_periodo: '08/2026',
     });
     render(<ArtEmpresaFicha token={TOKEN} cuit="30712345679" onVolver={() => {}} />);
     const bloque = await screen.findByTestId('ficha-f931');
     expect(screen.getByTestId('ficha-f931-alta').textContent).toBe('ALTA · F931 · 08/2026');
+    expect(screen.queryByTestId('ficha-f931-vencido')).toBeNull();
     expect(bloque.textContent).toContain('14');
     expect(bloque.textContent).toContain('$ 19.600.000');
-    await waitFor(() => expect(bloque.textContent).toContain('2,10 %'));
+    expect(bloque.textContent).toContain('2,10 %');
     expect(screen.getByRole('button', { name: 'Subir F931 (PDF)' })).toBeTruthy();
+    const pag = globalThis.fetch.mock.calls.filter(([u]) => new URL(String(u)).pathname === '/api/v1/art/f931/propuestas');
+    expect(pag).toHaveLength(0);
+  });
+
+  it('vencido: chip gris "F931 vencido · mm/aaaa" con el motivo y SIN la etiqueta ALTA', async () => {
+    mockFicha({
+      f931_aplicado: APLICADO({ periodo: '2025-11-01', vigente: false, motivo_no_vigente: 'PERIODO_VENCIDO' }),
+      masa_confianza: 'BAJA', masa_efectiva_mensual: '5000000.00', masa_fuente: 'CUADRO1', masa_periodo: null,
+    });
+    render(<ArtEmpresaFicha token={TOKEN} cuit="30712345679" onVolver={() => {}} />);
+    const chip = await screen.findByTestId('ficha-f931-vencido');
+    expect(chip.textContent).toBe('F931 vencido · 11/2025 · período de más de 6 meses');
+    expect(chip.className).toContain('bg-slate-600/40');
+    expect(chip.className).not.toContain('green');
+    expect(screen.queryByTestId('ficha-f931-alta')).toBeNull();
+    expect(screen.getByTestId('ficha-masa-fuente').textContent).toBe('Cuadro 1');
+  });
+
+  it('f931_aplicado null (carga manual): ni ALTA ni vencido, lo dice', async () => {
+    mockFicha({ f931_aplicado: null, masa_confianza: 'MEDIA', masa_efectiva_mensual: '19600000.00', masa_fuente: 'F931', masa_periodo: '08/2026' });
+    render(<ArtEmpresaFicha token={TOKEN} cuit="30712345679" onVolver={() => {}} />);
+    const bloque = await screen.findByTestId('ficha-f931');
+    expect(bloque).toBeTruthy();
+    expect(screen.queryByTestId('ficha-f931-alta')).toBeNull();
+    expect(screen.queryByTestId('ficha-f931-vencido')).toBeNull();
+    expect(screen.getByText('carga manual · sin PDF aplicado')).toBeTruthy();
+  });
+
+  it('masa efectiva: valor con miles, fuente F931 mm/aaaa y chip de confianza por color', async () => {
+    mockFicha({
+      f931_aplicado: APLICADO(), masa_confianza: 'ALTA',
+      masa_efectiva_mensual: '19600000.00', masa_fuente: 'F931', masa_periodo: '08/2026',
+    });
+    render(<ArtEmpresaFicha token={TOKEN} cuit="30712345679" onVolver={() => {}} />);
+    expect((await screen.findByTestId('ficha-masa-valor')).textContent).toBe('$ 19.600.000');
+    expect(screen.getByTestId('ficha-masa-fuente').textContent).toBe('F931 · 08/2026');
+    const chip = screen.getByTestId('ficha-masa-confianza');
+    expect(chip.textContent).toBe('Masa ALTA');
+    expect(chip.className).toContain('green');
+  });
+
+  it.each([
+    ['MEDIA', 'amber'],
+    ['BAJA', 'slate'],
+  ])('chip de masa %s usa %s', async (confianza, color) => {
+    mockFicha({ f931_aplicado: null, masa_confianza: confianza, masa_efectiva_mensual: '1000000.00', masa_fuente: 'CUADRO1' });
+    render(<ArtEmpresaFicha token={TOKEN} cuit="30712345679" onVolver={() => {}} />);
+    const chip = await screen.findByTestId('ficha-masa-confianza');
+    expect(chip.textContent).toBe(`Masa ${confianza}`);
+    expect(chip.className).toContain(color);
+    expect(chip.className).not.toContain('green');
+  });
+
+  it('sin masa efectiva (falta Cuadro 1): lo dice, no inventa', async () => {
+    mockFicha({ f931_aplicado: null, masa_confianza: null, masa_efectiva_mensual: null, masa_fuente: null });
+    render(<ArtEmpresaFicha token={TOKEN} cuit="30712345679" onVolver={() => {}} />);
+    const bloque = await screen.findByTestId('ficha-masa-efectiva');
+    expect(bloque.textContent).toContain('Sin dato');
+  });
+});
+
+describe('Modal: Confirmar deshabilitado se ve gris', () => {
+  it('sin PDF leído: disabled, gris, not-allowed y sin clase verde', () => {
+    globalThis.fetch = vi.fn();
+    render(<ArtF931PdfModal token={TOKEN} cuit={CUIT} onClose={() => {}} />);
+    const boton = screen.getByTestId('f931-confirmar');
+    expect(boton.disabled).toBe(true);
+    expect(boton.className).not.toMatch(/green/);
+    expect(boton.className).toContain('cursor-not-allowed');
+    expect(boton.className).toContain('bg-slate-600');
+  });
+
+  it('con la vista previa lista: habilitado y verde', async () => {
+    globalThis.fetch = vi.fn(async () => respuesta(INGESTA()));
+    render(<ArtF931PdfModal token={TOKEN} cuit={CUIT} onClose={() => {}} />);
+    elegirPdf();
+    await screen.findByTestId('f931-estado-previo');
+    const boton = screen.getByTestId('f931-confirmar');
+    expect(boton.disabled).toBe(false);
+    expect(boton.className).toContain('bg-green-600');
+    expect(boton.className).not.toContain('cursor-not-allowed');
   });
 });
