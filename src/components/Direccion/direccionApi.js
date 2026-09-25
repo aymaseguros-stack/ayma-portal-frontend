@@ -169,3 +169,31 @@ export const historicoSalud = (token, dias = 30) =>
   lista(token, '/seguridad/salud/historico', { query: { dias } });
 export const tomarSnapshotSalud = (token) =>
   lista(token, '/seguridad/salud/snapshot', { metodo: 'POST' });
+
+// --- Claves de worker (COMPLIANCE-0003 · H-71, backend #215) --------------
+// /api/v1/admin/worker-credenciales, fuera de /direccion y con require_admin
+// a nivel de router. GET devuelve Page {total, items} SIN clave ni hash.
+// POST {worker_nombre} devuelve la clave en claro UNA sola vez: quien llama
+// la muestra en un modal y la descarta al cerrarlo (ClavesWorker.jsx). Esta
+// capa no la guarda, no la loguea y no la cachea.
+const BASE_WORKER = '/api/v1/admin/worker-credenciales';
+
+const pedirAdmin = async (token, ruta, { metodo = 'GET', cuerpo } = {}) => {
+  const res = await fetch(`${API_URL}${BASE_WORKER}${ruta}`, {
+    method: metodo,
+    headers: headers(token),
+    ...(cuerpo === undefined ? {} : { body: JSON.stringify(cuerpo) }),
+  });
+  if (!res.ok) throw await errorDeRespuesta(res);
+  return res.json();
+};
+
+export const listarClavesWorker = async (token) => {
+  const data = await pedirAdmin(token, '');
+  if (Array.isArray(data)) return data;
+  return Array.isArray(data?.items) ? data.items : [];
+};
+export const crearClaveWorker = (token, workerNombre) =>
+  pedirAdmin(token, '', { metodo: 'POST', cuerpo: { worker_nombre: workerNombre } });
+export const revocarClaveWorker = (token, id) =>
+  pedirAdmin(token, `/${encodeURIComponent(id)}/revocar`, { metodo: 'POST' });
