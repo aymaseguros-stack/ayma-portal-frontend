@@ -111,14 +111,6 @@ export const listarTodasPropuestasF931 = async (token, { estado = 'PROPUESTO' } 
   return { ...pagina, items };
 };
 
-// El F.931 APLICADO de UNA empresa (para la alícuota variable de la ficha).
-// El backend no tiene filtro por empresa en /propuestas: se lee el libro de
-// APLICADO y se busca acá. A lo sumo hay una APLICADO por empresa.
-export const obtenerF931AplicadoDeEmpresa = async (token, empresaId) => {
-  const r = await listarTodasPropuestasF931(token, { estado: 'APLICADO' });
-  return (r.items || []).find((f) => f.empresa_id === empresaId) || null;
-};
-
 // POST /art/f931/propuestas/{id}/aceptar - `motivo` obligatorio (3..1000).
 // 409 si el backend, al revalidar, lo considera no aplicable.
 export const aceptarPropuestaF931 = (token, id, motivo) => postJson(

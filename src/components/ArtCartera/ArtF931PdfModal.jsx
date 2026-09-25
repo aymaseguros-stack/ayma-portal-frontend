@@ -86,6 +86,8 @@ const ArtF931PdfModal = ({ token, cuit, razonSocial, onClose, onGrabado }) => {
   const info = estadoF931Info(val?.estado);
   const extras = motivosDesconocidos(motivos);
 
+  const confirmarDeshabilitado = !previa || enviando || !!error;
+
   return (
     <Modal title={`Subir F931 (PDF) · ${razonSocial || cuit}`} onClose={onClose} maxWidth="max-w-2xl">
       <div className="space-y-4 text-sm">
@@ -188,11 +190,18 @@ const ArtF931PdfModal = ({ token, cuit, razonSocial, onClose, onGrabado }) => {
             {final ? 'Cerrar' : 'Cancelar'}
           </button>
           {!final && (
+            // FE: deshabilitado se ve GRIS y sin verde (ni hover verde):
+            // un verde apagado se leía como "listo para confirmar".
             <button
               type="button"
               onClick={confirmar}
-              disabled={!previa || enviando || !!error}
-              className="px-3 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-sm font-medium disabled:opacity-50"
+              disabled={confirmarDeshabilitado}
+              data-testid="f931-confirmar"
+              className={`px-3 py-2 rounded-lg text-sm font-medium ${
+                confirmarDeshabilitado
+                  ? 'bg-slate-600 text-slate-400 cursor-not-allowed'
+                  : 'bg-green-600 hover:bg-green-500 text-white'
+              }`}
             >
               Confirmar
             </button>

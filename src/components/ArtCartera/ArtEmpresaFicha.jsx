@@ -8,13 +8,12 @@ import { obtenerEmpresaArt, quitarF931Art } from './artCarteraApi';
 import ArtEstadoModal from './ArtEstadoModal';
 import ArtDocumentosChecklist from './ArtDocumentosChecklist';
 import ArtF931PdfModal from './ArtF931PdfModal';
-import { obtenerF931AplicadoDeEmpresa } from './artF931Api';
-import { periodoF931 } from './artF931Constants';
+import { periodoF931, motivoNoVigenteLabel } from './artF931Constants';
 import { pctDosDecimales } from './artCerviConstants';
 import { useEsAdmin } from '../../utils/sesion';
 import {
   ASEGURADORAS_ART, riesgoBadgeClass, estadoArtInfo, esAlicuotaNoCompetitiva, decimalAr,
-  aseguradoraLabel, confianzaMasaInfo, pesosAr,
+  aseguradoraLabel, pesosAr, masaConfianzaInfo, fuenteMasaLabel,
 } from './artCarteraConstants';
 import CiiuLabel from '../Ciiu/CiiuLabel';
 import CiiuBuscador from '../Ciiu/CiiuBuscador';
@@ -94,7 +93,7 @@ const HistorialContratosTabla = ({ contratos }) => {
 // POR QUÉ SE PUEDE QUITAR. El F.931 se carga a mano desde la grilla y a
 // mano se equivoca: un período viejo, la masa de otra empresa, un dígito
 // de más. Un dato declarado equivocado es PEOR que ninguno - pone la masa
-// en confianza CONFIRMADA, y con eso el backend habilita a ACEPTAR
+// en confianza ALTA, y con eso el backend habilita a ACEPTAR
 // propuestas sobre un número inventado. Sin baja, el único arreglo era
 // cargar otro F.931 encima, lo que sólo sirve si se tiene el correcto.
 //
@@ -102,32 +101,94 @@ const HistorialContratosTabla = ({ contratos }) => {
 // ficha y el dato no está en ninguna otra pantalla para recuperarlo.
 //
 // OPERACIONES-0010 (@VALENTINI): "Subir F931 (PDF)" abre la ingesta desde el
-// PDF de ARCA (dry_run primero, confirmar después). La alícuota variable
-// sale del F.931 APLICADO de `empresa_f931` (derivada por el backend): una
-// carga manual no tiene LRT y no la muestra. ALTA · F931 es la etiqueta de
-// la jerarquía de dotación con F931_VIGENCIA_6M apagado (default del
-// backend): todo `dotacion_f931 > 0` lee ALTA.
-const BloqueF931 = ({ token, cuit, empresa, onCambiado }) => {
+// PDF de ARCA (dry_run primero, confirmar después).
+//
+// ART-90 (backend #217): el F.931 APLICADO viene EN la ficha
+// (`f931_aplicado`, con `vigente` y `motivo_no_vigente` ya resueltos por
+// el backend, que respeta F931_VIGENCIA_6M). Antes se paginaba
+// /f931/propuestas para encontrarlo. "ALTA · F931" se muestra SÓLO con
+// vigente=true: un F.931 vencido no confirma nada y se ve en gris con su
+// motivo. Una carga manual (sin PDF) no tiene fila y no lleva etiqueta.
+const ChipConfianzaMasa = ({ valor, testId }) => {
+  const info = masaConfianzaInfo(valor);
+  if (!info) return null;
+  return (
+    <span
+      className={`inline-block px-2 py-0.5 rounded text-[11px] font-medium ${info.clase}`}
+      title={info.detalle}
+      data-testid={testId}
+    >
+      Masa {info.label}
+    </span>
+  );
+};
+
+const EtiquetaF931Aplicado = ({ aplicado }) => {
+  if (!aplicado) return null;
+  const periodo = periodoF931(aplicado.periodo) || 'sin período';
+  if (aplicado.vigente === true) {
+    return (
+      <span
+        className="inline-block px-2 py-0.5 rounded text-[11px] font-medium bg-green-500/20 text-green-300"
+        data-testid="ficha-f931-alta"
+      >
+        ALTA · F931 · {periodo}
+      </span>
+    );
+  }
+  const motivo = motivoNoVigenteLabel(aplicado.motivo_no_vigente);
+  return (
+    <span
+      className="inline-block px-2 py-0.5 rounded text-[11px] font-medium bg-slate-600/40 text-slate-300"
+      data-testid="ficha-f931-vencido"
+      title={motivo || undefined}
+    >
+      F931 vencido · {periodo}{motivo ? ` · ${motivo}` : ''}
+    </span>
+  );
+};
+
+// ART-108 (backend #218): la masa que usan TODAS las lecturas. F931 si hay
+// uno vigente; si no, dotación efectiva × salario del Cuadro 1. Null si la
+// base no tiene el Cuadro 1 (el backend lo deja en null, no inventa).
+const BloqueMasaEfectiva = ({ data }) => {
+  const {
+    masa_efectiva_mensual: masa, masa_fuente: fuente, masa_periodo: periodo, masa_confianza: confianza,
+  } = data;
+  return (
+    <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6" data-testid="ficha-masa-efectiva">
+      <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-4">Masa salarial efectiva</h3>
+      {masa === null || masa === undefined ? (
+        <p className="text-slate-500 text-sm">Sin dato: no hay F.931 vigente ni salario del Cuadro 1 para estimarla.</p>
+      ) : (
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-xl font-semibold text-slate-100" data-testid="ficha-masa-valor">{pesosAr(masa)}</span>
+          <span className="text-xs text-slate-500">mensual</span>
+          {fuente && (
+            <span
+              className="inline-block px-2 py-0.5 rounded text-[11px] font-medium border border-slate-600 text-slate-300"
+              data-testid="ficha-masa-fuente"
+            >
+              {fuenteMasaLabel(fuente, periodo)}
+            </span>
+          )}
+          <ChipConfianzaMasa valor={confianza} testId="ficha-masa-confianza" />
+        </div>
+      )}
+    </div>
+  );
+};
+
+const BloqueF931 = ({ token, cuit, empresa, aplicado, onCambiado }) => {
   const esAdmin = useEsAdmin();
   const [confirmando, setConfirmando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState(null);
   const [subiendo, setSubiendo] = useState(false);
-  const [aplicado, setAplicado] = useState(null);
   const [grabado, setGrabado] = useState(false);
 
   const tieneF931 = empresa.masa_salarial_f931 !== null
     && empresa.masa_salarial_f931 !== undefined;
-
-  useEffect(() => {
-    let cancelado = false;
-    setAplicado(null);
-    if (!esAdmin || !tieneF931) return undefined;
-    obtenerF931AplicadoDeEmpresa(token, empresa.id)
-      .then((f) => { if (!cancelado) setAplicado(f); })
-      .catch(() => { /* sin la fila, la ficha muestra lo de la empresa */ });
-    return () => { cancelado = true; };
-  }, [token, empresa.id, esAdmin, tieneF931, empresa.f931_periodo]);
 
   const quitar = async () => {
     setEnviando(true);
@@ -186,20 +247,10 @@ const BloqueF931 = ({ token, cuit, empresa, onCambiado }) => {
             <Dato label="Cargado el" valor={fechaCorta(empresa.f931_cargado_en) || '-'} />
           </div>
           <div className="flex items-center gap-2 mt-4 flex-wrap">
-            {Number(empresa.dotacion_f931) > 0 && (
-              <span
-                className="inline-block px-2 py-0.5 rounded text-[11px] font-medium bg-green-500/20 text-green-300"
-                data-testid="ficha-f931-alta"
-              >
-                ALTA · F931 · {periodoF931(empresa.f931_periodo) || 'sin período'}
-              </span>
-            )}
-            <span
-              className={`inline-block px-2 py-0.5 rounded text-[11px] font-medium ${confianzaMasaInfo('CONFIRMADA').badge}`}
-            >
-              {confianzaMasaInfo('CONFIRMADA').label}
-            </span>
-            {aplicado && <span className="text-[11px] text-slate-500">desde PDF · F.931 #{aplicado.id}</span>}
+            <EtiquetaF931Aplicado aplicado={aplicado} />
+            {aplicado
+              ? <span className="text-[11px] text-slate-500">desde PDF · F.931 #{aplicado.id}</span>
+              : <span className="text-[11px] text-slate-500">carga manual · sin PDF aplicado</span>}
           </div>
         </>
       )}
@@ -413,6 +464,7 @@ const ArtEmpresaFicha = ({ token, cuit, onVolver, onAbrirGrilla, onAbrirPropuest
   const {
     empresa, aseguradoras, historial, calculo, calculo_bloqueado_por,
     historial_contratos: historialContratos = [], contrato_actual: contratoActual = null,
+    f931_aplicado: f931Aplicado = null,
   } = data;
   const info = estrategiaArtInfo(empresa.estrategia_art);
   const mapaAseguradoras = new Map(aseguradoras.map((a) => [a.aseguradora, a]));
@@ -551,7 +603,9 @@ const ArtEmpresaFicha = ({ token, cuit, onVolver, onAbrirGrilla, onAbrirPropuest
         )}
       </div>
 
-      <BloqueF931 token={token} cuit={cuit} empresa={empresa} onCambiado={cargar} />
+      <BloqueMasaEfectiva data={data} />
+
+      <BloqueF931 token={token} cuit={cuit} empresa={empresa} aplicado={f931Aplicado} onCambiado={cargar} />
 
       {/* Propuestas emitidas (BLOQUE 1.3) - GET
           /art/empresas/{id}/propuestas. Va acá y no en un tab propio

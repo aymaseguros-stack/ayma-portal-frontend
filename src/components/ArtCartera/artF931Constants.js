@@ -90,3 +90,13 @@ export const mensajeErrorF931 = (err) => {
   if (d) return textoDetail(d);
   return err?.message || 'Error inesperado';
 };
+
+// ART-90: `f931_aplicado.motivo_no_vigente` (f931_vigencia.motivo_no_vigente).
+export const MOTIVO_NO_VIGENTE_LABEL = {
+  SIN_DOTACION: 'sin dotación declarada',
+  SIN_PERIODO: 'sin período',
+  PERIODO_VENCIDO: 'período de más de 6 meses',
+  PERIODO_FUTURO: 'período futuro',
+};
+
+export const motivoNoVigenteLabel = (codigo) => (codigo ? (MOTIVO_NO_VIGENTE_LABEL[codigo] || codigo) : null);
