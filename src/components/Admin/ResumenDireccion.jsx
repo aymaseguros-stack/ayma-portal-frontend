@@ -177,9 +177,17 @@ const ResumenDireccion = ({ token, onIrSiniestros, onIrUniversoArt, onIrComision
                   formatear={(v) => formatearMonto(v, 'ARS')}
                   className="text-[10px] mt-1"
                 />
+                {/* Universo del backend #221: TODA la ventana de 90 días sin
+                    comisión actual, de cualquier confianza (también las BAJA
+                    sin comisión), más SIN_CIIU y NO_COTIZAR. No es el
+                    `sin_comision` del techo: no se leen uno contra el otro. */}
                 {art.empresas_sin_comision_estimable > 0 && (
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    {art.empresas_sin_comision_estimable} empresa(s) de la ventana no aportan comisión estimable
+                  <p
+                    className="text-[10px] text-slate-500 mt-1"
+                    data-testid="sin-comision-estimable"
+                    title="Toda la ventana de 90 días sin comisión actual, de cualquier confianza de masa (también BAJA), más las sin CIIU y las marcadas no cotizar. No se compara con el 'sin dato' del techo BAJA."
+                  >
+                    {art.empresas_sin_comision_estimable} empresas de la ventana sin comisión estimable (cualquier confianza, incluye sin CIIU)
                   </p>
                 )}
               </div>

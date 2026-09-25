@@ -450,6 +450,7 @@ const ArtAccionComercialBoard = ({ token }) => {
               {' · alícuota verificada en '}
               {decimalAr(resumen.cobertura_verificacion)}% de la lista traída
               {resumen.periodo_mercado ? ` · mercado ${resumen.periodo_mercado}` : ''}
+              {resumen.version_cuadro ? ` · Cuadros SRT ${resumen.version_cuadro}` : ''}
             </p>
           )}
           {resumen && <TechoNoSumado techo={resumen.techo_baja_no_sumado} className="text-xs mt-0.5" />}

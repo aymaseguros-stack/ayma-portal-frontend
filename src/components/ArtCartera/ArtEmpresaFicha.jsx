@@ -175,6 +175,11 @@ const BloqueMasaEfectiva = ({ data }) => {
           <ChipConfianzaMasa valor={confianza} testId="ficha-masa-confianza" />
         </div>
       )}
+      {data.version_cuadro && (
+        <p className="text-xs text-slate-500 mt-2" data-testid="ficha-version-cuadro">
+          Cuadros SRT {data.version_cuadro}
+        </p>
+      )}
     </div>
   );
 };
