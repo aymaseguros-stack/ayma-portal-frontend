@@ -2286,7 +2286,7 @@ function App() {
         )}
 
         {state.activeTab === 'direccion-seguridad' && isAdmin() && (
-          <DireccionSeguridad token={state.token} />
+          <DireccionSeguridad token={state.token} esAdmin={isAdmin()} />
         )}
 
       </main>

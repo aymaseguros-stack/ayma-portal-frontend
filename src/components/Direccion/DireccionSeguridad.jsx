@@ -7,6 +7,7 @@ import {
 } from './direccionApi';
 import { ESTADOS_HALLAZGO, SEVERIDADES_HALLAZGO, SISTEMAS_HALLAZGO, etiqueta, fechaCorta } from './direccionConstantes';
 import { useAccionManual } from './accionManual';
+import ClavesWorker from './ClavesWorker';
 import DireccionDiagnosticos from './DireccionDiagnosticos';
 import SaludSistemaCard from './SaludSistemaCard';
 import WhatsappSaludCard from './WhatsappSaludCard';
@@ -29,7 +30,9 @@ const PESTANAS = [
 // (direccion.py::_rechazar_claves_prohibidas) y ninguna respuesta suya los
 // devuelve. Acá se registra DÓNDE vive la credencial y CUÁNDO se rota, nada
 // más. Verificado por DireccionSeguridad.test.jsx.
-const DireccionSeguridad = ({ token }) => {
+// `esAdmin`: App ya monta esta pantalla sólo para ADMIN; el bloque de claves
+// de worker (COMPLIANCE-0003) lo vuelve a exigir por su cuenta.
+const DireccionSeguridad = ({ token, esAdmin = false }) => {
   const [pestana, setPestana] = useState('hallazgos');
   const [criticos, setCriticos] = useState(null);
   const [errorCriticos, setErrorCriticos] = useState(null);
@@ -96,7 +99,7 @@ const DireccionSeguridad = ({ token }) => {
       </nav>
 
       {pestana === 'hallazgos' && <PestanaHallazgos token={token} onCambio={recargarCriticos} />}
-      {pestana === 'credenciales' && <PestanaCredenciales token={token} />}
+      {pestana === 'credenciales' && <PestanaCredenciales token={token} esAdmin={esAdmin} />}
       {pestana === 'salud' && <PestanaSalud token={token} />}
       {pestana === 'diagnosticos' && <DireccionDiagnosticos token={token} />}
     </div>
@@ -290,7 +293,7 @@ const ModalCerrarHallazgo = ({ token, hallazgo, onCerrar, onGuardado }) => {
 
 // Inventario de credenciales. SIN campo para el valor del secreto: ni en la
 // tabla ni en el alta. Ver el comentario de cabecera de este archivo.
-const PestanaCredenciales = ({ token }) => {
+const PestanaCredenciales = ({ token, esAdmin }) => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -347,6 +350,11 @@ const PestanaCredenciales = ({ token }) => {
           </Tabla>
         )}
       </Panel>
+
+      {/* COMPLIANCE-0003 · H-71: las claves que usan los workers de datos. */}
+      <div className="border-t border-slate-700 pt-6">
+        <ClavesWorker token={token} esAdmin={esAdmin} />
+      </div>
 
       {modalAlta && (
         <ModalCredencial token={token} onCerrar={() => setModalAlta(false)} onGuardado={() => { setModalAlta(false); cargar(); }} />
