@@ -115,7 +115,7 @@ describe('ArtAccionComercialBoard', () => {
     const validos = [
       'dias_ventana', 'tramo', 'provincia', 'aseguradora_actual',
       'solo_accionables', 'solo_cotizadas', 'solo_elegibles', 'propension',
-      'limit', 'offset', 'orden', 'formato',
+      'riesgo_deuda', 'limit', 'offset', 'orden', 'formato',
     ];
     [...url.searchParams.keys()].forEach((k) => expect(validos).toContain(k));
   });
@@ -570,6 +570,63 @@ describe('ArtAccionComercialBoard', () => {
       fireEvent.click(screen.getByRole('button', { name: /CSV/ }));
       await waitFor(() => expect(csvUrls().length).toBe(2));
       expect(new URL(csvUrls()[1]).searchParams.get('propension')).toBeNull();
+    });
+  });
+
+  // ART-103: chip "Riesgo deuda histórica" (Sí / No / Todos).
+  describe('riesgo deuda histórica (ART-103)', () => {
+    const FILAS = [
+      fila({ empresa_id: 'si', razon_social: 'DEUDA SA', riesgo_deuda_historica: true }),
+      fila({ empresa_id: 'no', razon_social: 'LIMPIA SA', riesgo_deuda_historica: false }),
+      fila({ empresa_id: 'nd', razon_social: 'SINDATO SA', riesgo_deuda_historica: null }),
+    ];
+    const csvUrls = () => globalThis.fetch.mock.calls.map(([u]) => String(u)).filter((u) => u.includes('formato=csv'));
+
+    it('filtra en pantalla sin volver a pedir la lista; null no entra ni en Sí ni en No', async () => {
+      mockLista(FILAS);
+      render(<ArtAccionComercialBoard token={TOKEN} />);
+      await screen.findByText('DEUDA SA');
+      const pedidos = globalThis.fetch.mock.calls.length;
+      const grupo = screen.getByRole('group', { name: 'Riesgo deuda histórica' });
+      expect(within(grupo).getByLabelText('Todos').checked).toBe(true);
+
+      fireEvent.click(within(grupo).getByLabelText('Sí'));
+      expect(screen.getByText('DEUDA SA')).toBeTruthy();
+      expect(screen.queryByText('LIMPIA SA')).toBeNull();
+      expect(screen.queryByText('SINDATO SA')).toBeNull();
+
+      fireEvent.click(within(grupo).getByLabelText('No'));
+      expect(screen.queryByText('DEUDA SA')).toBeNull();
+      expect(screen.getByText('LIMPIA SA')).toBeTruthy();
+      expect(screen.queryByText('SINDATO SA')).toBeNull();
+
+      fireEvent.click(within(grupo).getByLabelText('Todos'));
+      expect(screen.getByText('SINDATO SA')).toBeTruthy();
+      expect(globalThis.fetch.mock.calls.length).toBe(pedidos);
+    });
+
+    it('el CSV lleva ?riesgo_deuda=true|false y nada con Todos', async () => {
+      mockLista(FILAS);
+      render(<ArtAccionComercialBoard token={TOKEN} />);
+      await screen.findByText('DEUDA SA');
+      const grupo = screen.getByRole('group', { name: 'Riesgo deuda histórica' });
+      const csv = () => screen.getByRole('button', { name: /CSV/ });
+
+      fireEvent.click(csv());
+      await waitFor(() => expect(csvUrls().length).toBe(1));
+      expect(new URL(csvUrls()[0]).searchParams.get('riesgo_deuda')).toBeNull();
+
+      fireEvent.click(within(grupo).getByLabelText('Sí'));
+      await waitFor(() => expect(csv().disabled).toBe(false));
+      fireEvent.click(csv());
+      await waitFor(() => expect(csvUrls().length).toBe(2));
+      expect(new URL(csvUrls()[1]).searchParams.get('riesgo_deuda')).toBe('true');
+
+      fireEvent.click(within(grupo).getByLabelText('No'));
+      await waitFor(() => expect(csv().disabled).toBe(false));
+      fireEvent.click(csv());
+      await waitFor(() => expect(csvUrls().length).toBe(3));
+      expect(new URL(csvUrls()[2]).searchParams.get('riesgo_deuda')).toBe('false');
     });
   });
 });

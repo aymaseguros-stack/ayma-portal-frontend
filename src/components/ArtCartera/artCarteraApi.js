@@ -597,7 +597,7 @@ const ACCION_COMERCIAL_PATH = '/api/v1/art/accion-comercial/lista';
 export const PARAMS_LISTA_ACCION_COMERCIAL = [
   'dias_ventana', 'tramo', 'provincia', 'aseguradora_actual',
   'solo_accionables', 'solo_cotizadas', 'solo_elegibles', 'propension',
-  'limit', 'offset', 'orden', 'formato',
+  'riesgo_deuda', 'limit', 'offset', 'orden', 'formato',
 ];
 
 // Tope duro del backend (LIMIT_MAX): 500 filas por pedido. NO es el

@@ -11,7 +11,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup, fireEvent, within } from '@testing-library/react';
 import ArtDotacionPropuestas from './ArtDotacionPropuestas';
 import ArtCotizacionesBandejas from './ArtCotizacionesBandejas';
-import { planAceptacion, alertaInfo, datosPropuesta, enNomencladorClae } from './artCerviConstants';
+import {
+  planAceptacion, alertaInfo, datosPropuesta, enNomencladorClae, ordenarPorVencimiento,
+} from './artCerviConstants';
 import { CLAVE_ROL } from '../../utils/sesion';
 
 afterEach(cleanup);
@@ -469,5 +471,53 @@ describe('ART-98 · CIIU fuera del CLAE', () => {
     await screen.findByTestId('ciiu-999999');
     await waitFor(() => expect(llamadas('GET', '/api/v1/art/ciiu').length).toBe(2));
     expect(screen.queryByTestId('marca-clanae97')).toBeNull();
+  });
+});
+
+// ART-103: los dos grupos ordenados por vence_en_dias ASC; la cabecera invierte.
+describe('ART-103 · orden por vencimiento', () => {
+  it('ordenarPorVencimiento: ASC por defecto, DESC al invertir, sin dato siempre al final', () => {
+    const filas = [
+      prop({ id: 1, vence_en_dias: 80 }),
+      prop({ id: 2, vence_en_dias: null }),
+      prop({ id: 3, vence_en_dias: -5 }),
+      prop({ id: 4, vence_en_dias: 40 }),
+    ];
+    expect(ordenarPorVencimiento(filas).map((p) => p.id)).toEqual([3, 4, 1, 2]);
+    expect(ordenarPorVencimiento(filas, 'desc').map((p) => p.id)).toEqual([1, 4, 3, 2]);
+    // No muta la lista del estado.
+    expect(filas.map((p) => p.id)).toEqual([1, 2, 3, 4]);
+  });
+
+  it('la bandeja arranca con lo que vence antes y la cabecera invierte, en los dos grupos', async () => {
+    const lote = [
+      prop({ id: 1, razon_social: 'TARDE SA', vence_en_dias: 70 }),
+      prop({ id: 2, empresa_id: 'e2', razon_social: 'PRONTO SA', vence_en_dias: 35 }),
+    ];
+    const grandes = [
+      prop({ id: 3, empresa_id: 'e3', razon_social: 'GRANDE LEJOS', vence_en_dias: 88, requiere_revision_individual: true }),
+      prop({ id: 4, empresa_id: 'e4', razon_social: 'GRANDE CERCA', vence_en_dias: 31, requiere_revision_individual: true }),
+    ];
+    mockFetch({
+      'GET /api/v1/art/dotacion-propuestas': (u) => (
+        u.searchParams.get('revision') === 'individual' ? pagina(grandes, 'individual') : pagina(lote, 'lote')
+      ),
+    });
+    render(<ArtDotacionPropuestas token={TOKEN} />);
+    await screen.findByText('PRONTO SA');
+    const orden = () => screen.getAllByTestId(/^propuesta-\d+$/).map((tr) => tr.getAttribute('data-testid'));
+
+    expect(orden()).toEqual(['propuesta-2', 'propuesta-1']);
+    const cabecera = screen.getByRole('button', { name: /Vence en/ });
+    expect(cabecera.closest('th').getAttribute('aria-sort')).toBe('ascending');
+
+    fireEvent.click(cabecera);
+    expect(orden()).toEqual(['propuesta-1', 'propuesta-2']);
+    expect(cabecera.closest('th').getAttribute('aria-sort')).toBe('descending');
+
+    fireEvent.click(cabecera);
+    fireEvent.click(screen.getByRole('button', { name: /^Revisar a mano/ }));
+    await screen.findByText('GRANDE CERCA');
+    expect(orden()).toEqual(['propuesta-4', 'propuesta-3']);
   });
 });
