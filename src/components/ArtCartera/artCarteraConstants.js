@@ -453,5 +453,14 @@ export const PROPENSIONES_CAMBIO = [
   { id: 'SIN_HISTORIAL', label: 'Sin historial', clase: '', detalle: 'Menos de 12 meses de datos' },
 ];
 
+// ART-103: filtro de riesgo de deuda histórica (ART-99,
+// `riesgo_deuda_historica`). `valor` es lo que viaja como ?riesgo_deuda=;
+// las filas con null no entran ni en Sí ni en No, igual que en el backend.
+export const RIESGOS_DEUDA = [
+  { id: '', label: 'Todos', valor: null },
+  { id: 'si', label: 'Sí', valor: true },
+  { id: 'no', label: 'No', valor: false },
+];
+
 export const propensionInfo = (id) => PROPENSIONES_CAMBIO.find((p) => p.id === id)
   || (id ? { id, label: id, clase: 'bg-slate-600/40 text-slate-300', detalle: '' } : null);

@@ -32,14 +32,23 @@ const Dato = ({ label, children }) => (
   </div>
 );
 
-// ART-99: causa del hueco (historial_art.causa_de_baja en el backend). Un
-// código que no esté acá se muestra crudo.
+// ART-99 / ART-102: causa del hueco (historial_art.clasificar_baja en el
+// backend, igualdad contra los 9 motivos SRT). Un código que no esté acá se
+// muestra crudo.
 const CAUSA_HUECO = {
   FALTA_DE_PAGO: 'Falta de pago',
   RESCISION_ART: 'Rescisión de la ART',
   BAJA_EMPLEADOR: 'Baja del empleador',
-  SIN_DATO: 'Causa sin dato',
+  CAMBIO: 'Cambio de aseguradora',
+  NO_ES_CAMBIO: 'Absorción / cesión de cartera (no cuenta como cambio)',
+  VIGENTE: 'Afiliación vigente',
+  SIN_DATO: 'Sin dato',
 };
+
+// ART-103: las fechas del Historial ART van con dos dígitos (01/09/2018);
+// el `fechaCorta` por defecto de es-AR da 1/9/2018.
+const FECHA_2D = { day: '2-digit', month: '2-digit', year: 'numeric' };
+const fechaHist = (valor) => fechaCorta(valor, FECHA_2D);
 
 // ART-99: `huecos` pasó de cantidad a lista; `huecos_cantidad` es la
 // cantidad. Se acepta el formato viejo por si el backend todavía no se
@@ -73,7 +82,7 @@ export const HistorialArt = ({ h }) => {
           <ul className="mt-1 space-y-0.5 text-xs text-slate-300" data-testid="historial-art-huecos">
             {detalleHuecos.map((x) => (
               <li key={`${x.desde}-${x.hasta}`}>
-                {fechaCorta(x.desde)} → {fechaCorta(x.hasta)} · {numeroAr(x.dias)} {x.dias === 1 ? 'día' : 'días'}
+                {fechaHist(x.desde)} → {fechaHist(x.hasta)} · {numeroAr(x.dias)} {x.dias === 1 ? 'día' : 'días'}
                 {' · '}
                 <span className={x.causa === 'FALTA_DE_PAGO' ? 'text-red-300' : undefined}>
                   {CAUSA_HUECO[x.causa] || x.causa}
@@ -91,16 +100,23 @@ export const HistorialArt = ({ h }) => {
           {h.riesgo_deuda_historica === null ? sinDato : (
             <span className={h.riesgo_deuda_historica ? 'text-red-300' : 'text-slate-300'}>
               {h.riesgo_deuda_historica ? 'Sí — falta de pago en los últimos 5 años' : 'No'}
-              {h.ultima_falta_de_pago ? ` · última falta de pago ${fechaCorta(h.ultima_falta_de_pago)}` : ''}
+              {h.ultima_falta_de_pago ? ` · última falta de pago ${fechaHist(h.ultima_falta_de_pago)}` : ''}
             </span>
           )}
         </Dato>
       )}
       <Dato label="Último cambio">
         {h.fecha_ultimo_cambio
-          ? `${fechaCorta(h.fecha_ultimo_cambio)}${h.meses_desde_ultimo_cambio !== null && h.meses_desde_ultimo_cambio !== undefined ? ` · hace ${meses(h.meses_desde_ultimo_cambio)}` : ''}`
+          ? `${fechaHist(h.fecha_ultimo_cambio)}${h.meses_desde_ultimo_cambio !== null && h.meses_desde_ultimo_cambio !== undefined ? ` · hace ${meses(h.meses_desde_ultimo_cambio)}` : ''}`
           : 'Nunca cambió'}
       </Dato>
+      {h.absorciones > 0 && (
+        <Dato label="Absorciones/cesiones">
+          <span title="La ART desapareció dentro de otra: no cuenta como cambio ni corta la permanencia (ART-101/102).">
+            {numeroAr(h.absorciones)}
+          </span>
+        </Dato>
+      )}
       <Dato label="Cambios en 5 años">{numeroAr(h.cambios_ultimos_5_anios ?? 0)}</Dato>
       <Dato label="Propensión">
         {prop ? (
@@ -265,9 +281,9 @@ const ArtAccionComercialDetalle = ({ token, fila, onCerrar }) => {
                               </span>
                             )}
                           </td>
-                          <td className="px-3 py-2 text-slate-300">{fechaCorta(c.fecha_inicio) || '—'}</td>
+                          <td className="px-3 py-2 text-slate-300">{fechaHist(c.fecha_inicio) || '—'}</td>
                           <td className="px-3 py-2 text-slate-300">
-                            {c.fecha_fin ? fechaCorta(c.fecha_fin) : <span className="text-green-400">vigente</span>}
+                            {c.fecha_fin ? fechaHist(c.fecha_fin) : <span className="text-green-400">vigente</span>}
                           </td>
                           <td className="px-3 py-2 text-slate-400">{c.motivo_baja || '—'}</td>
                         </tr>

@@ -46,6 +46,23 @@ export const datosPropuesta = (p) => {
   };
 };
 
+// ART-103: orden de la bandeja por `vence_en_dias`. Por defecto ASC (lo que
+// vence antes, primero); `dir='desc'` lo invierte. Las filas sin dato van
+// SIEMPRE al final, en las dos direcciones: un "—" no vence ni antes ni
+// después. El orden es estable (empate = el orden del backend).
+export const ordenarPorVencimiento = (lista, dir = 'asc') => {
+  const signo = dir === 'desc' ? -1 : 1;
+  return (lista || [])
+    .map((p, i) => ({ p, i, v: datosPropuesta(p).venceEnDias }))
+    .sort((a, b) => {
+      if (a.v === null && b.v === null) return a.i - b.i;
+      if (a.v === null) return 1;
+      if (b.v === null) return -1;
+      return (a.v - b.v) * signo || a.i - b.i;
+    })
+    .map((x) => x.p);
+};
+
 // Un valor tipeado es válido si es un entero > 0 (mismo límite que
 // AceptarPropuestaRequest.valor, gt=0).
 export const valorValido = (texto) => {

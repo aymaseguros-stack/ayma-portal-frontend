@@ -7,7 +7,7 @@ import {
   obtenerListaCompletaAccionComercial,
 } from './artCarteraApi';
 import {
-  PROPENSIONES_CAMBIO, aseguradoraLabel, decimalAr, numeroAr, pesosAr, propensionInfo,
+  PROPENSIONES_CAMBIO, RIESGOS_DEUDA, aseguradoraLabel, decimalAr, numeroAr, pesosAr, propensionInfo,
 } from './artCarteraConstants';
 import { descargarBlobComoArchivo } from './descargaArchivo';
 import { fechaCorta } from '../../utils/fechas';
@@ -289,6 +289,10 @@ const ArtAccionComercialBoard = ({ token }) => {
   // que la lista se filtra en la pantalla (ya están todas las filas) y al
   // CSV sólo viaja cuando hay exactamente una elegida.
   const [propensiones, setPropensiones] = useState(() => new Set());
+  // ART-103: riesgo de deuda histórica (Sí / No / Todos). Igual que
+  // propensión: se filtra en la pantalla y al CSV viaja como ?riesgo_deuda=.
+  const [riesgoDeuda, setRiesgoDeuda] = useState('');
+  const valorRiesgoDeuda = RIESGOS_DEUDA.find((r) => r.id === riesgoDeuda)?.valor ?? null;
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -359,9 +363,10 @@ const ArtAccionComercialBoard = ({ token }) => {
     if (telefono === 'con' && !f.telefono_principal) return false;
     if (telefono === 'sin' && f.telefono_principal) return false;
     if (propensiones.size && !propensiones.has(f.propension_cambio)) return false;
+    if (valorRiesgoDeuda !== null && f.riesgo_deuda_historica !== valorRiesgoDeuda) return false;
     if (!filaCoincideBusqueda(f, busqueda)) return false;
     return true;
-  }), [items, fuenteAlicuota, telefono, propensiones, busqueda]);
+  }), [items, fuenteAlicuota, telefono, propensiones, valorRiesgoDeuda, busqueda]);
 
   const hayFiltroDePantalla = Boolean(fuenteAlicuota || telefono || busqueda.trim());
   const togglePropension = (id) => setPropensiones((prev) => {
@@ -378,9 +383,9 @@ const ArtAccionComercialBoard = ({ token }) => {
     setErrorCsv(null);
     setAvisoExport(null);
     try {
-      const filtrosCsv = propensiones.size === 1
-        ? { ...filtrosServidor, propension: [...propensiones][0] }
-        : filtrosServidor;
+      const filtrosCsv = { ...filtrosServidor };
+      if (propensiones.size === 1) filtrosCsv.propension = [...propensiones][0];
+      if (valorRiesgoDeuda !== null) filtrosCsv.riesgo_deuda = valorRiesgoDeuda;
       const { blob, exportacion } = await descargarCsvAccionComercial(token, filtrosCsv);
       descargarBlobComoArchivo(blob, 'accion-comercial-art.csv');
       // Sólo se avisa cuando el backend DIJO que cortó. Sin truncamiento no
@@ -391,7 +396,7 @@ const ArtAccionComercialBoard = ({ token }) => {
     } finally {
       setDescargando(false);
     }
-  }, [token, filtrosServidor, propensiones]);
+  }, [token, filtrosServidor, propensiones, valorRiesgoDeuda]);
 
   const resumen = data?.resumen || null;
 
@@ -507,6 +512,29 @@ const ArtAccionComercialBoard = ({ token }) => {
                   onChange={() => togglePropension(p.id)}
                 />
                 {p.label}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend className={labelClass}>Riesgo deuda histórica</legend>
+          <div className="flex items-center gap-1 flex-wrap">
+            {RIESGOS_DEUDA.map((r) => (
+              <label
+                key={r.id || 'todos'}
+                className={`flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border cursor-pointer ${
+                  riesgoDeuda === r.id ? 'border-blue-500 bg-blue-500/20 text-white' : 'border-slate-600 bg-slate-700 text-slate-300'
+                }`}
+                title="Baja por falta de pago en los últimos 5 años (ART-99)"
+              >
+                <input
+                  type="radio"
+                  name="riesgo-deuda"
+                  className="sr-only"
+                  checked={riesgoDeuda === r.id}
+                  onChange={() => setRiesgoDeuda(r.id)}
+                />
+                {r.label}
               </label>
             ))}
           </div>
@@ -687,7 +715,7 @@ const ArtAccionComercialBoard = ({ token }) => {
       {!loading && (
         <p className="text-xs text-slate-500">
           {numeroAr(filas.length)} de {numeroAr(totalBackend)} filas traídas
-          {hayFiltroDePantalla || propensiones.size ? ' (filtros de pantalla aplicados)' : ''}.
+          {hayFiltroDePantalla || propensiones.size || riesgoDeuda ? ' (filtros de pantalla aplicados)' : ''}.
         </p>
       )}
 

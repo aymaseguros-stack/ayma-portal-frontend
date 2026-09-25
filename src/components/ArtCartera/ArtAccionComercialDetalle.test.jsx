@@ -12,7 +12,6 @@ import React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/react';
 import ArtAccionComercialBoard from './ArtAccionComercialBoard';
-import { fechaCorta } from '../../utils/fechas';
 
 afterEach(cleanup);
 
@@ -148,7 +147,7 @@ describe('detalle de empresa de acción comercial', () => {
     expect(t).toContain('Cambios de ART2');
     expect(t).toContain('30 meses / 28 meses');
     expect(t).toContain('Huecos1 · 3 meses sin cobertura');
-    expect(t).toContain(`Último cambio${fechaCorta('2023-05-01')} · hace 40 meses`);
+    expect(t).toContain('Último cambio01/05/2023 · hace 40 meses');
     expect(t).not.toContain('Nunca cambió');
     expect(t).toContain('Cambios en 5 años2');
     expect(t).toContain('Rotativa');
@@ -191,9 +190,54 @@ describe('detalle de empresa de acción comercial', () => {
     const t = (await screen.findByTestId('historial-art')).textContent;
     expect(t).toContain('Huecos1 · 1 mes sin cobertura');
     const huecos = screen.getByTestId('historial-art-huecos').textContent;
-    expect(huecos).toContain(`${fechaCorta('2018-09-01')} → ${fechaCorta('2018-10-27')} · 56 días`);
+    expect(huecos).toContain('01/09/2018 → 27/10/2018 · 56 días');
     expect(huecos).toContain('Falta de pago');
     expect(huecos).toContain('volvió a la misma ART');
-    expect(t).toContain(`Riesgo deuda históricaNo · última falta de pago ${fechaCorta('2018-09-01')}`);
+    expect(t).toContain('Riesgo deuda históricaNo · última falta de pago 01/09/2018');
+  });
+
+  // ART-103: etiquetas de las causas de ART-102 y absorciones/cesiones.
+  it('etiqueta CAMBIO, NO_ES_CAMBIO, VIGENTE y SIN_DATO, y muestra absorciones', async () => {
+    const hueco = (causa, desde) => ({
+      desde, hasta: '2020-03-10', dias: 9, meses: 0, causa,
+      art_saliente: 'mapfre', art_entrante: 'asociart', misma_art: false,
+    });
+    await abrirDetalle({}, {
+      historial_art: {
+        ...HISTORIAL,
+        huecos: [
+          hueco('CAMBIO', '2020-03-01'),
+          hueco('NO_ES_CAMBIO', '2019-03-01'),
+          hueco('VIGENTE', '2018-03-01'),
+          hueco('SIN_DATO', '2017-03-01'),
+          hueco('CAUSA_NUEVA', '2016-03-01'),
+        ],
+        huecos_cantidad: 5,
+        absorciones: 2,
+      },
+    });
+    const huecos = (await screen.findByTestId('historial-art-huecos')).textContent;
+    expect(huecos).toContain('Cambio de aseguradora');
+    expect(huecos).toContain('Absorción / cesión de cartera (no cuenta como cambio)');
+    expect(huecos).toContain('Afiliación vigente');
+    expect(huecos).toContain('Sin dato');
+    expect(huecos).not.toContain('Causa sin dato');
+    // Un código que el front no conoce sale crudo.
+    expect(huecos).toContain('CAUSA_NUEVA');
+    expect(screen.getByTestId('historial-art').textContent).toContain('Absorciones/cesiones2');
+  });
+
+  it('sin absorciones no muestra la línea', async () => {
+    await abrirDetalle({}, { historial_art: { ...HISTORIAL, absorciones: 0 } });
+    expect((await screen.findByTestId('historial-art')).textContent).not.toContain('Absorciones');
+  });
+
+  it('las fechas del historial van con dos dígitos (01/09/2018)', async () => {
+    await abrirDetalle({}, {
+      historial_art: { ...HISTORIAL, riesgo_deuda_historica: true, ultima_falta_de_pago: '2018-09-01' },
+    });
+    const t = (await screen.findByTestId('historial-art')).textContent;
+    expect(t).toContain('última falta de pago 01/09/2018');
+    expect(t).not.toMatch(/[^0-9]1\/9\/2018/);
   });
 });

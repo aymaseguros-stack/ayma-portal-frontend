@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Modal from '../Modal';
 import {
   aceptarLotePropuestasDotacion,
@@ -18,6 +18,7 @@ import {
   resultadoInfo,
   textoError,
   valorValido,
+  ordenarPorVencimiento,
 } from './artCerviConstants';
 import { buscarCiiu, MAX_RESULTADOS_CIIU } from './artCarteraApi';
 import { decimalAr, numeroAr } from './artCarteraConstants';
@@ -149,6 +150,8 @@ const RechazoModal = ({ propuesta, onCerrar, onConfirmar }) => {
 const ArtDotacionPropuestas = ({ token, onCambio }) => {
   const esAdmin = useEsAdmin();
   const [grupo, setGrupo] = useState('lote');
+  // ART-103: los dos grupos se ordenan por vencimiento, ASC por defecto.
+  const [ordenVence, setOrdenVence] = useState('asc');
   const [lote, setLote] = useState([]);
   const [individual, setIndividual] = useState([]);
   const [porRevision, setPorRevision] = useState(null);
@@ -326,7 +329,10 @@ const ArtDotacionPropuestas = ({ token, onCambio }) => {
   const nLote = porRevision?.lote ?? lote.length;
   const nInd = porRevision?.individual ?? individual.length;
   const seleccionadas = lote.filter((p) => seleccion.has(p.id)).length;
-  const filas = grupo === 'lote' ? lote : individual;
+  const filas = useMemo(
+    () => ordenarPorVencimiento(grupo === 'lote' ? lote : individual, ordenVence),
+    [grupo, lote, individual, ordenVence],
+  );
   const columnas = 11 + (esAdmin ? 1 : 0) + (grupo === 'lote' && esAdmin ? 1 : 0);
 
   const v40 = metrica?.ventana_40;
@@ -452,7 +458,16 @@ const ArtDotacionPropuestas = ({ token, onCambio }) => {
                 )}
                 <th className={thClass}>Empresa</th>
                 <th className={thClass}>CUIT</th>
-                <th className={thClass}>Vence en</th>
+                <th className={thClass} aria-sort={ordenVence === 'asc' ? 'ascending' : 'descending'}>
+                  <button
+                    type="button"
+                    className="uppercase hover:text-slate-200"
+                    onClick={() => setOrdenVence((o) => (o === 'asc' ? 'desc' : 'asc'))}
+                    title="Invertir el orden por vencimiento"
+                  >
+                    Vence en {ordenVence === 'asc' ? '▲' : '▼'}
+                  </button>
+                </th>
                 <th className={thClass}>CIIU</th>
                 <th className={thClass}>Planilla</th>
                 <th className={thClass}>Prom. sector</th>
