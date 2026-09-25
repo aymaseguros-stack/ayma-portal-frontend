@@ -104,3 +104,46 @@ export const textoError = (error) => {
   if (typeof error?.mensaje === 'string') return error.mensaje;
   try { return JSON.stringify(error); } catch { return String(error); }
 };
+
+// ART-95: por qué un rechazo dejó de estar vigente. Lo decide el backend
+// (`worker_cervi.estado_del_rechazo`); acá sólo se etiqueta. Un motivo que
+// no esté en el mapa se muestra CRUDO.
+export const MOTIVO_REAPERTURA_LABEL = {
+  REABIERTA: 'Reabierta a mano',
+  DOTACION_NUEVA: 'La empresa recibió una dotación nueva',
+  CIIU_CAMBIO: 'Cambió el CIIU de la empresa',
+  RECHAZO_POSTERIOR: 'Hay un rechazo más nuevo que decide',
+};
+
+export const motivoReaperturaLabel = (m) => (m ? (MOTIVO_REAPERTURA_LABEL[m] || m) : null);
+
+// "0,44 %": dos decimales fijos. La métrica llega como Decimal (string)
+// ya redondeada por el backend a 0.01; acá no se recalcula.
+export const pctDosDecimales = (valor) => {
+  if (valor === null || valor === undefined || valor === '') return null;
+  const n = Number(valor);
+  if (!Number.isFinite(n)) return null;
+  return `${n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %`;
+};
+
+// ART-98 (SÓLO SEÑALIZACIÓN): un CIIU de la cola que no tiene Cuadro 1 Y
+// tampoco aparece en el catálogo CLAE que usa el buscador de CIIU
+// (GET /art/ciiu?q=) es, con alta probabilidad, un código ClaNAE-97 viejo.
+// La resolución (equivalencia T30) es del backend; la pantalla sólo marca.
+//
+// Se compara por dígitos y a 6 posiciones: la base conviene códigos de 5
+// dígitos con el cero a la izquierda perdido (ciiu_longitud).
+export const ETIQUETA_CLANAE97 = 'código ClaNAE-97: requiere resolución T30';
+
+const codigoCiiu6 = (c) => {
+  const d = String(c ?? '').replace(/\D/g, '');
+  return d ? d.padStart(6, '0') : '';
+};
+
+// true = está en el CLAE; false = no está (marcar); null = no se puede
+// decir (sin código o sin respuesta del catálogo): no se marca.
+export const enNomencladorClae = (codigo, itemsCatalogo) => {
+  const buscado = codigoCiiu6(codigo);
+  if (!buscado || !Array.isArray(itemsCatalogo)) return null;
+  return itemsCatalogo.some((it) => codigoCiiu6(it?.codigo) === buscado);
+};

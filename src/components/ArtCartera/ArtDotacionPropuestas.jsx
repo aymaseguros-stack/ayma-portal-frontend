@@ -9,16 +9,21 @@ import {
   rechazarPropuestaDotacion,
 } from './artCotizacionesApi';
 import {
+  ETIQUETA_CLANAE97,
   alertaInfo,
   datosPropuesta,
+  enNomencladorClae,
+  pctDosDecimales,
   planAceptacion,
   resultadoInfo,
   textoError,
   valorValido,
 } from './artCerviConstants';
+import { buscarCiiu, MAX_RESULTADOS_CIIU } from './artCarteraApi';
 import { decimalAr, numeroAr } from './artCarteraConstants';
 import { useEsAdmin } from '../../utils/sesion';
 import ArtCorridaCerviModal from './ArtCorridaCerviModal';
+import ArtDotacionRechazadas from './ArtDotacionRechazadas';
 
 const thClass = 'text-left px-3 py-2 font-medium whitespace-nowrap';
 const tdClass = 'px-3 py-2';
@@ -153,6 +158,13 @@ const ArtDotacionPropuestas = ({ token, onCambio }) => {
   const [errorMetrica, setErrorMetrica] = useState(null);
   const [ciius, setCiius] = useState(null);
   const [errorCiius, setErrorCiius] = useState(null);
+  // ART-98: por código, si está en el catálogo CLAE (true/false) o si no se
+  // pudo saber (null). Sólo señaliza: no cambia la cola ni la corrida.
+  const [enClae, setEnClae] = useState({});
+  const [rechazadas, setRechazadas] = useState([]);
+  const [nRechazadas, setNRechazadas] = useState(null);
+  const [loadingRech, setLoadingRech] = useState(true);
+  const [errorRech, setErrorRech] = useState(null);
   const [recarga, setRecarga] = useState(0);
   const [seleccion, setSeleccion] = useState(() => new Set());
   const [valores, setValores] = useState({});
@@ -187,8 +199,31 @@ const ArtDotacionPropuestas = ({ token, onCambio }) => {
       .then((m) => { if (!cancelado) { setMetrica(m); setErrorMetrica(null); } })
       .catch((err) => { if (!cancelado) setErrorMetrica(err.message); });
     obtenerCiiuSinCuadro(token)
-      .then((c) => { if (!cancelado) { setCiius(c); setErrorCiius(null); } })
+      .then((c) => {
+        if (cancelado) return;
+        setCiius(c);
+        setErrorCiius(null);
+        // ART-98: cada código se busca en el catálogo CLAE del buscador de
+        // CIIU (GET /art/ciiu?q=, prefijo). Son pocos códigos (los de la
+        // última corrida) y el catálogo es de lectura para cualquier rol.
+        const codigos = [...new Set((c?.items || []).map((it) => it.ciiu).filter(Boolean))];
+        codigos.forEach((codigo) => {
+          buscarCiiu(token, codigo, { limit: MAX_RESULTADOS_CIIU })
+            .then((r) => { if (!cancelado) setEnClae((prev) => ({ ...prev, [codigo]: enNomencladorClae(codigo, r?.items) })); })
+            .catch(() => { if (!cancelado) setEnClae((prev) => ({ ...prev, [codigo]: null })); });
+        });
+      })
       .catch((err) => { if (!cancelado) setErrorCiius(err.message); });
+    setLoadingRech(true);
+    listarTodasPropuestasDotacion(token, { estado: 'RECHAZADA', revision: 'todas' })
+      .then((r) => {
+        if (cancelado) return;
+        setRechazadas(r.items || []);
+        setNRechazadas(Number.isFinite(r.total) ? r.total : (r.items || []).length);
+        setErrorRech(null);
+      })
+      .catch((err) => { if (!cancelado) setErrorRech(err.message); })
+      .finally(() => { if (!cancelado) setLoadingRech(false); });
     return () => { cancelado = true; };
   }, [token, recarga]);
 
@@ -309,7 +344,7 @@ const ArtDotacionPropuestas = ({ token, onCambio }) => {
         <div className="bg-slate-800 rounded-2xl border border-slate-700 p-4" data-testid="metrica-bloque3">
           <p className="text-xs text-slate-400 uppercase">% comisión Bloque 3 sobre dotación ≥ MEDIA</p>
           <p className="text-2xl font-bold mt-1">
-            {pct === null || pct === undefined ? '—' : `${decimalAr(pct, { maximumFractionDigits: 1 })}%`}
+            {pctDosDecimales(pct) ?? '—'}
           </p>
           {metrica && (
             <p className="text-xs text-slate-500 mt-1">{numeroAr(metrica.bloque3_empresas)} empresas en Bloque 3</p>
@@ -327,6 +362,9 @@ const ArtDotacionPropuestas = ({ token, onCambio }) => {
           </button>
           <button type="button" className={grupoClass(grupo === 'individual')} aria-pressed={grupo === 'individual'} onClick={() => setGrupo('individual')}>
             Revisar a mano <span className="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-slate-900/60" data-testid="contador-individual">{numeroAr(nInd)}</span>
+          </button>
+          <button type="button" className={grupoClass(grupo === 'rechazadas')} aria-pressed={grupo === 'rechazadas'} onClick={() => setGrupo('rechazadas')}>
+            Rechazadas ({nRechazadas === null ? '…' : numeroAr(nRechazadas)})
           </button>
         </nav>
         <div className="flex items-center gap-2">
@@ -354,6 +392,11 @@ const ArtDotacionPropuestas = ({ token, onCambio }) => {
       {grupo === 'lote' && esAdmin && (
         <p className="text-xs text-slate-500">
           El lote acepta cada una con el valor propuesto. Si editás el valor de una fila, esa se acepta sola con tu valor (queda EDITADA).
+        </p>
+      )}
+      {grupo === 'rechazadas' && (
+        <p className="text-xs text-slate-500">
+          Mientras un rechazo esté vigente, CERVI no vuelve a proponer la empresa. Reabrir no borra el rechazo: la próxima corrida la vuelve a proponer.
         </p>
       )}
       {grupo === 'individual' && (
@@ -384,6 +427,20 @@ const ArtDotacionPropuestas = ({ token, onCambio }) => {
       )}
 
       <div className="grid gap-4 xl:grid-cols-[1fr_16rem]">
+        {grupo === 'rechazadas' ? (
+          <div className="space-y-2">
+            {errorRech && (
+              <p role="alert" className="text-sm text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">{errorRech}</p>
+            )}
+            <ArtDotacionRechazadas
+              token={token}
+              filas={rechazadas}
+              loading={loadingRech}
+              esAdmin={esAdmin}
+              onReabierta={refrescar}
+            />
+          </div>
+        ) : (
         <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-x-auto">
           <table className="w-full text-sm" aria-label={grupo === 'lote' ? 'Para aceptar en lote' : 'Revisar a mano'}>
             <thead className="text-xs uppercase text-slate-400 border-b border-slate-700">
@@ -497,15 +554,20 @@ const ArtDotacionPropuestas = ({ token, onCambio }) => {
             </tbody>
           </table>
         </div>
+        )}
 
         <aside className="bg-slate-800 rounded-2xl border border-slate-700 p-4 text-sm space-y-2 h-fit" aria-label="CIIU sin Cuadro 1">
-          <p className="font-medium">
-            CIIU sin Cuadro 1 <span className="text-slate-400" data-testid="contador-ciiu">({ciius ? numeroAr(ciius.total_ciius) : '—'})</span>
+          <p className="font-medium" data-testid="titulo-ciiu">
+            CIIU sin Cuadro 1
+            {ciius && (
+              <span className="text-slate-400">
+                {` · ${numeroAr(ciius.total_ciius)} ${ciius.total_ciius === 1 ? 'código' : 'códigos'}`}
+                {` · ${numeroAr(ciius.total_empresas)} ${ciius.total_empresas === 1 ? 'empresa' : 'empresas'}`}
+              </span>
+            )}
           </p>
           {ciius && (
-            <p className="text-xs text-slate-500">
-              {numeroAr(ciius.total_empresas)} empresas · origen {ciius.origen}
-            </p>
+            <p className="text-xs text-slate-500">origen {ciius.origen}</p>
           )}
           {errorCiius && <p role="alert" className="text-xs text-red-300">{errorCiius}</p>}
           {!ciius && !errorCiius && <p className="text-xs text-slate-500">Cargando…</p>}
@@ -513,9 +575,20 @@ const ArtDotacionPropuestas = ({ token, onCambio }) => {
           {ciius && ciius.items?.length > 0 && (
             <ul className="divide-y divide-slate-700/60 max-h-80 overflow-y-auto">
               {ciius.items.map((c) => (
-                <li key={c.ciiu ?? 'sin-ciiu'} className="flex justify-between py-1">
-                  <span className="text-slate-300">{c.ciiu || 'Sin CIIU'}</span>
-                  <span className="text-slate-400">{numeroAr(c.empresas)}</span>
+                <li key={c.ciiu ?? 'sin-ciiu'} className="py-1" data-testid={`ciiu-${c.ciiu ?? 'sin'}`}>
+                  <div className="flex justify-between">
+                    <span className="text-slate-300">{c.ciiu || 'Sin CIIU'}</span>
+                    <span className="text-slate-400">{numeroAr(c.empresas)}</span>
+                  </div>
+                  {c.ciiu && enClae[c.ciiu] === false && (
+                    <span
+                      className={`${badgeBase} mt-1 bg-orange-500/20 text-orange-300 whitespace-normal`}
+                      title="No está en el catálogo CLAE vigente ni en el Cuadro 1. La resolución es del backend (ART-98)."
+                      data-testid="marca-clanae97"
+                    >
+                      {ETIQUETA_CLANAE97}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>
@@ -523,7 +596,7 @@ const ArtDotacionPropuestas = ({ token, onCambio }) => {
         </aside>
       </div>
 
-      {!loading && (
+      {!loading && grupo !== 'rechazadas' && (
         <p className="text-xs text-slate-500">
           {numeroAr(filas.length)} propuestas en este grupo. Al aceptar, la empresa queda con dotación DECLARADA · confianza MEDIA.
         </p>

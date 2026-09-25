@@ -153,6 +153,14 @@ export const rechazarPropuestaDotacion = (token, id, motivo) => postJson(
   token, `/api/v1/art/dotacion-propuestas/${encodeURIComponent(id)}/rechazar`, { motivo },
 );
 
+// POST /art/dotacion-propuestas/{id}/reabrir (ADMIN, ART-95) - la
+// propuesta SIGUE RECHAZADA; se marca reabierta y la próxima corrida de
+// CERVI vuelve a proponer la empresa. 409 si no está RECHAZADA o si la
+// empresa tiene un rechazo más nuevo: el `detail` viaja en el Error.
+export const reabrirPropuestaDotacion = (token, id) => postJson(
+  token, `/api/v1/art/dotacion-propuestas/${encodeURIComponent(id)}/reabrir`, {},
+);
+
 // POST /art/dotacion-propuestas/aceptar-lote - cada id con su valor
 // PROPUESTO (el lote no acepta valores). Un grande sale REQUIERE_REVISION
 // salvo que venga en `forzar_ids`; desde esta pantalla nunca se fuerza.
