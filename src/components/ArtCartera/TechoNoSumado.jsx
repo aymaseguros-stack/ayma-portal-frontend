@@ -7,6 +7,8 @@ import { TOOLTIP_TECHO_NO_SUMADO, numeroAr, pesosAr } from './artCarteraConstant
 // suman acá. Con cantidad 0 (o sin el campo) no se muestra nada.
 // `suma_comision_oferta` null = ese bloque no calcula oferta
 // (resumen-direccion): se omite el tramo, no se muestra "$ 0".
+// `sin_comision` (backend #220) = filas BAJA sin comisión actual (falta
+// alícuota o masa): no están en `cantidad`; con > 0 se agrega el tramo.
 const TechoNoSumado = ({ techo, formatear = pesosAr, className = 'text-xs' }) => {
   const cantidad = Number(techo?.cantidad);
   if (!Number.isFinite(cantidad) || cantidad <= 0) return null;
@@ -14,6 +16,7 @@ const TechoNoSumado = ({ techo, formatear = pesosAr, className = 'text-xs' }) =>
   const oferta = techo.suma_comision_oferta === null || techo.suma_comision_oferta === undefined
     ? null
     : formatear(techo.suma_comision_oferta);
+  const sinComision = Number(techo.sin_comision);
   return (
     <p
       className={`text-slate-500 ${className}`}
@@ -23,6 +26,9 @@ const TechoNoSumado = ({ techo, formatear = pesosAr, className = 'text-xs' }) =>
       Techo no sumado (masa BAJA): {numeroAr(cantidad)} {cantidad === 1 ? 'empresa' : 'empresas'}
       {actual ? ` · ≤ ${actual} comisión actual` : ''}
       {oferta ? ` · ≤ ${oferta} oferta` : ''}
+      {Number.isFinite(sinComision) && sinComision > 0
+        ? ` · ${numeroAr(sinComision)} sin dato (falta alícuota o masa)`
+        : ''}
     </p>
   );
 };
