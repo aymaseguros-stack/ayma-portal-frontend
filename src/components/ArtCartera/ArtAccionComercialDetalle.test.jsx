@@ -171,4 +171,29 @@ describe('detalle de empresa de acción comercial', () => {
     expect(t).not.toContain('sin cobertura');
     expect(t).toContain('Estable');
   });
+
+  // ART-99: `huecos` es una lista con causa; la cantidad en `huecos_cantidad`.
+  it('muestra cada hueco con días y causa, y el riesgo de deuda', async () => {
+    await abrirDetalle({}, {
+      historial_art: {
+        ...HISTORIAL,
+        huecos: [{
+          desde: '2018-09-01', hasta: '2018-10-27', dias: 56, meses: 1, causa: 'FALTA_DE_PAGO',
+          art_saliente: 'la_segunda', art_entrante: 'la_segunda', misma_art: true,
+        }],
+        huecos_cantidad: 1,
+        meses_sin_cobertura_total: 1,
+        huecos_falta_de_pago: 1,
+        ultima_falta_de_pago: '2018-09-01',
+        riesgo_deuda_historica: false,
+      },
+    });
+    const t = (await screen.findByTestId('historial-art')).textContent;
+    expect(t).toContain('Huecos1 · 1 mes sin cobertura');
+    const huecos = screen.getByTestId('historial-art-huecos').textContent;
+    expect(huecos).toContain(`${fechaCorta('2018-09-01')} → ${fechaCorta('2018-10-27')} · 56 días`);
+    expect(huecos).toContain('Falta de pago');
+    expect(huecos).toContain('volvió a la misma ART');
+    expect(t).toContain(`Riesgo deuda históricaNo · última falta de pago ${fechaCorta('2018-09-01')}`);
+  });
 });
