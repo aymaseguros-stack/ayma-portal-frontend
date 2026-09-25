@@ -7,6 +7,11 @@ import { estrategiaArtInfo, estrategiaArtBadgeClass } from '../Crm/artEstrategia
 import { obtenerEmpresaArt, quitarF931Art } from './artCarteraApi';
 import ArtEstadoModal from './ArtEstadoModal';
 import ArtDocumentosChecklist from './ArtDocumentosChecklist';
+import ArtF931PdfModal from './ArtF931PdfModal';
+import { obtenerF931AplicadoDeEmpresa } from './artF931Api';
+import { periodoF931 } from './artF931Constants';
+import { pctDosDecimales } from './artCerviConstants';
+import { useEsAdmin } from '../../utils/sesion';
 import {
   ASEGURADORAS_ART, riesgoBadgeClass, estadoArtInfo, esAlicuotaNoCompetitiva, decimalAr,
   aseguradoraLabel, confianzaMasaInfo, pesosAr,
@@ -95,13 +100,34 @@ const HistorialContratosTabla = ({ contratos }) => {
 //
 // La confirmación no es ceremonia: es la única acción destructiva de la
 // ficha y el dato no está en ninguna otra pantalla para recuperarlo.
-const BloqueF931 = ({ token, empresa, onCambiado }) => {
+//
+// OPERACIONES-0010 (@VALENTINI): "Subir F931 (PDF)" abre la ingesta desde el
+// PDF de ARCA (dry_run primero, confirmar después). La alícuota variable
+// sale del F.931 APLICADO de `empresa_f931` (derivada por el backend): una
+// carga manual no tiene LRT y no la muestra. ALTA · F931 es la etiqueta de
+// la jerarquía de dotación con F931_VIGENCIA_6M apagado (default del
+// backend): todo `dotacion_f931 > 0` lee ALTA.
+const BloqueF931 = ({ token, cuit, empresa, onCambiado }) => {
+  const esAdmin = useEsAdmin();
   const [confirmando, setConfirmando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState(null);
+  const [subiendo, setSubiendo] = useState(false);
+  const [aplicado, setAplicado] = useState(null);
+  const [grabado, setGrabado] = useState(false);
 
   const tieneF931 = empresa.masa_salarial_f931 !== null
     && empresa.masa_salarial_f931 !== undefined;
+
+  useEffect(() => {
+    let cancelado = false;
+    setAplicado(null);
+    if (!esAdmin || !tieneF931) return undefined;
+    obtenerF931AplicadoDeEmpresa(token, empresa.id)
+      .then((f) => { if (!cancelado) setAplicado(f); })
+      .catch(() => { /* sin la fila, la ficha muestra lo de la empresa */ });
+    return () => { cancelado = true; };
+  }, [token, empresa.id, esAdmin, tieneF931, empresa.f931_periodo]);
 
   const quitar = async () => {
     setEnviando(true);
@@ -123,6 +149,16 @@ const BloqueF931 = ({ token, empresa, onCambiado }) => {
         <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide">
           F.931 declarado
         </h3>
+        <div className="flex items-center gap-2 flex-wrap">
+        {esAdmin && (
+          <button
+            type="button"
+            onClick={() => setSubiendo(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition"
+          >
+            Subir F931 (PDF)
+          </button>
+        )}
         {tieneF931 && (
           <button
             type="button"
@@ -132,27 +168,52 @@ const BloqueF931 = ({ token, empresa, onCambiado }) => {
             Quitar F.931
           </button>
         )}
+        </div>
       </div>
 
       {!tieneF931 ? (
         <p className="text-slate-500 text-sm">
           Sin F.931 cargado: la masa salarial de esta empresa se estima. Se carga desde
-          la grilla de cotización.
+          la grilla de cotización o subiendo el PDF de ARCA.
         </p>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4" data-testid="ficha-f931">
             <Dato label="Masa salarial mensual" valor={pesosAr(empresa.masa_salarial_f931) || '-'} />
             <Dato label="Dotación declarada" valor={empresa.dotacion_f931 ?? '-'} />
-            <Dato label="Período" valor={empresa.f931_periodo || '-'} />
+            <Dato label="Período" valor={periodoF931(empresa.f931_periodo) || '-'} />
+            <Dato label="Alícuota variable" valor={pctDosDecimales(aplicado?.alicuota_variable_f931) || '-'} />
             <Dato label="Cargado el" valor={fechaCorta(empresa.f931_cargado_en) || '-'} />
           </div>
-          <span
-            className={`inline-block mt-4 px-2 py-0.5 rounded text-[11px] font-medium ${confianzaMasaInfo('CONFIRMADA').badge}`}
-          >
-            {confianzaMasaInfo('CONFIRMADA').label}
-          </span>
+          <div className="flex items-center gap-2 mt-4 flex-wrap">
+            {Number(empresa.dotacion_f931) > 0 && (
+              <span
+                className="inline-block px-2 py-0.5 rounded text-[11px] font-medium bg-green-500/20 text-green-300"
+                data-testid="ficha-f931-alta"
+              >
+                ALTA · F931 · {periodoF931(empresa.f931_periodo) || 'sin período'}
+              </span>
+            )}
+            <span
+              className={`inline-block px-2 py-0.5 rounded text-[11px] font-medium ${confianzaMasaInfo('CONFIRMADA').badge}`}
+            >
+              {confianzaMasaInfo('CONFIRMADA').label}
+            </span>
+            {aplicado && <span className="text-[11px] text-slate-500">desde PDF · F.931 #{aplicado.id}</span>}
+          </div>
         </>
+      )}
+
+      {subiendo && (
+        <ArtF931PdfModal
+          token={token}
+          cuit={cuit || empresa.cuit}
+          razonSocial={empresa.razon_social}
+          // La ficha se recarga al CERRAR, no al grabar: recargar desmonta
+          // la ficha (spinner) y con ella el estado final del modal.
+          onClose={() => { setSubiendo(false); if (grabado) { setGrabado(false); onCambiado(); } }}
+          onGrabado={() => setGrabado(true)}
+        />
       )}
 
       {error && !confirmando && (
@@ -490,7 +551,7 @@ const ArtEmpresaFicha = ({ token, cuit, onVolver, onAbrirGrilla, onAbrirPropuest
         )}
       </div>
 
-      <BloqueF931 token={token} empresa={empresa} onCambiado={cargar} />
+      <BloqueF931 token={token} cuit={cuit} empresa={empresa} onCambiado={cargar} />
 
       {/* Propuestas emitidas (BLOQUE 1.3) - GET
           /art/empresas/{id}/propuestas. Va acá y no en un tab propio
