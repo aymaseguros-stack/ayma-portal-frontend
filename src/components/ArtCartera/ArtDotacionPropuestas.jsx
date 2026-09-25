@@ -27,6 +27,9 @@ import ArtCorridaCerviModal from './ArtCorridaCerviModal';
 import ArtDotacionRechazadas from './ArtDotacionRechazadas';
 import ArtF931Propuestas from './ArtF931Propuestas';
 import { listarTodasPropuestasF931 } from './artF931Api';
+import ArtCuadrosSrtModal from './ArtCuadrosSrtModal';
+import { obtenerVersionCuadros } from './artCuadrosSrtApi';
+import { textoVersionCuadros } from './artCuadrosSrtConstants';
 
 const thClass = 'text-left px-3 py-2 font-medium whitespace-nowrap';
 const tdClass = 'px-3 py-2';
@@ -183,6 +186,12 @@ const ArtDotacionPropuestas = ({ token, onCambio }) => {
   const [enviando, setEnviando] = useState(false);
   const [rechazando, setRechazando] = useState(null);
   const [corridaAbierta, setCorridaAbierta] = useState(false);
+  // OPERACIONES-0010 paso 3: versión vigente de los Cuadros SRT. La de la
+  // bandeja (`version_cuadro_vigente`) la ve cualquier rol; la fecha de
+  // carga sale de GET /cuadros-srt/version, que es sólo ADMIN.
+  const [versionBandeja, setVersionBandeja] = useState(null);
+  const [versionCuadros, setVersionCuadros] = useState(null);
+  const [cuadrosAbierto, setCuadrosAbierto] = useState(false);
 
   useEffect(() => {
     let cancelado = false;
@@ -198,6 +207,7 @@ const ArtDotacionPropuestas = ({ token, onCambio }) => {
         setLote(rLote.items || []);
         setIndividual(rInd.items || []);
         setPorRevision(rInd.por_revision || rLote.por_revision || null);
+        setVersionBandeja(rLote.version_cuadro_vigente || rInd.version_cuadro_vigente || null);
       } catch (err) {
         if (!cancelado) setError(err.message);
       } finally {
@@ -247,6 +257,15 @@ const ArtDotacionPropuestas = ({ token, onCambio }) => {
       .finally(() => { if (!cancelado) setLoadingF931(false); });
     return () => { cancelado = true; };
   }, [token, recarga]);
+
+  useEffect(() => {
+    if (!esAdmin) return undefined;
+    let cancelado = false;
+    obtenerVersionCuadros(token)
+      .then((v) => { if (!cancelado) setVersionCuadros(v); })
+      .catch(() => { if (!cancelado) setVersionCuadros(null); });
+    return () => { cancelado = true; };
+  }, [token, esAdmin, recarga]);
 
   const refrescar = useCallback(() => {
     setRecarga((n) => n + 1);
@@ -356,8 +375,26 @@ const ArtDotacionPropuestas = ({ token, onCambio }) => {
   const v40 = metrica?.ventana_40;
   const pct = metrica?.bloque3_pct_comision_sobre_media;
 
+  const textoCuadros = versionCuadros?.vigente
+    ? textoVersionCuadros(versionCuadros.version, versionCuadros.cargado_en)
+    : textoVersionCuadros(versionBandeja);
+
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap" data-testid="cuadros-srt-encabezado">
+        <p className="text-sm text-slate-300" data-testid="cuadros-srt-version">
+          {textoCuadros || (versionCuadros && !versionCuadros.vigente ? 'Cuadros SRT: sin versión cargada' : 'Cuadros SRT: —')}
+        </p>
+        {esAdmin && (
+          <button
+            type="button"
+            onClick={() => setCuadrosAbierto(true)}
+            className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm"
+          >
+            Cargar nueva versión
+          </button>
+        )}
+      </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="bg-slate-800 rounded-2xl border border-slate-700 p-4" data-testid="metrica-ventana40">
           <p className="text-xs text-slate-400 uppercase">Próximas 40 con dotación ≥ MEDIA</p>
@@ -669,6 +706,13 @@ const ArtDotacionPropuestas = ({ token, onCambio }) => {
           token={token}
           onCerrar={() => setCorridaAbierta(false)}
           onCorrida={() => { setCorridaAbierta(false); setResumen(null); refrescar(); }}
+        />
+      )}
+      {cuadrosAbierto && (
+        <ArtCuadrosSrtModal
+          token={token}
+          onCerrar={() => setCuadrosAbierto(false)}
+          onCargado={() => refrescar()}
         />
       )}
     </div>
