@@ -87,7 +87,7 @@ describe('ArtEmpresaFicha - razón social según SRT (razon_social_srt)', () => 
 
     const { container } = render(<ArtEmpresaFicha token="tok" cuit="30-12345678-9" onVolver={() => {}} />);
 
-    await waitFor(() => expect(container.textContent).toContain('Razón social según SRT'));
+    await waitFor(() => expect(container.textContent).toContain('Según SRT:'));
     expect(container.textContent).toContain('SOUTH CONVENTION CENTER SA');
     expect(container.textContent).toContain('Es el nombre legal con el que se emite la póliza.');
   });
@@ -104,7 +104,7 @@ describe('ArtEmpresaFicha - razón social según SRT (razon_social_srt)', () => 
 
     const { container } = render(<ArtEmpresaFicha token="tok" cuit="30-12345678-9" onVolver={() => {}} />);
 
-    await waitFor(() => expect(container.textContent).toContain('Razón social según SRT'));
+    await waitFor(() => expect(container.textContent).toContain('Según SRT:'));
     expect(container.textContent).toContain('BERCA HOTELERA');
   });
 
@@ -120,7 +120,7 @@ describe('ArtEmpresaFicha - razón social según SRT (razon_social_srt)', () => 
 
     const { container } = render(<ArtEmpresaFicha token="tok" cuit="30-12345678-9" onVolver={() => {}} />);
 
-    await waitFor(() => expect(container.textContent).toContain('Razón social según SRT'));
+    await waitFor(() => expect(container.textContent).toContain('Según SRT:'));
     expect(container.textContent).toContain('ALPEK POLYESTER');
   });
 
@@ -133,7 +133,7 @@ describe('ArtEmpresaFicha - razón social según SRT (razon_social_srt)', () => 
     const { container } = render(<ArtEmpresaFicha token="tok" cuit="30-12345678-9" onVolver={() => {}} />);
 
     await waitFor(() => expect(container.textContent).toContain('Acme SA'));
-    expect(container.textContent).not.toContain('Razón social según SRT');
+    expect(container.textContent).not.toContain('Según SRT:');
   });
 
   it('razon_social_srt igual a razon_social: no renderiza la línea (no aporta información nueva)', async () => {
@@ -145,7 +145,7 @@ describe('ArtEmpresaFicha - razón social según SRT (razon_social_srt)', () => 
     const { container } = render(<ArtEmpresaFicha token="tok" cuit="30-12345678-9" onVolver={() => {}} />);
 
     await waitFor(() => expect(container.textContent).toContain('Acme SA'));
-    expect(container.textContent).not.toContain('Razón social según SRT');
+    expect(container.textContent).not.toContain('Según SRT:');
   });
 });
 
@@ -434,5 +434,52 @@ describe('ArtEmpresaFicha - F.931', () => {
 
     await waitFor(() => expect(getByText(/no tiene F.931 cargado/)).toBeTruthy());
     expect(getByText('¿Quitar el F.931 de esta empresa?')).toBeTruthy();
+  });
+});
+
+describe('ArtEmpresaFicha - bloque Estado ARCA (ART-111)', () => {
+  it('excluyente: chip rojo con estado, fuente, fecha y nota', async () => {
+    mockearFetchFicha({
+      ...detalleBase,
+      empresa: {
+        ...empresaBase,
+        estado_arca: 'LIMITADA',
+        estado_arca_fuente: 'PADRON_A5',
+        estado_arca_fecha: '2026-09-20',
+        estado_arca_nota: 'c) CUIT LIMITADA',
+      },
+    });
+    const { container } = render(<ArtEmpresaFicha token="tok" cuit="30-12345678-9" onVolver={() => {}} />);
+    await waitFor(() => expect(container.querySelector('[data-testid="bloque-estado-arca"]')).not.toBeNull());
+    const chip = container.querySelector('[data-testid="chip-estado-arca"]');
+    expect(chip.textContent).toContain('CUIT limitada');
+    expect(chip.className).toContain('red');
+    const bloque = container.querySelector('[data-testid="bloque-estado-arca"]').textContent;
+    expect(bloque).toContain('Padrón A5');
+    expect(bloque).toContain('20/9/2026');
+    expect(bloque).toContain('c) CUIT LIMITADA');
+    expect(bloque).toContain('Excluida de la acción comercial');
+  });
+
+  it('INCUMPLIMIENTOS: ámbar y sin leyenda de exclusión', async () => {
+    mockearFetchFicha({ ...detalleBase, empresa: { ...empresaBase, estado_arca: 'INCUMPLIMIENTOS' } });
+    const { container } = render(<ArtEmpresaFicha token="tok" cuit="30-12345678-9" onVolver={() => {}} />);
+    await waitFor(() => expect(container.querySelector('[data-testid="chip-estado-arca"]')).not.toBeNull());
+    expect(container.querySelector('[data-testid="chip-estado-arca"]').className).toContain('amber');
+    expect(container.textContent).not.toContain('Excluida de la acción comercial');
+  });
+
+  it('ACTIVO: sin chip; sin estado cuenta como DESCONOCIDO (gris)', async () => {
+    mockearFetchFicha({ ...detalleBase, empresa: { ...empresaBase, estado_arca: 'ACTIVO' } });
+    const { container, unmount } = render(<ArtEmpresaFicha token="tok" cuit="30-12345678-9" onVolver={() => {}} />);
+    await waitFor(() => expect(container.querySelector('[data-testid="bloque-estado-arca"]')).not.toBeNull());
+    expect(container.querySelector('[data-testid="chip-estado-arca"]')).toBeNull();
+    expect(container.textContent).toContain('Activa en ARCA');
+    unmount();
+
+    mockearFetchFicha({ ...detalleBase, empresa: { ...empresaBase } });
+    const r2 = render(<ArtEmpresaFicha token="tok" cuit="30-12345678-9" onVolver={() => {}} />);
+    await waitFor(() => expect(r2.container.querySelector('[data-testid="chip-estado-arca"]')).not.toBeNull());
+    expect(r2.container.querySelector('[data-testid="chip-estado-arca"]').className).toContain('slate');
   });
 });

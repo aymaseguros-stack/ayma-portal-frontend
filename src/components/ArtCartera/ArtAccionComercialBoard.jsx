@@ -14,6 +14,8 @@ import { descargarBlobComoArchivo } from './descargaArchivo';
 import { fechaCorta } from '../../utils/fechas';
 import ArtAccionComercialDetalle from './ArtAccionComercialDetalle';
 import TechoNoSumado from './TechoNoSumado';
+import ArtRelevamientoExcluidas from './ArtRelevamientoExcluidas';
+import ChipEstadoArca from './ChipEstadoArca';
 
 // El backend siempre trabaja con una ventana rodante: "todos" es su tope
 // (DIAS_VENTANA_MAX = 365), no "sin ventana". La etiqueta lo dice.
@@ -309,6 +311,23 @@ const CeldaComisionActual = ({ fila }) => (fila.comision_es_techo === true ? (
   <span className="text-slate-200">{pesosAr(fila.comision_actual_estimada)}</span>
 ));
 
+// Lo que la ventana dejó fuera de /lista, con los mismos contadores del
+// resumen del backend. ESTADO_ARCA (ART-111 B3) va junto a los otros dos.
+const Descartadas = ({ resumen }) => {
+  const partes = [
+    ['descartadas_estado_arca', 'situación fiscal ARCA'],
+    ['descartadas_sin_ciiu', 'sin CIIU'],
+    ['descartadas_no_cotizar', 'no cotizar'],
+  ].filter(([clave]) => Number(resumen[clave]) > 0);
+  if (partes.length === 0) return null;
+  return (
+    <p className="text-slate-500 text-xs mt-0.5" data-testid="resumen-descartadas">
+      Fuera de la lista:{' '}
+      {partes.map(([clave, texto]) => `${numeroAr(resumen[clave])} ${texto}`).join(' · ')}
+    </p>
+  );
+};
+
 const ArtAccionComercialBoard = ({ token }) => {
   const [soloElegibles, setSoloElegibles] = useState(false);
   const [ventana, setVentana] = useState(VENTANA_DEFAULT);
@@ -454,6 +473,7 @@ const ArtAccionComercialBoard = ({ token }) => {
             </p>
           )}
           {resumen && <TechoNoSumado techo={resumen.techo_baja_no_sumado} className="text-xs mt-0.5" />}
+          {resumen && <Descartadas resumen={resumen} />}
         </div>
         <button
           type="button"
@@ -467,6 +487,12 @@ const ArtAccionComercialBoard = ({ token }) => {
       </div>
 
       {errorCsv && <p className="text-sm text-red-300">{errorCsv}</p>}
+
+      <ArtRelevamientoExcluidas
+        key={filtrosServidor.dias_ventana}
+        token={token}
+        diasVentana={filtrosServidor.dias_ventana}
+      />
 
       {avisoExport && (
         <p
@@ -693,6 +719,18 @@ const ArtAccionComercialBoard = ({ token }) => {
                       {fila.razon_social || fila.cuit || 'Sin razón social'}
                     </button>
                     <BadgePedidoEnCurso fila={fila} />
+                    {/* ART-111 B3 (D4): INCUMPLIMIENTOS no excluye; la fila
+                        sigue y trae la alerta aparte de `alertas`. */}
+                    {fila.alerta_arca && (
+                      <span className="block w-fit mt-1">
+                        <ChipEstadoArca
+                          estado={fila.alerta_arca.estado || 'INCUMPLIMIENTOS'}
+                          fuente={fila.alerta_arca.fuente}
+                          fecha={fila.alerta_arca.fecha}
+                          nota={fila.alerta_arca.nota}
+                        />
+                      </span>
+                    )}
                     {noElegible && (
                       <span
                         className={`${badgeBase} block w-fit mt-1 bg-red-500/20 text-red-300`}
