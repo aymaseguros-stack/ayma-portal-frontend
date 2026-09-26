@@ -9,18 +9,51 @@ import { EJECUTORES_FRENTE, ESTADOS_FRENTE, etiqueta, fechaCorta } from './direc
 import {
   AvisoConflictoCodigo, Badge, Campo, Cargando, ChipSemaforo, ErrorCarga, EstadoVacio, Panel, PuntoSemaforo, Tabla, botonPrimario, botonSecundario, inputClase,
 } from './DireccionComunes';
+import OrganigramaWorkers from './OrganigramaWorkers';
 
 // Pantalla 2: listado de gerencias y ficha de cada una (cabecera, frentes,
 // decisiones, workers y documentos). GET /direccion/gerencias y
 // GET /direccion/gerencias/{codigo} (FichaGerencia).
+//
+// Conmutador Lista | Organigrama (TECNO-0001 · F1): NO es una ruta nueva
+// (la navegación está congelada), es un estado de esta pantalla. Abre en
+// Lista, y Lista queda exactamente como estaba.
+const VISTAS_GERENCIAS = [
+  { id: 'lista', label: 'Lista' },
+  { id: 'organigrama', label: 'Organigrama' },
+];
+
 const DireccionGerencias = ({ token, codigoAbierto, onAbrirGerencia, onCerrarFicha }) => {
+  const [vista, setVista] = useState('lista');
   if (codigoAbierto) {
     return <FichaGerencia token={token} codigo={codigoAbierto} onVolver={onCerrarFicha} />;
   }
-  return <ListadoGerencias token={token} onAbrir={onAbrirGerencia} />;
+  const conmutador = <ConmutadorVista vista={vista} onCambiar={setVista} />;
+  if (vista === 'organigrama') {
+    return <OrganigramaWorkers token={token} conmutador={conmutador} />;
+  }
+  return <ListadoGerencias token={token} onAbrir={onAbrirGerencia} conmutador={conmutador} />;
 };
 
-const ListadoGerencias = ({ token, onAbrir }) => {
+const ConmutadorVista = ({ vista, onCambiar }) => (
+  <div role="group" aria-label="Vista de gerencias" className="inline-flex rounded-lg border border-slate-700 bg-slate-800/50 p-1">
+    {VISTAS_GERENCIAS.map((v) => (
+      <button
+        key={v.id}
+        type="button"
+        aria-pressed={vista === v.id}
+        onClick={() => onCambiar(v.id)}
+        className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
+          vista === v.id ? 'bg-blue-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700'
+        }`}
+      >
+        {v.label}
+      </button>
+    ))}
+  </div>
+);
+
+const ListadoGerencias = ({ token, onAbrir, conmutador }) => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -36,9 +69,12 @@ const ListadoGerencias = ({ token, onAbrir }) => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Gerencias</h2>
-        <p className="text-slate-400 text-sm mt-1">Abrí una gerencia para ver sus frentes, decisiones, workers y documentos.</p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <h2 className="text-2xl font-bold">Gerencias</h2>
+          <p className="text-slate-400 text-sm mt-1">Abrí una gerencia para ver sus frentes, decisiones, workers y documentos.</p>
+        </div>
+        {conmutador}
       </div>
 
       {error && !loading && <ErrorCarga mensaje={error} que="las gerencias" onReintentar={cargar} />}
