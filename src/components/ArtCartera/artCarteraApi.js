@@ -764,3 +764,17 @@ export const descargarCsvAccionComercial = async (token, filtros = {}) => {
   const exportacion = leerCabecerasExport(res) || await leerCorteDelCuerpo(blob);
   return { blob, exportacion };
 };
+
+// GET /art/accion-comercial/relevamiento (ADMIN) - la cola APARTE de /lista:
+// empresas en ventana que no califican, con UN motivo por fila (ESTADO_ARCA
+// · SIN_CIIU · NO_COTIZAR, excluyentes por precedencia). Las ESTADO_ARCA
+// traen estado_arca, _fuente, _fecha y _nota (ART-111 B3). Devuelve
+// {total, items, resumen} tal cual.
+export const obtenerRelevamientoAccionComercial = async (token, { dias_ventana, limit = 500, offset = 0 } = {}) => {
+  const res = await fetch(
+    `${API_URL}/api/v1/art/accion-comercial/relevamiento${buildQuery({ dias_ventana, limit, offset })}`,
+    { headers: artHeaders(token) },
+  );
+  if (!res.ok) throw new Error(await formatApiError(res));
+  return res.json();
+};

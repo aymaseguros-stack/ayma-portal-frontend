@@ -208,3 +208,25 @@ describe('ART: renglón "Techo no sumado" (D-OP10-1)', () => {
     expect(screen.queryByTestId('techo-no-sumado')).toBeNull();
   });
 });
+
+describe('ART: sin_comision_por_motivo (ART-111 B3)', () => {
+  it('ESTADO_ARCA se rotula "Situación fiscal ARCA" y los 0 no se muestran', async () => {
+    montar({
+      ...CON_DATOS,
+      art: {
+        ...CON_DATOS.art,
+        sin_comision_por_motivo: { ESTADO_ARCA: 3, SIN_CIIU: 1, NO_COTIZAR: 0, SIN_INSUMO: 2 },
+      },
+    });
+    const linea = await screen.findByTestId('sin-comision-por-motivo');
+    expect(linea.textContent).toContain('Situación fiscal ARCA: 3');
+    expect(linea.textContent).toContain('Sin CIIU: 1');
+    expect(linea.textContent).not.toContain('No cotizar');
+  });
+
+  it('sin el campo no dibuja la línea', async () => {
+    montar(CON_DATOS);
+    await screen.findByText('ART');
+    expect(screen.queryByTestId('sin-comision-por-motivo')).toBeNull();
+  });
+});

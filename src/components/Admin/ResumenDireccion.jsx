@@ -57,6 +57,26 @@ const Tarjeta = ({ titulo, icono, onClick, irA, children }) => (
   </button>
 );
 
+// Desglose de empresas_sin_comision_estimable (backend ART-111 B3): las
+// claves son MOTIVOS_RELEVAMIENTO y vienen siempre, también en 0; se
+// muestran sólo las que tienen algo.
+const MOTIVO_SIN_COMISION_LABEL = {
+  ESTADO_ARCA: 'Situación fiscal ARCA',
+  SIN_CIIU: 'Sin CIIU',
+  NO_COTIZAR: 'No cotizar',
+  SIN_INSUMO: 'Sin alícuota o masa',
+};
+
+const SinComisionPorMotivo = ({ porMotivo }) => {
+  const entradas = Object.entries(porMotivo || {}).filter(([, n]) => Number(n) > 0);
+  if (entradas.length === 0) return null;
+  return (
+    <p className="text-[10px] text-slate-500 mt-0.5" data-testid="sin-comision-por-motivo">
+      {entradas.map(([motivo, n]) => `${MOTIVO_SIN_COMISION_LABEL[motivo] || motivo}: ${n}`).join(' · ')}
+    </p>
+  );
+};
+
 const ResumenDireccion = ({ token, onIrSiniestros, onIrUniversoArt, onIrComisiones, onIrComercios }) => {
   const [datos, setDatos] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -190,6 +210,7 @@ const ResumenDireccion = ({ token, onIrSiniestros, onIrUniversoArt, onIrComision
                     {art.empresas_sin_comision_estimable} empresas de la ventana sin comisión estimable (cualquier confianza, incluye sin CIIU)
                   </p>
                 )}
+                <SinComisionPorMotivo porMotivo={art.sin_comision_por_motivo} />
               </div>
             </>
           )}

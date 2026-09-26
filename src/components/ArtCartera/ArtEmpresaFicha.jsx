@@ -5,6 +5,8 @@ import { Dato } from '../Crm/FichaHelpers';
 import { ArtDatos } from '../Crm/EmpresaArtSection';
 import { estrategiaArtInfo, estrategiaArtBadgeClass } from '../Crm/artEstrategia';
 import { obtenerEmpresaArt, quitarF931Art } from './artCarteraApi';
+import ChipEstadoArca from './ChipEstadoArca';
+import { ESTADOS_ARCA_EXCLUYENTES, estadoArcaLabel, fuenteEstadoArcaLabel } from './estadoArcaConstants';
 import ArtEstadoModal from './ArtEstadoModal';
 import ArtDocumentosChecklist from './ArtDocumentosChecklist';
 import ArtF931PdfModal from './ArtF931PdfModal';
@@ -403,6 +405,43 @@ const CalculoStat = ({ label, valor, resaltar }) => (
 // Pantalla B - Ficha de empresa (/art/:cuit): cabecera + motor de cálculo +
 // matriz de 19 aseguradoras + historial append-only. GET /art/empresas/{cuit}
 // (app/api/v1/art_consultas.py::obtener_empresa_art).
+// ART-111: estado de la empresa en ARCA (GET /art/empresas/{cuit}). Sólo
+// lectura: la carga es por API. Excluyente = no entra en la lista de acción
+// comercial; INCUMPLIMIENTOS sigue, con alerta.
+const BloqueEstadoArca = ({ empresa }) => {
+  const estado = empresa.estado_arca || 'DESCONOCIDO';
+  const excluye = ESTADOS_ARCA_EXCLUYENTES.includes(estado);
+  return (
+    <div className="border-t border-slate-700 pt-4" data-testid="bloque-estado-arca">
+      <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Estado ARCA</h3>
+      <div className="flex items-center gap-2 flex-wrap text-sm">
+        {estado === 'ACTIVO'
+          ? <span className="text-slate-200">{estadoArcaLabel(estado)}</span>
+          : (
+            <ChipEstadoArca
+              estado={estado}
+              fuente={empresa.estado_arca_fuente}
+              fecha={empresa.estado_arca_fecha}
+              nota={empresa.estado_arca_nota}
+            />
+          )}
+        {empresa.estado_arca_fuente && (
+          <span className="text-slate-400 text-xs">Fuente: {fuenteEstadoArcaLabel(empresa.estado_arca_fuente)}</span>
+        )}
+        {empresa.estado_arca_fecha && (
+          <span className="text-slate-400 text-xs">Fecha: {fechaCorta(empresa.estado_arca_fecha)}</span>
+        )}
+      </div>
+      {empresa.estado_arca_nota && (
+        <p className="text-slate-400 text-xs mt-1">Nota: {empresa.estado_arca_nota}</p>
+      )}
+      {excluye && (
+        <p className="text-red-300 text-xs mt-1">Excluida de la acción comercial: situación fiscal en ARCA.</p>
+      )}
+    </div>
+  );
+};
+
 const ArtEmpresaFicha = ({ token, cuit, onVolver, onAbrirGrilla, onAbrirPropuesta }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -489,7 +528,7 @@ const ArtEmpresaFicha = ({ token, cuit, onVolver, onAbrirGrilla, onAbrirPropuest
                 razon_social, en cuyo caso no aporta nada y se oculta. */}
             {empresa.razon_social_srt && empresa.razon_social_srt !== empresa.razon_social && (
               <p className="text-slate-400 text-sm mt-1">
-                <span className="text-slate-500">Razón social según SRT:</span> {empresa.razon_social_srt}
+                <span className="text-slate-500">Según SRT:</span> {empresa.razon_social_srt}
                 <span className="block text-xs text-slate-600 mt-0.5">
                   Es el nombre legal con el que se emite la póliza.
                 </span>
@@ -547,6 +586,8 @@ const ArtEmpresaFicha = ({ token, cuit, onVolver, onAbrirGrilla, onAbrirPropuest
           <Dato label="Email" valor={empresa.email} />
           <ArtDatos ficha={empresa} />
         </div>
+
+        <BloqueEstadoArca empresa={empresa} />
 
         {/* El buscador del catálogo va acá y NO escribe nada: `empresas.ciiu`
             de la cartera ART lo cargan los backfills de padrón (ARCA/SRT) y
