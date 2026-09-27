@@ -61,26 +61,49 @@ describe('fechaCorta con opciones de formato', () => {
 });
 
 describe('fechaHora', () => {
-  it('un timestamp se muestra como instante local', () => {
-    // El formato exacto de es-AR (reloj de 12 o de 24 horas, con o sin
-    // meridiano) depende del ICU del runtime, así que se afirma lo que este
-    // helper garantiza: el día y la hora del instante, sin el corrimiento
-    // que sí sufre una fecha pelada.
-    const texto = fechaHora('2026-09-10T15:30:00');
-    expect(texto).toContain('10/9/2026');
-    expect(texto).toContain('3:30');
+  // C-9g: el backend manda los instantes en UTC SIN zona. Una tarea de las
+  // 10:00 argentinas llega como "…T13:00:00" y se mostraba a las 13:00.
+  it('un instante UTC sin zona se muestra en hora argentina (13:00 UTC = 10:00)', () => {
+    expect(fechaHora('2026-10-04T13:00:00')).toBe('04/10/2026 10:00');
+    expect(fechaHora('2026-10-04 13:00:00.123456')).toBe('04/10/2026 10:00');
   });
 
-  it('acepta opciones de formato', () => {
-    const texto = fechaHora('2026-09-10T15:30:00', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-    expect(texto).toContain('10/9');
-    expect(texto).toContain('3:30');
+  it('un instante con "Z" u offset no se corre dos veces', () => {
+    expect(fechaHora('2026-10-04T13:00:00Z')).toBe('04/10/2026 10:00');
+    expect(fechaHora('2026-10-04T13:00:00+00:00')).toBe('04/10/2026 10:00');
+    expect(fechaHora('2026-10-04T10:00:00-03:00')).toBe('04/10/2026 10:00');
+  });
+
+  it('formato 24 h: dd/mm/aaaa HH:mm, sin a. m./p. m.', () => {
+    // 23:18 UTC = 20:18 argentinas: antes salía "11:18:34" en reloj de 12 h.
+    const texto = fechaHora('2026-09-27T23:18:34');
+    expect(texto).toBe('27/09/2026 20:18');
+    expect(texto).not.toMatch(/m\./);
+    // Pasada la medianoche UTC sigue siendo el día anterior en Argentina.
+    expect(fechaHora('2026-09-28T01:05:00')).toBe('27/09/2026 22:05');
+  });
+
+  it('no depende de la zona de la máquina', () => {
+    vi.stubEnv('TZ', 'Asia/Tokyo');
+    try {
+      expect(fechaHora('2026-10-04T13:00:00')).toBe('04/10/2026 10:00');
+    } finally {
+      vi.stubEnv('TZ', 'America/Argentina/Buenos_Aires');
+    }
+  });
+
+  it('las opciones cambian el formato pero no la zona ni el reloj de 24 h', () => {
+    const texto = fechaHora('2026-10-04T16:30:00', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true });
+    expect(texto).toMatch(/0?4\/10/);
+    expect(texto).toContain('13:30');
+  });
+
+  it('aFecha lee un instante sin zona como UTC y deja la fecha pelada como día local', () => {
+    expect(aFecha('2026-10-04T13:00:00').toISOString()).toBe('2026-10-04T13:00:00.000Z');
+    expect(aFecha('2026-09-10').getDate()).toBe(10);
   });
 
   it('mismo contrato de vacío y crudo que fechaCorta', () => {
-    // Las pantallas de Mail hacían `m.fecha ? new Date(...) : '-'` a mano;
-    // ahora el guion lo pone la pantalla sobre un null, no sobre un
-    // "Invalid Date".
     expect(fechaHora(null)).toBeNull();
     expect(fechaHora('')).toBeNull();
     expect(fechaHora('no es una fecha')).toBe('no es una fecha');

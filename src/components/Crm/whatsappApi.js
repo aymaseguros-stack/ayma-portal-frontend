@@ -11,6 +11,7 @@
 // lo busca, no lo muestra y no arma un link a ese JSONL: la ficha dice QUE
 // hubo conversación, no QUÉ se dijo.
 import { authHeader, formatApiError } from '../../utils/api';
+import { aFecha, fechaHora } from '../../utils/fechas';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -88,30 +89,15 @@ export const saludWhatsapp = (token) =>
 
 // --- Presentación ---------------------------------------------------------
 
-// LA HORA DE META LLEGA EN UTC SIN ZONA. El backend la arma con
-// `datetime.utcfromtimestamp(timestamp)` y la serializa como
-// "2026-09-24T15:04:05", sin "Z". `new Date()` toma un ISO con hora y sin
-// zona como hora LOCAL, así que en Argentina el mensaje aparecería tres horas
-// antes de lo que Meta dice. Se le agrega la Z sólo si no trae zona.
-const TIENE_ZONA = /(Z|[+-]\d{2}:?\d{2})$/i;
+// LA HORA DE META LLEGA EN UTC SIN ZONA ("2026-09-24T15:04:05", armada con
+// `datetime.utcfromtimestamp`). Desde C-9g esa regla vale para TODA la app y
+// vive en `utils/fechas.js`: un instante sin zona es UTC y se muestra en hora
+// argentina, 24 h. Se conservan los dos nombres para no tocar a quien los usa.
+export const instanteUTC = (valor) => aFecha(valor);
 
-export const instanteUTC = (valor) => {
-  if (!valor) return null;
-  const texto = String(valor);
-  const fecha = new Date(TIENE_ZONA.test(texto) ? texto : `${texto}Z`);
-  return Number.isNaN(fecha.getTime()) ? null : fecha;
-};
-
-// Hora argentina explícita: es el mismo "día" con el que el backend arma el
-// JSONL diario, y así la pantalla no depende del reloj de la máquina.
 export const horaMeta = (valor) => {
-  const fecha = instanteUTC(valor);
-  if (!fecha) return valor || '—';
-  return fecha.toLocaleString('es-AR', {
-    timeZone: 'America/Argentina/Buenos_Aires',
-    day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-  });
+  if (!valor) return '—';
+  return fechaHora(valor) || '—';
 };
 
 // `media_storage_ref` es el id del archivo en Drive. Sólo se ofrece link con

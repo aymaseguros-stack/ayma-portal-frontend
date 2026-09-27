@@ -78,7 +78,7 @@ const SeguimientoRow = ({ fila, onRegistrar, onAbrirFicha }) => {
           <ToqueBadge numero={fila.numero_de_toque} />
           <span className={`text-xs ${fila.vencido ? 'text-red-400' : 'text-slate-500'}`}>
             {fila.vencido ? 'Vencido · ' : ''}
-            {fechaHora(fila.programado_para, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+            {fechaHora(fila.programado_para)}
           </span>
         </div>
       </div>
@@ -261,7 +261,8 @@ const RegistrarModal = ({ token, fila, onCerrar, onConfirmar }) => {
   );
 };
 
-const fechaHoraCorta = (v) => fechaHora(v, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+// C-9g: dd/mm/aaaa HH:mm en hora argentina, el formato único del helper.
+const fechaHoraCorta = (v) => fechaHora(v);
 const FORMATEAR = { fecha: (v) => fechaCorta(v), fechaHora: fechaHoraCorta };
 
 const BotonWhatsapp = ({ telefono }) => {

@@ -7,6 +7,10 @@ import { TIPOS_TAREA_VALIDOS, PRIORIDADES_VALIDAS } from './oportunidadConstants
 import { BadgeImpedida } from '../ArtCartera/Impedimento';
 import CompletarProximaAccionModal from './CompletarProximaAccionModal';
 import { esTareaProximaAccion } from './proximaAccion';
+import {
+  GRUPOS_AGENDA, GRUPOS_DEFAULT, TODOS_LOS_GRUPOS, PREGUNTA_COMPLETAR,
+  contarPorGrupo, filtrarAgenda, grupoDeTarea,
+} from './agendaFiltros';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -32,13 +36,16 @@ const TareaRow = ({ t, onCompletar, vencida }) => (
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <span className={`font-medium ${t.estado === 'COMPLETADA' ? 'line-through text-slate-500' : ''}`}>{t.titulo}</span>
         <span className={`text-xs shrink-0 ${vencida ? 'text-red-400' : 'text-slate-500'}`}>
-          {fechaHora(t.fecha_programada, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+          {fechaHora(t.fecha_programada)}
         </span>
       </div>
       <div className="flex items-center gap-2 mt-1 flex-wrap">
         {t.tipo && <span className="px-2 py-0.5 bg-slate-600 rounded text-xs">{t.tipo}</span>}
         {esTareaProximaAccion(t) && (
           <span className="px-2 py-0.5 bg-blue-700/60 text-blue-100 rounded text-xs">Próxima acción</span>
+        )}
+        {grupoDeTarea(t) === 'PROSPECCION_ART' && (
+          <span className="px-2 py-0.5 bg-amber-700/50 text-amber-100 rounded text-xs">Prospección ART</span>
         )}
         <span className="px-2 py-0.5 bg-slate-600 rounded text-xs">{t.prioridad}</span>
         {/* ART-121: sólo la marca; la tarea se completa igual. */}
@@ -84,8 +91,11 @@ const AgendaPanel = ({ token }) => {
   // que el toque). Una tarea libre se completa como siempre, de un click.
   const [aCompletar, setACompletar] = useState(null);
 
+  // C-9g: una tarea libre o de prospección se cerraba con un click y no
+  // tiene vuelta atrás; un click accidental la perdía. Se confirma antes.
   const completarTarea = async (tarea) => {
     if (esTareaProximaAccion(tarea)) { setACompletar(tarea); return; }
+    if (!window.confirm(PREGUNTA_COMPLETAR)) return;
     const id = tarea.id;
     try {
       const res = await fetch(`${API_URL}/api/v1/crm/tareas/${id}/completar`, {
@@ -132,7 +142,16 @@ const AgendaPanel = ({ token }) => {
     }
   };
 
-  const diasOrdenados = Object.keys(agenda.dias || {}).sort();
+  // C-9g: chips por grupo. Default: próximas acciones + libres; la
+  // prospección ART sale del default pero no se esconde (tiene su chip).
+  const [grupos, setGrupos] = useState(GRUPOS_DEFAULT);
+  const conteo = contarPorGrupo(agenda);
+  const visible = filtrarAgenda(agenda, grupos);
+  const todasElegidas = TODOS_LOS_GRUPOS.every((g) => grupos.includes(g));
+  const alternarGrupo = (clave) => setGrupos((prev) => (
+    prev.includes(clave) ? prev.filter((g) => g !== clave) : [...prev, clave]
+  ));
+  const diasOrdenados = Object.keys(visible.dias).sort();
 
   return (
     <div className="space-y-6">
@@ -147,6 +166,31 @@ const AgendaPanel = ({ token }) => {
         </button>
       </div>
 
+      <div className="flex items-center gap-2 flex-wrap" role="group" aria-label="Filtrar tareas">
+        {GRUPOS_AGENDA.map(({ clave, label }) => {
+          const activo = grupos.includes(clave);
+          return (
+            <button
+              key={clave}
+              type="button"
+              aria-pressed={activo}
+              onClick={() => alternarGrupo(clave)}
+              className={`px-3 py-1.5 rounded-full text-sm border transition ${activo ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-600 text-slate-300 hover:border-slate-400'}`}
+            >
+              {label} <span className="opacity-75">({conteo[clave]})</span>
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          aria-pressed={todasElegidas}
+          onClick={() => setGrupos(TODOS_LOS_GRUPOS)}
+          className={`px-3 py-1.5 rounded-full text-sm border transition ${todasElegidas ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-600 text-slate-300 hover:border-slate-400'}`}
+        >
+          Todas <span className="opacity-75">({conteo.TODAS})</span>
+        </button>
+      </div>
+
       {error && (
         <div className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-2 rounded-lg text-sm">{error}</div>
       )}
@@ -155,20 +199,22 @@ const AgendaPanel = ({ token }) => {
         <p className="text-slate-400 text-center py-8">Cargando agenda...</p>
       ) : (
         <div className="space-y-8">
-          {agenda.vencidas.length > 0 && (
+          {visible.vencidas.length > 0 && (
             <div>
               <h3 className="text-sm font-semibold text-red-400 uppercase tracking-wide mb-3 flex items-center gap-2">
                 <Icon name="exclamation-triangle" />
-                Vencidas ({agenda.vencidas.length})
+                Vencidas ({visible.vencidas.length})
               </h3>
               <div className="space-y-2">
-                {agenda.vencidas.map((t) => <TareaRow key={t.id} t={t} onCompletar={completarTarea} vencida />)}
+                {visible.vencidas.map((t) => <TareaRow key={t.id} t={t} onCompletar={completarTarea} vencida />)}
               </div>
             </div>
           )}
 
-          {diasOrdenados.length === 0 && agenda.vencidas.length === 0 ? (
-            <p className="text-slate-500 text-sm text-center py-8">Sin tareas próximas</p>
+          {diasOrdenados.length === 0 && visible.vencidas.length === 0 ? (
+            <p className="text-slate-500 text-sm text-center py-8">
+              {grupos.length === 0 ? 'Elegí al menos un filtro' : 'Sin tareas próximas'}
+            </p>
           ) : (
             diasOrdenados.map((dia) => (
               <div key={dia}>
@@ -176,7 +222,7 @@ const AgendaPanel = ({ token }) => {
                   {formatDia(dia)}
                 </h3>
                 <div className="space-y-2">
-                  {agenda.dias[dia].map((t) => <TareaRow key={t.id} t={t} onCompletar={completarTarea} />)}
+                  {visible.dias[dia].map((t) => <TareaRow key={t.id} t={t} onCompletar={completarTarea} />)}
                 </div>
               </div>
             ))

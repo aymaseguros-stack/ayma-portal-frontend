@@ -364,16 +364,10 @@ const ConstanciaDocumento = ({ data }) => {
 
   // La anulación quedó asentada allá. `vault_anulado_en` es la fecha del
   // HECHO (viene null mientras no haya entrado, aunque se haya intentado),
-  // y es un instante UTC, no una fecha suelta: va con hora.
-  //
-  // `hour12: false` porque es-AR formatea en 12 horas y un "02:30" sin
-  // am/pm en una evidencia no se puede leer. Y se rotula UTC: el backend
-  // lo guarda con `datetime.utcnow()` y lo serializa SIN offset, así que
-  // el reloj que se ve es el de UTC - decirlo es más barato que dejar a
-  // alguien restar tres horas de más.
-  const anuladoEn = data.vault_anulado_en
-    ? fechaHora(data.vault_anulado_en, { hour12: false })
-    : null;
+  // y es un instante UTC, no una fecha suelta: va con hora. Desde C-9g el
+  // helper lo lee como UTC y lo muestra en hora argentina, 24 h, como todo
+  // instante de la app: ya no hace falta rotularlo "(UTC)".
+  const anuladoEn = data.vault_anulado_en ? fechaHora(data.vault_anulado_en) : null;
   // Se intentó y NO entró: el token sigue figurando vigente en el vault
   // aunque la propuesta esté anulada acá. Hay que decirlo - alguien tiene
   // que ir a darlo de baja a mano - y por eso el detalle del fallo (un 404
@@ -408,7 +402,7 @@ const ConstanciaDocumento = ({ data }) => {
 
       {anuladoEn && (
         <p className="text-xs text-slate-400">
-          Anulación asentada en el vault el <span className="text-slate-200">{anuladoEn}</span> (UTC).
+          Anulación asentada en el vault el <span className="text-slate-200">{anuladoEn}</span> (hora argentina).
         </p>
       )}
 
