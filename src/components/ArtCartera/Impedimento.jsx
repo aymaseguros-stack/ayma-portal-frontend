@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import BandejaImpedidas from './BandejaImpedidas';
 import { obtenerImpedidasTrabajoAbierto } from './artCotizacionesApi';
 import { numeroAr } from './artCarteraConstants';
-import { motivoCorto } from './artCotizacionesConstants';
+import { motivoCorto, textoComoRevertir } from './artCotizacionesConstants';
 
 // Empresas IMPEDIDAS (OPERACIONES-0012 · ART-115). El criterio es del
 // backend (`impedimento_comercial`): estado ARCA excluyente o no_cotizar.
@@ -9,22 +10,10 @@ import { motivoCorto } from './artCotizacionesConstants';
 // crudo ("ESTADO_ARCA:BAJA_OFICIO", "NO_COTIZAR:<motivo>") salvo el prefijo
 // ESTADO_ARCA en los resúmenes cortos.
 
-const badgeBase = 'inline-block text-[11px] px-1.5 py-0.5 rounded whitespace-nowrap';
-
-// Badge rojo de una fila con trabajo abierto sobre una empresa impedida.
-// Sin impedimento no renderiza nada: la fila se ve igual que antes.
-export const BadgeImpedida = ({ impedimento, className = '' }) => {
-  if (!impedimento) return null;
-  return (
-    <span
-      className={`${badgeBase} bg-red-600/30 text-red-200 border border-red-500/50 ${className}`}
-      title={impedimento.como_revertir || undefined}
-      data-testid="badge-impedida"
-    >
-      Impedida · {impedimento.motivo}
-    </span>
-  );
-};
+// El badge vive en su propio módulo (la bandeja de decisión lo usa y esta
+// tarjeta usa la bandeja); se re-exporta para no mover a quienes ya lo
+// importan de acá (FE #94 y #95).
+export { default as BadgeImpedida } from './BadgeImpedida';
 
 // Bloque "Impedidas (N) — no se piden" del armado de tanda.
 export const EmpresasImpedidas = ({ lista }) => {
@@ -68,19 +57,23 @@ const TIPOS = [
   { id: 'pedido_abierto', label: 'Pedidos' },
 ];
 
-// Tarjeta de sólo lectura para el resumen de Dirección (ADMIN). Si el
-// endpoint falla, lo dice; no pinta ceros.
+// Tarjeta del resumen de Dirección (ADMIN). Si el endpoint falla, lo dice;
+// no pinta ceros. "Revisar casos" (OPERACIONES-0013 FE-2) abre la bandeja de
+// decisión DENTRO de la tarjeta: sin rutas ni menús nuevos. Después de una
+// resolución firme se vuelven a pedir los contadores.
 export const TrabajoAbiertoImpedidas = ({ token }) => {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const [version, setVersion] = useState(0);
+  const [bandejaAbierta, setBandejaAbierta] = useState(false);
 
   useEffect(() => {
     let cancelado = false;
     obtenerImpedidasTrabajoAbierto(token)
-      .then((r) => { if (!cancelado) setData(r); })
+      .then((r) => { if (!cancelado) { setData(r); setError(null); } })
       .catch((err) => { if (!cancelado) setError(err.message); });
     return () => { cancelado = true; };
-  }, [token]);
+  }, [token, version]);
 
   const totales = data?.totales_por_tipo || {};
   const empresas = Array.isArray(data?.empresas) ? data.empresas : [];
@@ -88,7 +81,7 @@ export const TrabajoAbiertoImpedidas = ({ token }) => {
   return (
     <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4" data-testid="trabajo-abierto-impedidas">
       <h4 className="font-semibold text-white">Trabajo abierto sobre impedidas</h4>
-      <p className="text-[11px] text-slate-500">Pool ART sobre empresas con estado ARCA excluyente o no cotizar. Sólo lectura.</p>
+      <p className="text-[11px] text-slate-500">Pool ART sobre empresas con estado ARCA excluyente o no cotizar.</p>
       {error && <p role="alert" className="text-sm text-red-300 mt-2">No se pudo cargar. {error}</p>}
       {!data && !error && <p className="text-sm text-slate-400 mt-2">Cargando…</p>}
       {data && !data.totales_por_tipo && <p className="text-sm text-slate-300 mt-2">Sin dato todavía</p>}
@@ -108,13 +101,28 @@ export const TrabajoAbiertoImpedidas = ({ token }) => {
                   <li key={e.empresa_id} className="text-slate-300">
                     <span className="text-slate-100">{e.razon_social || '—'}</span>
                     {' · CUIT '}{e.cuit || '—'}
-                    {' · '}<span className="font-mono text-red-300" title={e.impedimento?.como_revertir || undefined}>{e.motivo}</span>
+                    {' · '}<span className="font-mono text-red-300" title={textoComoRevertir(e.impedimento)}>{e.motivo}</span>
                     {' · '}{TIPOS.map((t) => `${t.label.toLowerCase()} ${e[t.id] ?? 0}`).join(' · ')}
                   </li>
                 ))}
               </ul>
           </details>
         </>
+      )}
+      {data && (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => setBandejaAbierta((v) => !v)}
+            aria-expanded={bandejaAbierta}
+            className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-medium"
+          >
+            {bandejaAbierta ? 'Ocultar casos' : 'Revisar casos'}
+          </button>
+          {bandejaAbierta && (
+            <BandejaImpedidas token={token} onResuelto={() => setVersion((v) => v + 1)} />
+          )}
+        </div>
       )}
     </div>
   );

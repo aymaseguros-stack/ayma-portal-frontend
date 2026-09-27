@@ -181,6 +181,37 @@ export const correrCervi = (token, { limit = 50 } = {}, { dryRun = true } = {}) 
 
 // GET /art/admin/impedidas-trabajo-abierto (ADMIN, OPERACIONES-0012) -
 // trabajo del pool ART abierto sobre empresas impedidas. Sólo lectura.
-export const obtenerImpedidasTrabajoAbierto = (token) => getJson(
-  token, '/api/v1/art/admin/impedidas-trabajo-abierto',
+// `detalle: true` (OPERACIONES-0013 PR-3/PR-4) agrega `items` (con
+// `ultima_resolucion`) y `pendientes_de_decision`; sin él la respuesta es la
+// de siempre.
+export const obtenerImpedidasTrabajoAbierto = (token, { detalle = false } = {}) => getJson(
+  token, `/api/v1/art/admin/impedidas-trabajo-abierto${query({ detalle: detalle ? 'true' : undefined })}`,
 );
+
+// POST /art/admin/impedidas-trabajo-abierto/{tipo}/{item_id}/resolver
+// (ADMIN, OPERACIONES-0013 PR-4). body {decision: CERRAR|MANTENER, detalle?}.
+// `dry_run=true` por default, como en el backend. El 409 trae
+// `detail: {codigo, mensaje, ...}`: el error sale con `.status`, `.codigo` y
+// `.mensaje` para que el modal lo traduzca y bloquee Confirmar.
+export const resolverImpedida = async (token, { tipo, itemId, decision, detalle } = {}, { dryRun = true } = {}) => {
+  const body = { decision };
+  const texto = (detalle || '').trim();
+  if (texto) body.detalle = texto;
+  const res = await fetch(
+    `${API_URL}/api/v1/art/admin/impedidas-trabajo-abierto/${encodeURIComponent(tipo)}/${encodeURIComponent(itemId)}/resolver${query({ dry_run: dryRun ? 'true' : 'false' })}`,
+    { method: 'POST', headers: headers(token), body: JSON.stringify(body) },
+  );
+  if (res.ok) return res.json();
+  let data = null;
+  try { data = await res.json(); } catch { data = null; }
+  const d = data?.detail;
+  const mensaje = typeof d === 'string' ? d
+    : (d && typeof d === 'object' && !Array.isArray(d) && d.mensaje) ? d.mensaje
+      : Array.isArray(d) ? d.map((x) => x?.msg || JSON.stringify(x)).join('; ') : '';
+  const err = new Error(`Error ${res.status}${mensaje ? `: ${mensaje}` : ''}`);
+  err.status = res.status;
+  err.codigo = d && typeof d === 'object' && !Array.isArray(d) ? d.codigo || null : null;
+  err.mensaje = mensaje;
+  err.detail = d;
+  throw err;
+};
