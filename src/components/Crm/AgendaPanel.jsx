@@ -4,6 +4,7 @@ import Modal from '../Modal';
 import { authHeader, formatApiError } from '../../utils/api';
 import { fechaCorta, fechaHora, hoyISO, diaISO } from '../../utils/fechas';
 import { TIPOS_TAREA_VALIDOS, PRIORIDADES_VALIDAS } from './oportunidadConstants';
+import { BadgeImpedida } from '../ArtCartera/Impedimento';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -31,9 +32,11 @@ const TareaRow = ({ t, onCompletar, vencida }) => (
           {fechaHora(t.fecha_programada, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
         </span>
       </div>
-      <div className="flex items-center gap-2 mt-1">
+      <div className="flex items-center gap-2 mt-1 flex-wrap">
         {t.tipo && <span className="px-2 py-0.5 bg-slate-600 rounded text-xs">{t.tipo}</span>}
         <span className="px-2 py-0.5 bg-slate-600 rounded text-xs">{t.prioridad}</span>
+        {/* ART-121: sólo la marca; la tarea se completa igual. */}
+        <BadgeImpedida impedimento={t.impedimento} />
       </div>
       {t.descripcion && <p className="text-slate-400 text-sm mt-1">{t.descripcion}</p>}
     </div>
