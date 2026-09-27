@@ -120,7 +120,15 @@ export const seguimientosDeHoy = async (token, { soloMios = false } = {}) => {
   return res.json();
 };
 
-/** POST /crm/seguimientos/{id}/registrar — resultado del toque. */
+/**
+ * POST /crm/seguimientos/{id}/registrar — resultado del toque.
+ *
+ * C-9d: `hubo_respuesta` viaja TAL COMO LO ELIGIÓ el usuario, sin default -
+ * el backend lo declara obligatorio porque decide qué más es obligatorio (la
+ * próxima acción) y si se cancela la cadencia. `proxima_accion` sólo va
+ * cuando el caso la exige; en los toques 1 y 2 sin respuesta el backend la
+ * rechaza.
+ */
 export const registrarSeguimiento = async (token, seguimientoId, datos) => {
   const res = await fetch(
     `${API_URL}/api/v1/crm/seguimientos/${encodeURIComponent(seguimientoId)}/registrar`,
@@ -129,8 +137,9 @@ export const registrarSeguimiento = async (token, seguimientoId, datos) => {
       headers: { ...authHeader(token), 'Content-Type': 'application/json' },
       body: JSON.stringify({
         resultado: datos.resultado,
-        hubo_respuesta: datos.hubo_respuesta !== false,
+        hubo_respuesta: datos.hubo_respuesta,
         canal: datos.canal || 'WHATSAPP',
+        ...(datos.proxima_accion ? { proxima_accion: datos.proxima_accion } : {}),
       }),
     },
   );

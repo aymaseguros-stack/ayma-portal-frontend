@@ -5,6 +5,8 @@ import { authHeader, formatApiError } from '../../utils/api';
 import { fechaCorta, fechaHora, hoyISO, diaISO } from '../../utils/fechas';
 import { TIPOS_TAREA_VALIDOS, PRIORIDADES_VALIDAS } from './oportunidadConstants';
 import { BadgeImpedida } from '../ArtCartera/Impedimento';
+import CompletarProximaAccionModal from './CompletarProximaAccionModal';
+import { esTareaProximaAccion } from './proximaAccion';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -22,7 +24,8 @@ const TareaRow = ({ t, onCompletar, vencida }) => (
     <input
       type="checkbox"
       checked={t.estado === 'COMPLETADA'}
-      onChange={() => onCompletar(t.id)}
+      onChange={() => onCompletar(t)}
+      aria-label={`Completar ${t.titulo}`}
       className="w-4 h-4 mt-1 rounded shrink-0"
     />
     <div className="min-w-0 flex-1">
@@ -34,6 +37,9 @@ const TareaRow = ({ t, onCompletar, vencida }) => (
       </div>
       <div className="flex items-center gap-2 mt-1 flex-wrap">
         {t.tipo && <span className="px-2 py-0.5 bg-slate-600 rounded text-xs">{t.tipo}</span>}
+        {esTareaProximaAccion(t) && (
+          <span className="px-2 py-0.5 bg-blue-700/60 text-blue-100 rounded text-xs">Próxima acción</span>
+        )}
         <span className="px-2 py-0.5 bg-slate-600 rounded text-xs">{t.prioridad}</span>
         {/* ART-121: sólo la marca; la tarea se completa igual. */}
         <BadgeImpedida impedimento={t.impedimento} />
@@ -74,7 +80,13 @@ const AgendaPanel = ({ token }) => {
 
   useEffect(() => { cargarAgenda(); }, []);
 
-  const completarTarea = async (id) => {
+  // C-9d: una tarea de próxima acción exige la siguiente (mismo formulario
+  // que el toque). Una tarea libre se completa como siempre, de un click.
+  const [aCompletar, setACompletar] = useState(null);
+
+  const completarTarea = async (tarea) => {
+    if (esTareaProximaAccion(tarea)) { setACompletar(tarea); return; }
+    const id = tarea.id;
     try {
       const res = await fetch(`${API_URL}/api/v1/crm/tareas/${id}/completar`, {
         method: 'PATCH', headers, body: JSON.stringify({}),
@@ -240,6 +252,15 @@ const AgendaPanel = ({ token }) => {
             </div>
           </form>
         </Modal>
+      )}
+
+      {aCompletar && (
+        <CompletarProximaAccionModal
+          token={token}
+          tarea={aCompletar}
+          onCerrar={() => setACompletar(null)}
+          onCompletada={() => { setACompletar(null); cargarAgenda(); }}
+        />
       )}
     </div>
   );

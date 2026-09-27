@@ -31,7 +31,13 @@ const inputClass = 'w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-sla
  * que lo usa: así el mismo bloque sirve en el de transición y en el de
  * cierre sin que ninguno tenga que adoptar el estado del otro.
  */
-const DeclaracionLoop = ({ form, onChange, idPrefijo = 'loop', deshabilitado = false }) => {
+// `conAlicuotas=false` (C-9d): la próxima acción de un toque que NO es ART no
+// dibuja las alícuotas -no existen en ese ramo-; el radio sí, porque
+// `resultado_loop` sigue siendo obligatorio. Default true: las puertas que ya
+// lo usaban no cambian.
+const DeclaracionLoop = ({
+  form, onChange, idPrefijo = 'loop', deshabilitado = false, conAlicuotas = true,
+}) => {
   const conEfecto = form.resultado_loop === 'CON_EFECTO';
   const set = (campo) => (e) => onChange(campo, e.target.value);
 
@@ -65,7 +71,7 @@ const DeclaracionLoop = ({ form, onChange, idPrefijo = 'loop', deshabilitado = f
         </p>
       </div>
 
-      {conEfecto && (
+      {conEfecto && conAlicuotas && (
         <div className="space-y-4 border-l-2 border-emerald-600/40 pl-3">
           <div className="grid grid-cols-2 gap-4">
             <div>

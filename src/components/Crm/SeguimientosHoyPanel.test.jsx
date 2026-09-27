@@ -150,48 +150,35 @@ describe('SeguimientosHoyPanel', () => {
     expect(screen.getByLabelText('Mensaje de WhatsApp')).toBeTruthy();
   });
 
+  // C-9d: "¿Hubo respuesta?" no tiene default; toque 1 sin respuesta no pide
+  // próxima acción (la próxima acción es el toque siguiente).
   it('"Registrar" manda el resultado y avisa cuándo es el próximo toque', async () => {
     render(<SeguimientosHoyPanel token="t" />);
     await esperarFila();
 
     fireEvent.click(boton('Registrar'));
-    fireEvent.change(screen.getByLabelText(/Resultado/), { target: { value: 'Contesté, lo mira el finde' } });
+    fireEvent.change(screen.getByLabelText(/Resultado/), { target: { value: 'No contestó' } });
+    fireEvent.click(screen.getByRole('radio', { name: 'No' }));
     fireEvent.click(boton('Confirmar'));
 
     await waitFor(() => {
       const post = llamadas.find((l) => l.metodo === 'POST' && l.url.includes('/seguimientos/s-1/registrar'));
       expect(post).toBeTruthy();
-      expect(post.body).toMatchObject({
-        resultado: 'Contesté, lo mira el finde',
-        hubo_respuesta: true,
+      expect(post.body).toEqual({
+        resultado: 'No contestó',
+        hubo_respuesta: false,
         canal: 'WHATSAPP',
       });
     });
     await waitFor(() => expect(document.body.textContent).toContain('próximo toque 2'));
   });
 
-  it('un tercer toque sin respuesta PROPONE el LOOP y no lo aplica solo', async () => {
+  it('C-9d: ya no hay banner "Pasar a LOOP": el LOOP se declara en el formulario', async () => {
     respuestaHoy = { ...respuestaHoy, seguimientos: [{ ...SEG, numero_de_toque: 3 }] };
-    respuestaRegistrar = {
-      ...respuestaRegistrar, proximo_seguimiento_id: null, proximo_toque: null,
-      proximo_programado_para: null, propone_loop: true,
-      detalle: 'Tercer toque sin respuesta. Corresponde pasar a LOOP',
-    };
     render(<SeguimientosHoyPanel token="t" />);
     await esperarFila();
-
-    fireEvent.click(boton('Registrar'));
-    fireEvent.change(screen.getByLabelText(/Resultado/), { target: { value: 'No contestó' } });
-    fireEvent.click(screen.getByLabelText(/Hubo respuesta/).closest('label').querySelector('input'));
-    fireEvent.click(boton('Confirmar'));
-
-    await waitFor(() => expect(boton('Pasar a LOOP')).toBeTruthy());
-    // Hasta que una persona lo confirme con su fecha de recontacto, NADIE
-    // mandó la transición.
+    expect(boton('Pasar a LOOP')).toBeUndefined();
     expect(llamadas.some((l) => l.url.includes('/transicion'))).toBe(false);
-
-    fireEvent.click(boton('Pasar a LOOP'));
-    expect(screen.getByText('Pasar a LOOP', { selector: 'h3' })).toBeTruthy();
   });
 
   it('una fila con no_contactar se muestra deshabilitada y con el motivo, no se esconde', async () => {
