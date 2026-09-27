@@ -4,6 +4,7 @@ import Modal from '../Modal';
 import { Dato } from './FichaHelpers';
 import { authHeader, formatApiError } from '../../utils/api';
 import { fechaCorta, fechaHora } from '../../utils/fechas';
+import { PREGUNTA_COMPLETAR } from './agendaFiltros';
 import Timeline from './Timeline';
 import DocumentosTab from './DocumentosTab';
 import { SelectorAdjuntos, AvisoSubidaFallida, AvisoDuplicadosAdjuntos } from './AdjuntosUI';
@@ -352,7 +353,9 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged, tabIn
     }
   };
 
+  // C-9g: completar no tiene vuelta atrás; un click accidental la cerraba.
   const completarTarea = async (tareaId) => {
+    if (!window.confirm(PREGUNTA_COMPLETAR)) return;
     try {
       const res = await fetch(`${API_URL}/api/v1/crm/tareas/${tareaId}/completar`, {
         method: 'PATCH',

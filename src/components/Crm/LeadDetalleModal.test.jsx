@@ -64,10 +64,8 @@ describe('LeadDetalleModal', () => {
   it('muestra la HORA y no sólo la fecha', () => {
     render(<LeadDetalleModal token="t" lead={LEAD} onClose={() => {}} />);
     // 19/09/2026 CON hora: sin la hora no se puede priorizar a quién llamar.
-    // El formato exacto lo decide el ICU del runtime (12 h o 24 h), así que se
-    // asevera que hay hh:mm, no un texto literal.
-    expect(document.body.textContent).toMatch(/19\/9\/2026/);
-    expect(document.body.textContent).toMatch(/\d{1,2}:\d{2}/);
+    // C-9g: dd/mm/aaaa HH:mm, hora argentina, 24 h (el formato del helper).
+    expect(document.body.textContent).toMatch(/19\/09\/2026 \d{2}:\d{2}/);
   });
 
   it('la pestaña Atribución muestra los campos que el PR #175 persiste', () => {

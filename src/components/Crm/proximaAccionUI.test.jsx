@@ -309,13 +309,15 @@ describe('Agenda · completar', () => {
     fecha_programada: '2026-09-28T13:00:00', oportunidad_id: 'o-1', origen: null, ...extra,
   });
 
-  it('una tarea libre se completa como hoy: PATCH con cuerpo vacío y sin modal', async () => {
+  it('una tarea libre se completa con PATCH de cuerpo vacío y sin modal (tras confirmar, C-9g)', async () => {
+    const confirmar = vi.spyOn(window, 'confirm').mockReturnValue(true);
     ruta('/crm/tareas/agenda', 'GET', { vencidas: [], dias: { '2026-09-28': [tarea()] } });
     render(<AgendaPanel token="t" />);
     fireEvent.click(await screen.findByLabelText('Completar Llamar al contador'));
     await waitFor(() => expect(posts('/tareas/t-1/completar')).toHaveLength(1));
     expect(posts('/tareas/t-1/completar')[0].body).toEqual({});
     expect(screen.queryByRole('radiogroup', { name: 'Próxima acción' })).toBeNull();
+    confirmar.mockRestore();
   });
 
   it('una tarea PROXIMA_ACCION abre el formulario y lee el track sólo al elegir LOOP', async () => {

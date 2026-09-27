@@ -5,6 +5,7 @@ import { mensajeConflictoResolver } from './artCotizacionesConstants';
 import { obtenerImpedidasTrabajoAbierto, resolverImpedida } from './artCotizacionesApi';
 import { numeroAr } from './artCarteraConstants';
 import { useEsAdmin } from '../../utils/sesion';
+import { fechaHora as fechaHoraApp } from '../../utils/fechas';
 import OportunidadFichaModal from '../Crm/OportunidadFichaModal';
 
 // Bandeja de decisión sobre el trabajo abierto de empresas IMPEDIDAS
@@ -35,11 +36,8 @@ const REVERTIR = 'REVERTIR';
 // última, como en el backend).
 const puedeRevertir = (it) => it?.ultima_resolucion?.decision === 'CERRAR';
 
-const fechaHora = (iso) => {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' });
-};
+// C-9g: el helper único (instante sin zona = UTC, hora argentina, 24 h).
+const fechaHora = (iso) => fechaHoraApp(iso) || '—';
 
 const UltimaResolucion = ({ ultima }) => {
   if (!ultima) return <span className="text-amber-300">Sin decisión</span>;

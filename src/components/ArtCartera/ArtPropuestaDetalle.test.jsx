@@ -733,11 +733,11 @@ describe('ArtPropuestaDetalle - bitácora (T17)', () => {
     await waitFor(() => expect(screen.getByText('Constancia del documento')).toBeTruthy());
     // La fecha va DENTRO de esa línea: el 11/9 suelto también es la
     // `fecha_anulacion` de la cabecera, y lo que se prueba acá es que el
-    // asiento del vault tiene la suya (con hora: es un instante UTC).
+    // asiento del vault tiene la suya (con hora: es un instante UTC, que
+    // desde C-9g se muestra en hora argentina: 14:30 UTC = 11:30).
     const linea = screen.getByText(/Anulación asentada en el vault/);
-    expect(linea.textContent).toContain('11/9/2026');
-    expect(linea.textContent).toMatch(/14:30/);
-    expect(linea.textContent).toContain('UTC');
+    expect(linea.textContent).toContain('11/09/2026 11:30');
+    expect(linea.textContent).toContain('hora argentina');
   });
 
   it('anulada sin vault_anulado_en: avisa que allá el token sigue vigente, con el motivo del fallo', async () => {
