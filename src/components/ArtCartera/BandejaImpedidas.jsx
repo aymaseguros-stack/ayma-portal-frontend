@@ -5,6 +5,7 @@ import { mensajeConflictoResolver } from './artCotizacionesConstants';
 import { obtenerImpedidasTrabajoAbierto, resolverImpedida } from './artCotizacionesApi';
 import { numeroAr } from './artCarteraConstants';
 import { useEsAdmin } from '../../utils/sesion';
+import OportunidadFichaModal from '../Crm/OportunidadFichaModal';
 
 // Bandeja de decisión sobre el trabajo abierto de empresas IMPEDIDAS
 // (OPERACIONES-0013 · ART-121 FE-2). Vive DENTRO de la tarjeta de Dirección:
@@ -18,10 +19,21 @@ import { useEsAdmin } from '../../utils/sesion';
 // tanda: Previsualizar (dry_run=true) y recién después Confirmar con el MISMO
 // body (dry_run=false). Cambiar la decisión o el detalle invalida la
 // previsualización; un 409 bloquea Confirmar.
+//
+// FE-3 (backend #239): interruptor "Ver resueltos" (`incluir_resueltos=true`)
+// suma los ítems cuya última resolución es CERRAR, marcados aparte. REVERTIR
+// (sólo ADMIN) aparece donde la última resolución es CERRAR y usa el mismo
+// modal. La razón social de una fila con `oportunidad_id` abre la ficha de la
+// oportunidad existente (sin rutas nuevas).
 
 const TIPO_LABEL = { oportunidad: 'Oportunidad', tarea: 'Tarea', pedido_abierto: 'Pedido' };
 const TIPOS_RESOLUBLES = new Set(['oportunidad', 'tarea']);
 const DECISIONES = ['CERRAR', 'MANTENER'];
+const REVERTIR = 'REVERTIR';
+
+// REVERTIR sólo tiene sentido si la ÚLTIMA resolución es CERRAR (vale la
+// última, como en el backend).
+const puedeRevertir = (it) => it?.ultima_resolucion?.decision === 'CERRAR';
 
 const fechaHora = (iso) => {
   if (!iso) return '—';
@@ -58,6 +70,9 @@ const Foto = ({ titulo, foto }) => (
 
 const ResolverImpedidaModal = ({ token, item, decisionInicial, onCerrar, onConfirmado }) => {
   const [decision, setDecision] = useState(decisionInicial);
+  // REVERTIR es otra operación, no una tercera opción al lado de CERRAR:
+  // el modal queda fijo en ella.
+  const opciones = decisionInicial === REVERTIR ? [REVERTIR] : DECISIONES;
   const [detalle, setDetalle] = useState('');
   const [previa, setPrevia] = useState(null);
   const [conflicto, setConflicto] = useState(null);
@@ -117,7 +132,7 @@ const ResolverImpedidaModal = ({ token, item, decisionInicial, onCerrar, onConfi
         </div>
         <fieldset className="flex gap-4 text-sm">
           <legend className="text-xs text-slate-400 mb-1">Decisión</legend>
-          {DECISIONES.map((d) => (
+          {opciones.map((d) => (
             <label key={d} className="flex items-center gap-1">
               <input type="radio" name="decision-impedida" value={d} checked={decision === d} onChange={() => setDecision(d)} />
               {d}
@@ -177,7 +192,7 @@ const ResolverImpedidaModal = ({ token, item, decisionInicial, onCerrar, onConfi
                 <p className="text-slate-500">Sin tareas en cascada.</p>
               ) : (
                 <>
-                  <p>Tareas que se cancelarían: {cascada.length}</p>
+                  <p>{decision === REVERTIR ? 'Tareas que vuelven a PENDIENTE' : 'Tareas que se cancelarían'}: {cascada.length}</p>
                   <ul className="mt-1 space-y-0.5">
                     {cascada.map((c) => (
                       <li key={c.item_id}>
@@ -200,16 +215,18 @@ const BandejaImpedidas = ({ token, onResuelto }) => {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [resolviendo, setResolviendo] = useState(null);
+  const [verResueltos, setVerResueltos] = useState(false);
+  const [fichaAbierta, setFichaAbierta] = useState(null);
 
   const [version, setVersion] = useState(0);
 
   useEffect(() => {
     let cancelado = false;
-    obtenerImpedidasTrabajoAbierto(token, { detalle: true })
+    obtenerImpedidasTrabajoAbierto(token, { detalle: true, incluirResueltos: verResueltos })
       .then((r) => { if (!cancelado) { setData(r); setError(null); } })
       .catch((err) => { if (!cancelado) setError(err.message); });
     return () => { cancelado = true; };
-  }, [token, version]);
+  }, [token, version, verResueltos]);
 
   const items = Array.isArray(data?.items) ? data.items : [];
 
@@ -217,12 +234,26 @@ const BandejaImpedidas = ({ token, onResuelto }) => {
     <div className="mt-3 space-y-2" data-testid="bandeja-impedidas">
       {error && <p role="alert" className="text-sm text-red-300">No se pudo cargar la bandeja. {error}</p>}
       {!data && !error && <p className="text-sm text-slate-400">Cargando casos…</p>}
-      {data && (
-        <p className="text-sm text-slate-200" data-testid="pendientes-de-decision">
-          Pendientes de decisión: <span className="font-semibold">{numeroAr(data.pendientes_de_decision ?? 0)}</span>
-          <span className="text-slate-500"> · {numeroAr(items.length)} casos</span>
-        </p>
-      )}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {data ? (
+          <p className="text-sm text-slate-200" data-testid="pendientes-de-decision">
+            Pendientes de decisión: <span className="font-semibold">{numeroAr(data.pendientes_de_decision ?? 0)}</span>
+            <span className="text-slate-500"> · {numeroAr(items.length)} casos</span>
+            {verResueltos && data.resueltos_total !== undefined && (
+              <span className="text-slate-500" data-testid="resueltos-total"> · {numeroAr(data.resueltos_total)} resueltos</span>
+            )}
+          </p>
+        ) : <span />}
+        <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={verResueltos}
+            onChange={(e) => setVerResueltos(e.target.checked)}
+            className="w-4 h-4 rounded"
+          />
+          Ver resueltos
+        </label>
+      </div>
       {data && items.length === 0 && <p className="text-sm text-slate-300">No hay casos abiertos.</p>}
       {items.length > 0 && (
         <div className="overflow-x-auto max-h-96 overflow-y-auto">
@@ -241,9 +272,32 @@ const BandejaImpedidas = ({ token, onResuelto }) => {
               </tr>
             </thead>
             <tbody>
-              {items.map((it) => (
-                <tr key={`${it.tipo}:${it.item_id}`} className="border-t border-slate-700 text-slate-300" data-testid="fila-impedida">
-                  <td className="px-2 py-1 text-slate-100">{it.razon_social || '—'}</td>
+              {items.map((it) => {
+                const resuelto = it.cerrado_por_resolver === true;
+                return (
+                <tr
+                  key={`${it.tipo}:${it.item_id}`}
+                  className={`border-t border-slate-700 ${resuelto ? 'text-slate-500 bg-slate-900/40' : 'text-slate-300'}`}
+                  data-testid="fila-impedida"
+                  data-resuelto={resuelto ? 'true' : 'false'}
+                >
+                  <td className="px-2 py-1 text-slate-100">
+                    {it.oportunidad_id ? (
+                      <button
+                        type="button"
+                        onClick={() => setFichaAbierta({ id: it.oportunidad_id, impedimento: it.impedimento || null })}
+                        className="text-left underline decoration-dotted hover:text-blue-300"
+                        title="Abrir la ficha de la oportunidad"
+                      >
+                        {it.razon_social || '—'}
+                      </button>
+                    ) : (it.razon_social || '—')}
+                    {resuelto && (
+                      <span className="ml-1 px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 text-[10px] uppercase" data-testid="marca-resuelto">
+                        Resuelto
+                      </span>
+                    )}
+                  </td>
                   <td className="px-2 py-1 whitespace-nowrap">{it.cuit || '—'}</td>
                   <td className="px-2 py-1">{TIPO_LABEL[it.tipo] || it.tipo}</td>
                   <td className="px-2 py-1">{it.estado || '—'}</td>
@@ -255,7 +309,7 @@ const BandejaImpedidas = ({ token, onResuelto }) => {
                   <td className="px-2 py-1"><UltimaResolucion ultima={it.ultima_resolucion} /></td>
                   {esAdmin && (
                     <td className="px-2 py-1 whitespace-nowrap">
-                      {TIPOS_RESOLUBLES.has(it.tipo) && DECISIONES.map((d) => (
+                      {TIPOS_RESOLUBLES.has(it.tipo) && !resuelto && DECISIONES.map((d) => (
                         <button
                           key={d}
                           type="button"
@@ -265,10 +319,20 @@ const BandejaImpedidas = ({ token, onResuelto }) => {
                           {d}
                         </button>
                       ))}
+                      {TIPOS_RESOLUBLES.has(it.tipo) && puedeRevertir(it) && (
+                        <button
+                          type="button"
+                          onClick={() => setResolviendo({ item: it, decision: REVERTIR })}
+                          className="mr-1 px-2 py-0.5 rounded bg-amber-800/60 hover:bg-amber-700/70 text-amber-100"
+                        >
+                          {REVERTIR}
+                        </button>
+                      )}
                     </td>
                   )}
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -284,6 +348,15 @@ const BandejaImpedidas = ({ token, onResuelto }) => {
             setVersion((v) => v + 1);
             onResuelto?.();
           }}
+        />
+      )}
+      {fichaAbierta && (
+        <OportunidadFichaModal
+          token={token}
+          oportunidadId={fichaAbierta.id}
+          impedimento={fichaAbierta.impedimento}
+          onClose={() => setFichaAbierta(null)}
+          onChanged={() => setVersion((v) => v + 1)}
         />
       )}
     </div>

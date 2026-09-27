@@ -183,13 +183,18 @@ export const correrCervi = (token, { limit = 50 } = {}, { dryRun = true } = {}) 
 // trabajo del pool ART abierto sobre empresas impedidas. Sólo lectura.
 // `detalle: true` (OPERACIONES-0013 PR-3/PR-4) agrega `items` (con
 // `ultima_resolucion`) y `pendientes_de_decision`; sin él la respuesta es la
-// de siempre.
-export const obtenerImpedidasTrabajoAbierto = (token, { detalle = false } = {}) => getJson(
-  token, `/api/v1/art/admin/impedidas-trabajo-abierto${query({ detalle: detalle ? 'true' : undefined })}`,
+// de siempre. `incluirResueltos: true` (PR-5, sólo con `detalle`) suma los
+// ítems cuya última resolución es CERRAR (`cerrado_por_resolver: true`) y
+// `resueltos_total`; sin él el parámetro no viaja.
+export const obtenerImpedidasTrabajoAbierto = (token, { detalle = false, incluirResueltos = false } = {}) => getJson(
+  token, `/api/v1/art/admin/impedidas-trabajo-abierto${query({
+    detalle: detalle ? 'true' : undefined,
+    incluir_resueltos: detalle && incluirResueltos ? 'true' : undefined,
+  })}`,
 );
 
 // POST /art/admin/impedidas-trabajo-abierto/{tipo}/{item_id}/resolver
-// (ADMIN, OPERACIONES-0013 PR-4). body {decision: CERRAR|MANTENER, detalle?}.
+// (ADMIN, OPERACIONES-0013 PR-4/PR-5). body {decision: CERRAR|MANTENER|REVERTIR, detalle?}.
 // `dry_run=true` por default, como en el backend. El 409 trae
 // `detail: {codigo, mensaje, ...}`: el error sale con `.status`, `.codigo` y
 // `.mensaje` para que el modal lo traduzca y bloquee Confirmar.
