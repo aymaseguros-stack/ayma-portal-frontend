@@ -35,8 +35,13 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onr
 // POR QUÉ NO FILTRA LAS TARJETAS YA CARGADAS: el pipeline sólo trae lo que
 // está en una columna visible, y la pregunta "¿cuál era la oportunidad del
 // HAC394?" casi siempre es sobre una que ya se cerró.
+//
+// NO COLOCABLES (OPERACIONES-0013 FE-3): el listado las excluye por default
+// (D-C23). Con el tilde "Incluir no colocables" del tablero marcado, el
+// buscador manda `incluir_no_colocables=true` junto con `q`; sin el tilde el
+// parámetro no viaja.
 
-const BuscadorOportunidades = ({ token, onAbrir }) => {
+const BuscadorOportunidades = ({ token, onAbrir, incluirNoColocables = false }) => {
   const [texto, setTexto] = useState('');
   const [resultados, setResultados] = useState(null);
   const [buscando, setBuscando] = useState(false);
@@ -53,6 +58,7 @@ const BuscadorOportunidades = ({ token, onAbrir }) => {
         const url = new URL(`${API_URL}/api/v1/crm/oportunidades`);
         url.searchParams.set('q', termino);
         url.searchParams.set('limit', '25');
+        if (incluirNoColocables) url.searchParams.set('incluir_no_colocables', 'true');
         const res = await fetch(url.toString(), { headers: authHeader(token) });
         if (!res.ok) throw new Error(await formatApiError(res));
         const data = await res.json();
@@ -69,7 +75,7 @@ const BuscadorOportunidades = ({ token, onAbrir }) => {
     }, 300);
 
     return () => { vigente = false; clearTimeout(t); };
-  }, [texto, token]);
+  }, [texto, token, incluirNoColocables]);
 
   return (
     <div className="space-y-2">

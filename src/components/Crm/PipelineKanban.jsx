@@ -344,6 +344,7 @@ const PipelineKanban = ({ token }) => {
           sobre una que ya se cerró. */}
       <BuscadorOportunidades
         token={token}
+        incluirNoColocables={incluirNoColocables}
         onAbrir={(id, o) => { setTabFicha('datos'); setImpedimentoAbierto(o?.impedimento || null); setOportunidadAbierta(id); }}
       />
 

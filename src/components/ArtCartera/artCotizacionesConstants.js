@@ -145,12 +145,13 @@ export const textoComoRevertir = (impedimento) => (
   impedimento?.como_revertir_texto || impedimento?.como_revertir || undefined
 );
 
-// OPERACIONES-0013 PR-4: los tres 409 del resolver de impedidas
+// OPERACIONES-0013 PR-4/PR-5: los 409 del resolver de impedidas
 // (`detail.codigo`), en castellano de pantalla.
 export const MENSAJES_409_RESOLVER = {
   EMPRESA_NO_IMPEDIDA: 'La empresa ya no está impedida: no hay impedimento que resolver. Refrescá la bandeja.',
   ITEM_CERRADO: 'Este ítem ya no es trabajo abierto (se cerró por otra vía): no hay nada que resolver.',
   VIA_NO_APLICA: 'CERRAR no aplica: NO COLOCABLE sólo se declara desde DATO o PROSPECTO. Podés registrar MANTENER.',
+  NADA_QUE_REVERTIR: 'No hay nada que revertir: la última decisión de este ítem ya no es un CERRAR, o el ítem cambió por otra vía después. Refrescá la bandeja.',
 };
 
 export const mensajeConflictoResolver = (err) => {
