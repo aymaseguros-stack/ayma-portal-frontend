@@ -3,6 +3,7 @@ import { Icon } from '../Icons';
 import { obtenerResumenDireccion } from '../Direccion/finanzasApi';
 import { formatearMonto, etiqueta } from '../Direccion/direccionConstantes';
 import TechoNoSumado from '../ArtCartera/TechoNoSumado';
+import { TrabajoAbiertoImpedidas } from '../ArtCartera/Impedimento';
 
 // Los cuatro bloques del resumen de Dirección en el Dashboard principal.
 // GET /api/v1/dashboard/resumen-direccion (ADMIN-only, require_admin en el
@@ -268,6 +269,9 @@ const ResumenDireccion = ({ token, onIrSiniestros, onIrUniversoArt, onIrComision
           )}
         </Tarjeta>
       </div>
+      {/* OPERACIONES-0012: sólo lectura, fuera de las tarjetas clickeables
+          (el desplegable no puede vivir adentro de un botón). */}
+      <TrabajoAbiertoImpedidas token={token} />
     </section>
   );
 };

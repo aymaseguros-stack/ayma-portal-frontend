@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Icon } from '../Icons';
 import { obtenerColaAlicuotas, registrarCargaRapidaAlicuotas } from './artCarteraApi';
+import { ExcluidasImpedidas } from './Impedimento';
 import { suspendSessionExpiredHandling } from '../../utils/api';
 import { numeroAr, decimalAr, dotacionConfianzaInfo } from './artCarteraConstants';
 import CiiuLabel from '../Ciiu/CiiuLabel';
@@ -181,6 +182,8 @@ const PanelCargadosSesion = ({ items, respuestas, confirmados, defaultAbierto = 
 const ArtRelevamientoAlicuotas = ({ token }) => {
   const [items, setItems] = useState([]);
   const [totalPendientes, setTotalPendientes] = useState(0);
+  // OPERACIONES-0012: impedidas que el backend sacó de la cola.
+  const [excluidas, setExcluidas] = useState(null);
   const [loadingTanda, setLoadingTanda] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
@@ -242,6 +245,7 @@ const ArtRelevamientoAlicuotas = ({ token }) => {
       const data = await obtenerColaAlicuotas(tokenVigenteDe(token), { limit: LIMIT });
       setItems(data.items || []);
       setTotalPendientes(data.total ?? (data.items || []).length);
+      setExcluidas(data.excluidas_impedidas || null);
       setIndex(0);
       setRespuestas({});
       setInputValue('');
@@ -526,6 +530,7 @@ const ArtRelevamientoAlicuotas = ({ token }) => {
           <h2 className="text-2xl font-bold">Relevamiento</h2>
           <BotonAbrirARCA />
         </div>
+        <ExcluidasImpedidas excluidas={excluidas} />
         <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-12 text-center text-slate-500">
           No hay empresas pendientes de relevamiento en este momento. No es un error: la cola está vacía.
           <div>
@@ -662,6 +667,8 @@ const ArtRelevamientoAlicuotas = ({ token }) => {
           <BotonAbrirARCA />
         </div>
       </div>
+
+      <ExcluidasImpedidas excluidas={excluidas} />
 
       {/* Barra de autoguardado (PROBLEMA 1): estado de confirmación + botón manual siempre disponible */}
       <div className="flex items-center justify-between flex-wrap gap-3 bg-slate-800/50 rounded-xl border border-slate-700 px-4 py-3">

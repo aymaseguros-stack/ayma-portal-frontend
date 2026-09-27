@@ -131,3 +131,10 @@ export const armarBodyTanda = ({ canal, propuesta, seleccion, nota }) => {
   if (n) body.nota = n;
   return body;
 };
+
+// "ESTADO_ARCA:BAJA_OFICIO" -> "BAJA_OFICIO"; "NO_COTIZAR:X" queda igual.
+export const motivoCorto = (motivo) => (
+  typeof motivo === 'string' && motivo.startsWith('ESTADO_ARCA:')
+    ? motivo.slice('ESTADO_ARCA:'.length)
+    : (motivo || 'sin motivo')
+);

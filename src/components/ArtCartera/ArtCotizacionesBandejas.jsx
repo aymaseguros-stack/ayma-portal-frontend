@@ -14,6 +14,7 @@ import { ASEGURADORAS_ART, aseguradoraLabel, decimalAr, numeroAr } from './artCa
 import { fechaCorta } from '../../utils/fechas';
 import ArtRespuestaCotizacionModal from './ArtRespuestaCotizacionModal';
 import ArtDotacionPropuestas from './ArtDotacionPropuestas';
+import { BadgeImpedida } from './Impedimento';
 
 const labelClass = 'block text-slate-400 text-xs mb-1';
 const selectClass = 'px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm';
@@ -222,6 +223,7 @@ const ArtCotizacionesBandejas = ({ token }) => {
                 >
                   <td className="px-3 py-2 text-slate-200">
                     {f.razon_social || 'Sin razón social'}
+                    {f.impedimento && <BadgeImpedida impedimento={f.impedimento} className="block w-fit mt-1" />}
                     {vencido && (
                       <span className={`${badgeBase} block w-fit mt-1 ${ESTADO_PAR.SIN_RESPUESTA.clase}`} title={`SLA ${f.dias_sla} días`}>
                         SLA vencido
