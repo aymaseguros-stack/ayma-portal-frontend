@@ -69,9 +69,11 @@ const FICHA_TABS = [
 // "Riesgo". Una oportunidad recién creada no tiene nada más que mirar en Datos
 // y sí una ficha vacía que alguien tiene que llenar para poder cotizar: llevar
 // hasta ahí es la diferencia entre que la ficha se cargue o no se cargue.
-// ART-121: `impedimento` es el del ítem del listado desde el que se abrió
-// (OportunidadListItem). El GET /{id} no lo trae para la oportunidad; si algún
-// día lo trae, gana el del detalle. Sin ninguno de los dos, no se pinta nada.
+// ART-121: el encabezado toma `impedimento` del detalle (GET /{id}, F3 del
+// backend #237) con prioridad: si el detalle trae la clave, manda aunque sea
+// null (la empresa dejó de estar impedida). El prop -el del ítem del listado
+// desde el que se abrió- queda sólo como fallback para un detalle sin la
+// clave. Sin ninguno de los dos, no se pinta nada.
 const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged, tabInicial = 'datos', impedimento = null }) => {
   const esAdmin = useEsAdmin();
   const [detalle, setDetalle] = useState(null);
@@ -423,7 +425,7 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged, tabIn
                 oportunidad en el buscador del Pipeline. */}
             <IdCorto valor={detalle.id_corto} idCompleto={detalle.id} />
             <span className="px-2 py-1 bg-slate-700 rounded text-xs font-medium">{detalle.track}</span>
-            <BadgeImpedida impedimento={detalle.impedimento ?? impedimento} />
+            <BadgeImpedida impedimento={Object.prototype.hasOwnProperty.call(detalle, 'impedimento') ? detalle.impedimento : impedimento} />
             <span className={`px-2 py-1 rounded text-xs font-medium ${ESTADO_CRM_BADGE[detalle.estado_crm] || 'bg-slate-500/20 text-slate-400'}`}>
               {detalle.estado_crm}
             </span>

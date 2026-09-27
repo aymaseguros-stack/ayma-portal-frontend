@@ -250,7 +250,9 @@ describe('el filtro por relación económica', () => {
     await screen.findByText('Proveedor 0');
     fireEvent.change(screen.getByLabelText('Relación económica'), { target: { value: 'INGRESO' } });
     expect(await screen.findByText(/puede haber proveedores que coincidan/)).toBeTruthy();
-  });
+    // 500 filas en jsdom tardan ~6 s en un runner cargado: el default de 5 s
+    // lo cortaba antes de la aserción. La aserción no cambia.
+  }, 20000);
 
   it('sin filtro de relación no hay cartel: no se alarma cuando no hace falta', async () => {
     render(<DireccionProveedores token="t" />);

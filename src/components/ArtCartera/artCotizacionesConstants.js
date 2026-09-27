@@ -138,3 +138,26 @@ export const motivoCorto = (motivo) => (
     ? motivo.slice('ESTADO_ARCA:'.length)
     : (motivo || 'sin motivo')
 );
+
+// OPERACIONES-0013 PR-3 (F1): `como_revertir_texto` es el texto comercial;
+// `como_revertir` (técnico) queda sólo como fallback si el texto falta.
+export const textoComoRevertir = (impedimento) => (
+  impedimento?.como_revertir_texto || impedimento?.como_revertir || undefined
+);
+
+// OPERACIONES-0013 PR-4: los tres 409 del resolver de impedidas
+// (`detail.codigo`), en castellano de pantalla.
+export const MENSAJES_409_RESOLVER = {
+  EMPRESA_NO_IMPEDIDA: 'La empresa ya no está impedida: no hay impedimento que resolver. Refrescá la bandeja.',
+  ITEM_CERRADO: 'Este ítem ya no es trabajo abierto (se cerró por otra vía): no hay nada que resolver.',
+  VIA_NO_APLICA: 'CERRAR no aplica: NO COLOCABLE sólo se declara desde DATO o PROSPECTO. Podés registrar MANTENER.',
+};
+
+export const mensajeConflictoResolver = (err) => {
+  const base = MENSAJES_409_RESOLVER[err?.codigo];
+  if (!base) return err?.message || 'No se pudo resolver.';
+  const estado = err?.detail?.estado_crm;
+  return err.codigo === 'VIA_NO_APLICA' && estado
+    ? `${base} (la oportunidad está en ${estado}).`
+    : base;
+};
