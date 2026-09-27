@@ -69,6 +69,20 @@ export const mensajeSugerido = (seguimiento) => {
 };
 
 /**
+ * ¿El mensaje se puede mandar tal cual? El toque 2 trae un marcador entre
+ * corchetes ("[escribí acá el dato de valor: ...]") que el asesor tiene que
+ * reemplazar; si se abre WhatsApp sin editarlo, al cliente le llega el
+ * marcador literal. Ningún mensaje real de la cadencia lleva corchetes, así
+ * que un "[" o un "]" en el texto es un marcador sin completar.
+ *
+ * Es LA regla: la usan el botón de la tarjeta y los tests, no se copia.
+ */
+export const mensajeListoParaEnviar = (texto) => {
+  const t = String(texto || '');
+  return !t.includes('[') && !t.includes(']');
+};
+
+/**
  * El teléfono como lo quiere wa.me: sólo dígitos, con el 54 de Argentina.
  *
  * `https://wa.me/54${telefono}` pelado es el bug que ya se arregló en la tabla

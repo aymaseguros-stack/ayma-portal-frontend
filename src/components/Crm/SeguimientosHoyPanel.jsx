@@ -4,7 +4,9 @@ import Modal from '../Modal';
 import { fechaHora } from '../../utils/fechas';
 import { formatMoneda } from './oportunidadConstants';
 import { seguimientosDeHoy, registrarSeguimiento, MAX_TOQUES } from './pipelineApi';
-import { mensajeSugerido, linkWhatsapp, TOQUE_TITULO, TOQUE_PIDE_EDICION } from './seguimientoMensajes';
+import {
+  mensajeSugerido, linkWhatsapp, mensajeListoParaEnviar, TOQUE_TITULO, TOQUE_PIDE_EDICION,
+} from './seguimientoMensajes';
 import TransicionEstadoModal from './TransicionEstadoModal';
 import OportunidadFichaModal from './OportunidadFichaModal';
 
@@ -32,6 +34,9 @@ const SeguimientoRow = ({ fila, onRegistrar, onAbrirFicha }) => {
   const [editando, setEditando] = useState(Boolean(TOQUE_PIDE_EDICION[fila.numero_de_toque]));
 
   const link = linkWhatsapp(fila.telefono, mensaje);
+  // Con un marcador sin completar el botón no es un link: un <a> no tiene
+  // `disabled` de verdad, así que se dibuja un <button disabled> igual.
+  const listo = mensajeListoParaEnviar(mensaje);
   // El backend ya no crea la fila de alguien con `no_contactar`. Si igual
   // apareciera (una fila vieja, un cambio posterior en la persona), NO se
   // esconde: se muestra deshabilitada con el motivo. Esconderla haría creer
@@ -92,8 +97,24 @@ const SeguimientoRow = ({ fila, onRegistrar, onAbrirFicha }) => {
             <p className="text-slate-300 text-sm bg-slate-800/60 rounded-lg px-3 py-2">{mensaje}</p>
           )}
 
+          {!listo && (
+            <p className="text-amber-300 text-sm flex items-start gap-2">
+              <Icon name="exclamation-triangle" className="mt-0.5 shrink-0" />
+              Completá el dato de valor antes de enviar
+            </p>
+          )}
+
           <div className="flex items-center gap-2 flex-wrap">
-            {link ? (
+            {link && !listo ? (
+              <button
+                type="button"
+                disabled
+                className="inline-flex items-center gap-2 px-3 py-2 bg-green-600 rounded-lg text-sm font-medium opacity-50 cursor-not-allowed"
+              >
+                <Icon name="chat-bubble" />
+                Abrir WhatsApp
+              </button>
+            ) : link ? (
               <a
                 href={link}
                 target="_blank"
@@ -111,7 +132,9 @@ const SeguimientoRow = ({ fila, onRegistrar, onAbrirFicha }) => {
             <button
               type="button"
               onClick={() => setEditando((v) => !v)}
-              className="inline-flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition text-sm"
+              className={`inline-flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition text-sm ${
+                listo ? '' : 'ring-2 ring-amber-400'
+              }`}
             >
               <Icon name="pencil-square" />
               {editando ? 'Listo' : 'Editar mensaje'}

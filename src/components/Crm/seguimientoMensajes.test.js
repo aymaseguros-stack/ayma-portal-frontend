@@ -12,7 +12,9 @@
 //      produce una URL con espacios y el 54 dos veces, y wa.me abre una
 //      pestaña con un error en vez del chat.
 import { describe, it, expect } from 'vitest';
-import { mensajeSugerido, telefonoWhatsapp, linkWhatsapp } from './seguimientoMensajes';
+import {
+  mensajeSugerido, telefonoWhatsapp, linkWhatsapp, mensajeListoParaEnviar,
+} from './seguimientoMensajes';
 
 const fila = (extra = {}) => ({
   nombre: 'Juan Pérez',
@@ -94,5 +96,22 @@ describe('linkWhatsapp', () => {
 
   it('sin teléfono válido no inventa un link roto', () => {
     expect(linkWhatsapp('', 'hola')).toBeNull();
+  });
+});
+
+describe('mensajeListoParaEnviar (C-9b)', () => {
+  it('el toque 2 sin editar NO está listo: trae el marcador entre corchetes', () => {
+    expect(mensajeListoParaEnviar(mensajeSugerido(fila({ numero_de_toque: 2 })))).toBe(false);
+  });
+
+  it('los toques 1 y 3 están listos tal cual', () => {
+    expect(mensajeListoParaEnviar(mensajeSugerido(fila({ numero_de_toque: 1 })))).toBe(true);
+    expect(mensajeListoParaEnviar(mensajeSugerido(fila({ numero_de_toque: 3 })))).toBe(true);
+  });
+
+  it('un solo corchete, de cualquier lado, alcanza para bloquear', () => {
+    expect(mensajeListoParaEnviar('Hola [dato')).toBe(false);
+    expect(mensajeListoParaEnviar('Hola dato]')).toBe(false);
+    expect(mensajeListoParaEnviar('Hola, el premio se congela hasta fin de mes')).toBe(true);
   });
 });

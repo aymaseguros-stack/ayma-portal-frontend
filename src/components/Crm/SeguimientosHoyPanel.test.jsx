@@ -100,6 +100,47 @@ describe('SeguimientosHoyPanel', () => {
     expect(decodeURIComponent(link.href)).toContain('El premio se congela hasta fin de mes');
   });
 
+  // C-9b: con el marcador sin completar, al cliente le llegaría literal.
+  const linkWhatsappDom = () =>
+    [...document.querySelectorAll('a')].find((a) => a.textContent.includes('Abrir WhatsApp'));
+  const botonWhatsappDom = () =>
+    [...document.querySelectorAll('button')].find((b) => b.textContent.includes('Abrir WhatsApp'));
+
+  it('C-9b: el toque 2 sin editar bloquea "Abrir WhatsApp" y avisa', async () => {
+    respuestaHoy = { ...respuestaHoy, seguimientos: [{ ...SEG, numero_de_toque: 2 }] };
+    render(<SeguimientosHoyPanel token="t" />);
+    await esperarFila();
+
+    expect(linkWhatsappDom()).toBeUndefined();
+    expect(botonWhatsappDom().disabled).toBe(true);
+    expect(screen.getByText('Completá el dato de valor antes de enviar')).toBeTruthy();
+    expect(boton('Listo').className).toContain('ring-amber-400');
+  });
+
+  it('C-9b: al sacar los corchetes el botón se habilita sin recargar', async () => {
+    respuestaHoy = { ...respuestaHoy, seguimientos: [{ ...SEG, numero_de_toque: 2 }] };
+    render(<SeguimientosHoyPanel token="t" />);
+    await esperarFila();
+
+    fireEvent.change(screen.getByLabelText('Mensaje de WhatsApp'), {
+      target: { value: 'Hola Juan, el premio se congela hasta fin de mes.' },
+    });
+    expect(botonWhatsappDom()).toBeUndefined();
+    expect(linkWhatsappDom().getAttribute('href')).toContain('wa.me/5493416952259');
+    expect(screen.queryByText('Completá el dato de valor antes de enviar')).toBeNull();
+    expect(boton('Listo').className).not.toContain('ring-amber-400');
+  });
+
+  it.each([1, 3])('C-9b: el toque %i queda habilitado sin editar', async (numero) => {
+    respuestaHoy = { ...respuestaHoy, seguimientos: [{ ...SEG, numero_de_toque: numero }] };
+    render(<SeguimientosHoyPanel token="t" />);
+    await esperarFila();
+
+    expect(linkWhatsappDom()).toBeTruthy();
+    expect(botonWhatsappDom()).toBeUndefined();
+    expect(screen.queryByText('Completá el dato de valor antes de enviar')).toBeNull();
+  });
+
   it('el toque 1 no arranca editable y se puede editar a pedido', async () => {
     render(<SeguimientosHoyPanel token="t" />);
     await esperarFila();
