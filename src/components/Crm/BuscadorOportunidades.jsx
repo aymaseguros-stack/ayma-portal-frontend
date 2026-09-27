@@ -4,6 +4,7 @@ import { authHeader, formatApiError } from '../../utils/api';
 import { etiquetaOrigen } from './oportunidadCatalogos';
 import { ESTADO_CRM_BADGE, formatMoneda } from './oportunidadConstants';
 import IdCorto from './IdCorto';
+import { BadgeImpedida } from '../ArtCartera/Impedimento';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -99,7 +100,7 @@ const BuscadorOportunidades = ({ token, onAbrir }) => {
             <button
               type="button"
               key={o.id}
-              onClick={() => onAbrir(o.id)}
+              onClick={() => onAbrir(o.id, o)}
               className="w-full text-left px-3 py-2 hover:bg-slate-700/60 transition flex flex-wrap items-center gap-2 text-sm"
             >
               <span className="font-medium">{o.nombre_vinculado || 'Sin vincular'}</span>
@@ -108,6 +109,7 @@ const BuscadorOportunidades = ({ token, onAbrir }) => {
               <span className={`px-2 py-0.5 rounded text-xs ${ESTADO_CRM_BADGE[o.estado_crm] || 'bg-slate-500/20 text-slate-400'}`}>
                 {o.estado_crm}
               </span>
+              <BadgeImpedida impedimento={o.impedimento} />
               {o.patente && <span className="font-mono text-xs text-slate-300">{o.patente}</span>}
               {o.numero_solicitud_compania && (
                 <span className="font-mono text-xs text-slate-500">sol. {o.numero_solicitud_compania}</span>

@@ -32,6 +32,7 @@ import { useEsAdmin } from '../../utils/sesion';
 import RiesgoTab from './RiesgoTab';
 import IdCorto from './IdCorto';
 import WhatsappSeccion from './WhatsappSeccion';
+import { BadgeImpedida } from '../ArtCartera/Impedimento';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ayma-portal-backend.onrender.com';
 
@@ -68,7 +69,10 @@ const FICHA_TABS = [
 // "Riesgo". Una oportunidad recién creada no tiene nada más que mirar en Datos
 // y sí una ficha vacía que alguien tiene que llenar para poder cotizar: llevar
 // hasta ahí es la diferencia entre que la ficha se cargue o no se cargue.
-const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged, tabInicial = 'datos' }) => {
+// ART-121: `impedimento` es el del ítem del listado desde el que se abrió
+// (OportunidadListItem). El GET /{id} no lo trae para la oportunidad; si algún
+// día lo trae, gana el del detalle. Sin ninguno de los dos, no se pinta nada.
+const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged, tabInicial = 'datos', impedimento = null }) => {
   const esAdmin = useEsAdmin();
   const [detalle, setDetalle] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -419,6 +423,7 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged, tabIn
                 oportunidad en el buscador del Pipeline. */}
             <IdCorto valor={detalle.id_corto} idCompleto={detalle.id} />
             <span className="px-2 py-1 bg-slate-700 rounded text-xs font-medium">{detalle.track}</span>
+            <BadgeImpedida impedimento={detalle.impedimento ?? impedimento} />
             <span className={`px-2 py-1 rounded text-xs font-medium ${ESTADO_CRM_BADGE[detalle.estado_crm] || 'bg-slate-500/20 text-slate-400'}`}>
               {detalle.estado_crm}
             </span>
@@ -727,6 +732,7 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged, tabIn
                         <span className="text-slate-500 text-xs shrink-0">{fechaHora(t.fecha_programada)}</span>
                       </div>
                       <span className="inline-block mt-1 px-2 py-0.5 bg-slate-600 rounded text-xs">{t.prioridad}</span>
+                      <BadgeImpedida impedimento={t.impedimento} className="ml-2" />
                     </div>
                   </div>
                 ))}

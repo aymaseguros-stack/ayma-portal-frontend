@@ -11,6 +11,7 @@ import {
 } from './oportunidadConstants';
 import BuscadorOportunidades from './BuscadorOportunidades';
 import IdCorto from './IdCorto';
+import { BadgeImpedida } from '../ArtCartera/Impedimento';
 import { EtapaSaidaChip } from './EtapaSaida';
 import { colaParaCotizar } from './riesgoApi';
 import { fechaCorta } from '../../utils/fechas';
@@ -69,6 +70,9 @@ const OportunidadCard = ({ token, o, onDragStart, onClick }) => {
           </span>
         )}
         <EtapaSaidaChip valor={o.etapa_saida} />
+        {/* ART-121: empresa impedida (estado ARCA excluyente o no_cotizar).
+            Sólo la marca: la tarjeta se mueve y se abre igual. */}
+        <BadgeImpedida impedimento={o.impedimento} />
         {/* C-15: la patente en la tarjeta. Es como se reconoce de qué riesgo
             se trata sin abrir la ficha, que era la pregunta que había que ir
             a buscar a las notas. */}
@@ -120,6 +124,10 @@ const PipelineKanban = ({ token }) => {
 
   const [mostrarNueva, setMostrarNueva] = useState(false);
   const [oportunidadAbierta, setOportunidadAbierta] = useState(null);
+  // ART-121: el `impedimento` del ítem del listado con el que se abrió la
+  // ficha. El GET /{id} no lo trae para la oportunidad; se reusa el del
+  // listado tal cual, sin calcularlo acá.
+  const [impedimentoAbierto, setImpedimentoAbierto] = useState(null);
   // C-17: la ficha recién creada se abre en "Riesgo". Una oportunidad nueva no
   // tiene nada que mirar en Datos y sí una ficha vacía que hay que llenar para
   // poder cotizar; llevar hasta ahí es la diferencia entre que se cargue o no.
@@ -336,7 +344,7 @@ const PipelineKanban = ({ token }) => {
           sobre una que ya se cerró. */}
       <BuscadorOportunidades
         token={token}
-        onAbrir={(id) => { setTabFicha('datos'); setOportunidadAbierta(id); }}
+        onAbrir={(id, o) => { setTabFicha('datos'); setImpedimentoAbierto(o?.impedimento || null); setOportunidadAbierta(id); }}
       />
 
       {error && (
@@ -373,7 +381,7 @@ const PipelineKanban = ({ token }) => {
                 <li key={o.oportunidad_id}>
                   <button
                     type="button"
-                    onClick={() => { setTabFicha('riesgo'); setOportunidadAbierta(o.oportunidad_id); }}
+                    onClick={() => { setTabFicha('riesgo'); setImpedimentoAbierto(null); setOportunidadAbierta(o.oportunidad_id); }}
                     className="w-full text-left px-3 py-2.5 hover:bg-slate-700/40 transition flex flex-wrap items-center gap-2 text-sm"
                   >
                     <span className="font-medium">{o.nombre_vinculado || 'Sin vincular'}</span>
@@ -430,7 +438,7 @@ const PipelineKanban = ({ token }) => {
                     <p className="text-slate-600 text-xs text-center py-6">Sin oportunidades</p>
                   ) : (
                     col.oportunidades.map((o) => (
-                      <OportunidadCard key={o.id} token={token} o={o} onDragStart={onDragStart} onClick={(id) => { setTabFicha('datos'); setOportunidadAbierta(id); }} />
+                      <OportunidadCard key={o.id} token={token} o={o} onDragStart={onDragStart} onClick={(id) => { setTabFicha('datos'); setImpedimentoAbierto(o.impedimento || null); setOportunidadAbierta(id); }} />
                     ))
                   )}
                 </div>
@@ -448,7 +456,7 @@ const PipelineKanban = ({ token }) => {
           onResuelto={(creada) => {
             setMostrarNueva(false);
             cargarPipeline();
-            if (creada?.id) { setTabFicha('riesgo'); setOportunidadAbierta(creada.id); }
+            if (creada?.id) { setTabFicha('riesgo'); setImpedimentoAbierto(null); setOportunidadAbierta(creada.id); }
           }}
         />
       )}
@@ -467,8 +475,9 @@ const PipelineKanban = ({ token }) => {
         <OportunidadFichaModal
           token={token}
           oportunidadId={oportunidadAbierta}
+          impedimento={impedimentoAbierto}
           tabInicial={tabFicha}
-          onClose={() => { setOportunidadAbierta(null); setTabFicha('datos'); }}
+          onClose={() => { setOportunidadAbierta(null); setImpedimentoAbierto(null); setTabFicha('datos'); }}
           onChanged={() => {
             cargarPipeline();
             if (soloParaCotizar) cargarCola();
