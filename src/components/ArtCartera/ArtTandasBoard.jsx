@@ -3,6 +3,7 @@ import { listarTandas, obtenerTanda } from './artCotizacionesApi';
 import { ESTADO_PAR, TIPO_RESPUESTA, canalLabel } from './artCotizacionesConstants';
 import { aseguradoraLabel, decimalAr } from './artCarteraConstants';
 import { fechaCorta } from '../../utils/fechas';
+import { BadgeImpedida } from './Impedimento';
 
 const thClass = 'text-left px-3 py-2 font-medium whitespace-nowrap';
 const badgeBase = 'inline-block text-[11px] px-1.5 py-0.5 rounded whitespace-nowrap';
@@ -58,7 +59,10 @@ const DetalleTanda = ({ token, tandaId, onVolver }) => {
           {(data.empresas || []).map((emp) => (
             <section key={emp.empresa_id} className="bg-slate-800 rounded-2xl border border-slate-700 p-4 space-y-2">
               <div className="flex items-baseline justify-between flex-wrap gap-2">
-                <h4 className="font-semibold text-slate-200">{emp.razon_social || emp.cuit || emp.empresa_id}</h4>
+                <h4 className="font-semibold text-slate-200">
+                  {emp.razon_social || emp.cuit || emp.empresa_id}
+                  <BadgeImpedida impedimento={emp.impedimento} className="ml-2 align-middle" />
+                </h4>
                 <span className="text-xs text-slate-400">
                   CUIT {emp.cuit || '—'} · {emp.enviadas} enviadas · {emp.devueltas} devueltas · {emp.faltan} faltan
                 </span>

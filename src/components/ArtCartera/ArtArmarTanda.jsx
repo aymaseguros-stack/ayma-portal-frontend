@@ -5,6 +5,7 @@ import { aseguradoraLabel, numeroAr } from './artCarteraConstants';
 import { fechaCorta } from '../../utils/fechas';
 import { useEsAdmin } from '../../utils/sesion';
 import ArtDotacionDeclaradaModal from './ArtDotacionDeclaradaModal';
+import { EmpresasImpedidas } from './Impedimento';
 
 const labelClass = 'block text-slate-400 text-xs mb-1';
 const selectClass = 'px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm';
@@ -32,6 +33,12 @@ const ResultadoTanda = ({ resultado }) => (
         revisá si esa empresa tiene que ir en esta tanda.
       </p>
     )}
+    {/* OPERACIONES-0012: empresas impedidas enteras (estado ARCA
+        excluyente o no_cotizar). No generan PEDIDA ni entran en `empresas`. */}
+    {(resultado.empresas || []).length === 0 && (resultado.empresas_impedidas || []).length > 0 && (
+      <p className="text-sm text-red-300 font-medium">Todas las empresas están impedidas: no hay nada que pedir.</p>
+    )}
+    <EmpresasImpedidas lista={resultado.empresas_impedidas} />
     <div className="space-y-2">
       {(resultado.empresas || []).map((emp) => (
         <div key={emp.empresa_id} className="bg-slate-900/50 border border-slate-700 rounded-lg p-3 text-sm space-y-1">
@@ -208,9 +215,16 @@ const ArtArmarTanda = ({ token }) => {
       {error && <p role="alert" className="text-sm text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">{error}</p>}
 
       {enviado && (
-        <div role="status" className="bg-green-500/10 border border-green-500/30 rounded-2xl p-4 space-y-2">
-          <p className="text-green-300 font-medium">
-            {enviado.tanda_creada ? `Tanda #${enviado.tanda_id} creada.` : 'No se creó tanda: no había pedidos nuevos.'}
+        <div
+          role="status"
+          className={`${enviado.tanda_creada ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'} border rounded-2xl p-4 space-y-2`}
+        >
+          <p className={`${enviado.tanda_creada ? 'text-green-300' : 'text-red-300'} font-medium`}>
+            {enviado.tanda_creada
+              ? `Tanda #${enviado.tanda_id} creada.`
+              : ((enviado.empresas || []).length === 0 && (enviado.empresas_impedidas || []).length > 0
+                ? 'No se creó la tanda: todas las empresas están impedidas.'
+                : 'No se creó tanda: no había pedidos nuevos.')}
           </p>
           <ResultadoTanda resultado={enviado} />
         </div>

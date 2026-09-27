@@ -77,6 +77,16 @@ export const numeroSeguro = (valor) => (typeof valor === 'number' && Number.isFi
 // Arma un mensaje de error legible con el status HTTP real y, si el backend
 // lo mandó, su detalle (FastAPI: {detail: "..."} o {detail: [{msg: "..."}]}).
 // Nunca dejar un texto genérico: sin el status/detalle no se puede diagnosticar.
+// Texto de un objeto `impedimento` del backend (OPERACIONES-0012):
+// "Empresa impedida (ESTADO_ARCA:BAJA_OFICIO): RAZÓN SOCIAL. <como_revertir>".
+export const mensajeImpedimento = (imp) => {
+  if (!imp) return '';
+  const quien = imp.razon_social || imp.cuit || imp.empresa_id || '';
+  const partes = [`Empresa impedida (${imp.motivo || 'sin motivo'})${quien ? `: ${quien}` : ''}.`];
+  if (imp.como_revertir) partes.push(imp.como_revertir);
+  return partes.join(' ');
+};
+
 export const formatApiError = async (res) => {
   let detail = '';
   try {
@@ -87,6 +97,11 @@ export const formatApiError = async (res) => {
       detail = body.detail;
     } else if (typeof body?.message === 'string') {
       detail = body.message;
+    } else if (body?.detail?.impedimento) {
+      // OPERACIONES-0012: 409 de una empresa IMPEDIDA (estado ARCA
+      // excluyente o no_cotizar). Se muestra el motivo del backend y cómo
+      // revertirlo, no un "Error 409" mudo.
+      detail = mensajeImpedimento(body.detail.impedimento);
     }
   } catch {
     // el cuerpo no era JSON o ya se consumió; nos quedamos solo con el status

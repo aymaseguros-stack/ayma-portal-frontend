@@ -178,3 +178,9 @@ export const correrCervi = (token, { limit = 50 } = {}, { dryRun = true } = {}) 
   `/api/v1/art/workers/cervi/corrida${query({ dry_run: dryRun ? 'true' : 'false', limit })}`,
   {},
 );
+
+// GET /art/admin/impedidas-trabajo-abierto (ADMIN, OPERACIONES-0012) -
+// trabajo del pool ART abierto sobre empresas impedidas. Sólo lectura.
+export const obtenerImpedidasTrabajoAbierto = (token) => getJson(
+  token, '/api/v1/art/admin/impedidas-trabajo-abierto',
+);
