@@ -2188,7 +2188,7 @@ function App() {
 
         {/* SEGUIMIENTOS DE HOY - cadencia post-cotización (backend PR #176) */}
         {state.activeTab === 'seguimientos' && isAdmin() && (
-          <SeguimientosHoyPanel token={state.token} />
+          <SeguimientosHoyPanel token={state.token} esAdmin={isAdmin()} />
         )}
 
         {/* SOLICITUDES DE EMISIÓN (QR-EMI, C-6c).

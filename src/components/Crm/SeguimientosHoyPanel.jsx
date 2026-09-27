@@ -1,14 +1,21 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Icon } from '../Icons';
 import Modal from '../Modal';
-import { fechaHora } from '../../utils/fechas';
+import { fechaHora, fechaCorta } from '../../utils/fechas';
 import { formatMoneda } from './oportunidadConstants';
 import { seguimientosDeHoy, registrarSeguimiento, MAX_TOQUES } from './pipelineApi';
 import {
   mensajeSugerido, linkWhatsapp, mensajeListoParaEnviar, TOQUE_TITULO, TOQUE_PIDE_EDICION,
 } from './seguimientoMensajes';
-import TransicionEstadoModal from './TransicionEstadoModal';
 import OportunidadFichaModal from './OportunidadFichaModal';
+import ProximaAccionForm from './ProximaAccionForm';
+import CompletarProximaAccionModal from './CompletarProximaAccionModal';
+import { useProximaAccionForm } from './useProximaAccion';
+import {
+  CANAL_DEFAULT, toqueExigeProximaAccion, resumenProgramado, sinProximaAccion,
+  etiquetaTipoAccion, etiquetaLoopMotivo,
+} from './proximaAccion';
+import { BadgeImpedida } from '../ArtCartera/Impedimento';
 
 // "Seguimientos de hoy": la cadencia +24 h / +72 h / +7 d desde la entrega de
 // la cotización, servida por GET /crm/seguimientos/hoy (que incluye los
@@ -154,23 +161,43 @@ const SeguimientoRow = ({ fila, onRegistrar, onAbrirFicha }) => {
   );
 };
 
-// Sub-modal de "Registrar": el resultado del toque, y si HUBO respuesta.
-// `hubo_respuesta` sólo pesa en el toque 3: tres toques sin respuesta es lo que
-// hace que el backend PROPONGA el LOOP (no lo aplica solo - la fecha de
-// recontacto es un juicio comercial).
-const RegistrarModal = ({ fila, onCerrar, onConfirmar }) => {
+// Sub-modal de "Registrar" (C-9d): el resultado del toque, si HUBO respuesta
+// (sin valor por defecto: decide qué más es obligatorio), el canal y, cuando
+// el backend la exige, la próxima acción.
+//
+//   hubo respuesta           -> próxima acción obligatoria (se cancelan los toques)
+//   sin respuesta, toque 1-2 -> nada más: la próxima acción es el toque siguiente
+//   sin respuesta, toque 3   -> próxima acción obligatoria (o LOOP)
+//
+// Un 422 queda en el modal con el texto del backend y el modal NO se cierra.
+const RegistrarModal = ({ token, fila, onCerrar, onConfirmar }) => {
   const [resultado, setResultado] = useState('');
-  const [huboRespuesta, setHuboRespuesta] = useState(true);
+  const [huboRespuesta, setHuboRespuesta] = useState(null);
+  const [canal, setCanal] = useState(CANAL_DEFAULT);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState(null);
+  // SeguimientoPendiente no trae el track: se lee sólo si se elige LOOP.
+  const estado = useProximaAccionForm({ token, oportunidadId: fila.oportunidad_id });
+
+  const exige = toqueExigeProximaAccion(huboRespuesta, fila.numero_de_toque, MAX_TOQUES);
 
   const confirmar = async (e) => {
     e.preventDefault();
+    if (huboRespuesta === null) { setError('Indicá si hubo respuesta'); return; }
     if (!resultado.trim()) { setError('Escribí el resultado del toque'); return; }
+    if (exige) {
+      const problema = estado.validar();
+      if (problema) { setError(problema); return; }
+    }
     setGuardando(true);
     setError(null);
     try {
-      await onConfirmar(fila, { resultado: resultado.trim(), hubo_respuesta: huboRespuesta });
+      await onConfirmar(fila, {
+        resultado: resultado.trim(),
+        hubo_respuesta: huboRespuesta,
+        canal,
+        ...(exige ? { proxima_accion: estado.payload() } : {}),
+      });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -182,7 +209,7 @@ const RegistrarModal = ({ fila, onCerrar, onConfirmar }) => {
     <Modal
       title={`Registrar toque ${fila.numero_de_toque}/${MAX_TOQUES} · ${fila.nombre || fila.oportunidad_token}`}
       onClose={onCerrar}
-      maxWidth="max-w-md"
+      maxWidth="max-w-lg"
     >
       <form onSubmit={confirmar} className="space-y-5">
         <div>
@@ -195,28 +222,37 @@ const RegistrarModal = ({ fila, onCerrar, onConfirmar }) => {
           />
         </div>
 
-        <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
-          <input
-            type="checkbox" checked={huboRespuesta} onChange={(e) => setHuboRespuesta(e.target.checked)}
-            className="w-4 h-4 rounded"
-          />
-          Hubo respuesta del prospecto
-        </label>
-        {fila.numero_de_toque >= MAX_TOQUES && !huboRespuesta && (
+        <ProximaAccionForm
+          estado={estado}
+          idPrefijo="sg-pa"
+          deshabilitado={guardando}
+          mostrarAccion={exige}
+          toque={{ huboRespuesta, onHuboRespuesta: setHuboRespuesta, canal, onCanal: setCanal }}
+        />
+
+        {huboRespuesta === false && !exige && (
+          <p className="text-slate-500 text-xs">
+            Sin respuesta: se programa el toque {fila.numero_de_toque + 1}.
+          </p>
+        )}
+        {huboRespuesta === false && exige && (
           <p className="text-amber-300/90 text-xs">
-            Tercer toque sin respuesta: al confirmar se va a proponer pasar la oportunidad a LOOP.
+            Tercer toque sin respuesta: elegí la próxima acción, o "Sin próxima acción → LOOP".
           </p>
         )}
 
         {error && (
-          <div className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-2 rounded-lg text-sm">{error}</div>
+          <div role="alert" className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-2 rounded-lg text-sm">{error}</div>
         )}
 
         <div className="flex gap-4 pt-2">
           <button type="button" onClick={onCerrar} className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 rounded-lg transition">
             Cancelar
           </button>
-          <button type="submit" disabled={guardando} className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg font-semibold transition">
+          <button
+            type="submit" disabled={guardando || huboRespuesta === null}
+            className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg font-semibold transition"
+          >
             {guardando ? 'Registrando...' : 'Confirmar'}
           </button>
         </div>
@@ -225,24 +261,211 @@ const RegistrarModal = ({ fila, onCerrar, onConfirmar }) => {
   );
 };
 
-const SeguimientosHoyPanel = ({ token }) => {
-  const [datos, setDatos] = useState({ fecha: null, total: 0, seguimientos: [] });
+const fechaHoraCorta = (v) => fechaHora(v, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+const FORMATEAR = { fecha: (v) => fechaCorta(v), fechaHora: fechaHoraCorta };
+
+const BotonWhatsapp = ({ telefono }) => {
+  const link = linkWhatsapp(telefono, '');
+  if (!link) return null;
+  return (
+    <a
+      href={link} target="_blank" rel="noopener noreferrer"
+      className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 rounded-lg transition text-sm font-medium"
+    >
+      <Icon name="chat-bubble" />
+      Abrir WhatsApp
+    </a>
+  );
+};
+
+const telHref = (telefono) => {
+  const digitos = (telefono || '').replace(/[^\d+]/g, '');
+  return digitos ? `tel:${digitos}` : null;
+};
+
+// "Próximas acciones" (C-9d): las tareas de próxima acción con fecha hasta
+// hoy, vencidas primero.
+const ProximaAccionRow = ({ fila, onCompletar, onAbrirFicha }) => {
+  const tel = fila.tipo_accion === 'LLAMAR' ? telHref(fila.telefono) : null;
+  return (
+    <div
+      data-testid="fila-proxima-accion"
+      className={`rounded-lg p-4 space-y-2 border ${
+        fila.vencida ? 'bg-red-500/10 border-red-500/30' : 'bg-slate-700/30 border-slate-700'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          {fila.oportunidad_id ? (
+            <button
+              type="button" onClick={() => onAbrirFicha(fila.oportunidad_id)}
+              className="font-medium hover:text-blue-300 transition text-left"
+            >
+              {fila.nombre || fila.titulo}
+            </button>
+          ) : (
+            <span className="font-medium">{fila.nombre || fila.titulo}</span>
+          )}
+          <div className="flex items-center gap-2 flex-wrap mt-1 text-xs text-slate-400">
+            {fila.oportunidad_token && <span className="font-mono text-blue-400">{fila.oportunidad_token}</span>}
+            {fila.track && <span>{fila.track}</span>}
+            <BadgeImpedida impedimento={fila.impedimento} />
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="px-2 py-0.5 rounded text-xs font-semibold bg-blue-700/60 text-blue-100 whitespace-nowrap">
+            {etiquetaTipoAccion(fila.tipo_accion)}
+          </span>
+          <span className={`text-xs ${fila.vencida ? 'text-red-400' : 'text-slate-500'}`}>
+            {fila.vencida ? 'Vencida · ' : ''}{fechaHoraCorta(fila.fecha_programada)}
+          </span>
+        </div>
+      </div>
+      {fila.nota && <p className="text-slate-300 text-sm">{fila.nota}</p>}
+      <div className="flex items-center gap-2 flex-wrap">
+        {fila.tipo_accion === 'WHATSAPP' && <BotonWhatsapp telefono={fila.telefono} />}
+        {tel && (
+          <a
+            href={tel}
+            className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg transition text-sm"
+          >
+            <Icon name="phone" />
+            Llamar {fila.telefono}
+          </a>
+        )}
+        <button
+          type="button" onClick={() => onCompletar(fila)}
+          className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg transition text-sm"
+        >
+          <Icon name="check-badge" />
+          Completar
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// "LOOP a recontactar" (C-9d): LOOP con fecha de recontacto hasta hoy.
+const LoopRow = ({ fila, onAbrirFicha }) => (
+  <div data-testid="fila-loop" className="rounded-lg p-4 space-y-2 border bg-yellow-500/5 border-yellow-600/30">
+    <div className="flex items-start justify-between gap-3 flex-wrap">
+      <div className="min-w-0">
+        <button
+          type="button" onClick={() => onAbrirFicha(fila.oportunidad_id)}
+          className="font-medium hover:text-blue-300 transition text-left"
+        >
+          {fila.nombre || fila.oportunidad_token}
+        </button>
+        <div className="flex items-center gap-2 flex-wrap mt-1 text-xs text-slate-400">
+          <span className="font-mono text-blue-400">{fila.oportunidad_token}</span>
+          {fila.track && <span>{fila.track}</span>}
+          <BadgeImpedida impedimento={fila.impedimento} />
+        </div>
+      </div>
+      <span className={`text-xs shrink-0 ${fila.dias_vencido > 0 ? 'text-red-400' : 'text-slate-400'}`}>
+        {fila.dias_vencido > 0
+          ? `Vencido hace ${fila.dias_vencido} día${fila.dias_vencido === 1 ? '' : 's'}`
+          : 'Recontactar hoy'}
+      </span>
+    </div>
+    <p className="text-slate-300 text-sm">
+      Motivo: {etiquetaLoopMotivo(fila.loop_motivo)}
+      {fila.loop_motivo_detalle ? ` · ${fila.loop_motivo_detalle}` : ''}
+    </p>
+    <div className="flex items-center gap-2 flex-wrap">
+      <BotonWhatsapp telefono={fila.telefono} />
+      <button
+        type="button" onClick={() => onAbrirFicha(fila.oportunidad_id)}
+        className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg transition text-sm"
+      >
+        Ver ficha
+      </button>
+    </div>
+  </div>
+);
+
+// Sólo ADMIN: las oportunidades vivas sin nada agendado.
+const SinProximaAccionCard = ({ token, onAbrirFicha, version }) => {
+  const [datos, setDatos] = useState(null);
+  const [error, setError] = useState(null);
+  const [abierta, setAbierta] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    sinProximaAccion(token)
+      .then((d) => { if (vivo) { setDatos(d); setError(null); } })
+      .catch((err) => { if (vivo) setError(err.message); });
+    return () => { vivo = false; };
+  }, [token, version]);
+
+  if (error) {
+    return <div className="text-red-300 text-sm">Oportunidades sin próxima acción: {error}</div>;
+  }
+  if (!datos) return null;
+  return (
+    <div data-testid="sin-proxima-accion" className={`rounded-xl border p-4 ${
+      datos.total > 0 ? 'bg-amber-500/10 border-amber-500/40' : 'bg-slate-800/50 border-slate-700'
+    }`}>
+      <button
+        type="button" onClick={() => setAbierta((v) => !v)} aria-expanded={abierta}
+        className="w-full flex items-center justify-between gap-3 text-left"
+      >
+        <span className="font-semibold">Oportunidades sin próxima acción: {datos.total}</span>
+        {datos.detalle.length > 0 && <span className="text-sm text-slate-400">{abierta ? 'Ocultar' : 'Ver detalle'}</span>}
+      </button>
+      {abierta && datos.detalle.length > 0 && (
+        <ul className="mt-3 space-y-1 text-sm">
+          {datos.detalle.map((o) => (
+            <li key={o.oportunidad_id} className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button" onClick={() => onAbrirFicha(o.oportunidad_id)}
+                className="text-blue-300 hover:text-blue-200 underline"
+              >
+                {o.nombre || o.id_corto}
+              </button>
+              <span className="text-slate-400">{o.track} · {o.estado_crm}</span>
+              <span className="font-mono text-slate-500">{o.id_corto}</span>
+              {o.ultimo_toque && (
+                <span className="text-slate-500">· último toque {o.ultimo_toque.numero_de_toque}</span>
+              )}
+            </li>
+          ))}
+          {datos.detalle_truncado && (
+            <li className="text-slate-500 text-xs">Se muestran las {datos.detalle.length} más viejas.</li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+};
+
+const ordenarProximas = (lista) => [...lista].sort((a, b) => {
+  if (a.vencida !== b.vencida) return a.vencida ? -1 : 1;
+  return String(a.fecha_programada).localeCompare(String(b.fecha_programada));
+});
+
+const SeguimientosHoyPanel = ({ token, esAdmin = false }) => {
+  const [datos, setDatos] = useState({
+    fecha: null, total: 0, seguimientos: [], proximas_acciones: [], loop_a_recontactar: [],
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [soloMios, setSoloMios] = useState(false);
 
   const [aRegistrar, setARegistrar] = useState(null);
   const [aviso, setAviso] = useState(null);
-  // El backend PROPONE el LOOP tras un tercer toque sin respuesta; la
-  // confirmación es de una persona y pide la fecha de recontacto.
-  const [loopPropuesto, setLoopPropuesto] = useState(null);
+  const [aCompletar, setACompletar] = useState(null);
   const [fichaAbierta, setFichaAbierta] = useState(null);
+  // Sube con cada cambio para que la tarjeta ADMIN se vuelva a pedir.
+  const [version, setVersion] = useState(0);
 
   const cargar = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      setDatos(await seguimientosDeHoy(token, { soloMios }));
+      const r = await seguimientosDeHoy(token, { soloMios });
+      setDatos({ proximas_acciones: [], loop_a_recontactar: [], ...r });
+      setVersion((v) => v + 1);
     } catch (err) {
       console.error('Error cargando seguimientos de hoy:', err);
       setError(err.message);
@@ -254,27 +477,38 @@ const SeguimientosHoyPanel = ({ token }) => {
   useEffect(() => { cargar(); }, [cargar]);
 
   const confirmarRegistro = async (fila, datosRegistro) => {
-    const respuesta = await registrarSeguimiento(token, fila.id, {
-      ...datosRegistro,
-      canal: 'WHATSAPP',
-    });
+    const respuesta = await registrarSeguimiento(token, fila.id, datosRegistro);
     setARegistrar(null);
     const partes = [`Toque ${fila.numero_de_toque} registrado`];
     if (respuesta.proximo_toque) {
-      partes.push(`próximo toque ${respuesta.proximo_toque} el ${fechaHora(respuesta.proximo_programado_para, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`);
+      partes.push(`próximo toque ${respuesta.proximo_toque} el ${fechaHoraCorta(respuesta.proximo_programado_para)}`);
     }
+    if (respuesta.seguimientos_cancelados > 0) {
+      partes.push(`${respuesta.seguimientos_cancelados} toque${respuesta.seguimientos_cancelados === 1 ? '' : 's'} pendiente${respuesta.seguimientos_cancelados === 1 ? '' : 's'} cancelado${respuesta.seguimientos_cancelados === 1 ? '' : 's'}`);
+    }
+    const programado = resumenProgramado(respuesta.proxima_accion, FORMATEAR);
+    if (programado) partes.push(programado);
     if (respuesta.detalle) partes.push(respuesta.detalle);
     setAviso(partes.join(' · '));
-    if (respuesta.propone_loop) {
-      setLoopPropuesto({ id: fila.oportunidad_id, nombre: fila.nombre });
-    }
     await cargar();
   };
+
+  const tareaCompletada = async (respuesta) => {
+    setACompletar(null);
+    const programado = resumenProgramado(respuesta?.proxima_accion, FORMATEAR);
+    setAviso(['Acción completada', programado].filter(Boolean).join(' · '));
+    await cargar();
+  };
+
+  const proximas = ordenarProximas(datos.proximas_acciones || []);
+  const loops = datos.loop_a_recontactar || [];
 
   const vencidos = datos.seguimientos.filter((s) => s.vencido).length;
 
   return (
     <div className="space-y-6">
+      {esAdmin && <SinProximaAccionCard token={token} onAbrirFicha={setFichaAbierta} version={version} />}
+
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold">Seguimientos de hoy</h2>
@@ -309,29 +543,6 @@ const SeguimientosHoyPanel = ({ token }) => {
         <div className="bg-blue-500/15 border border-blue-500/40 text-blue-200 px-4 py-2 rounded-lg text-sm">{aviso}</div>
       )}
 
-      {loopPropuesto && (
-        <div className="bg-amber-500/15 border border-amber-500/40 text-amber-200 px-4 py-3 rounded-lg text-sm flex items-start gap-3 flex-wrap">
-          <Icon name="exclamation-triangle" className="mt-0.5 shrink-0" />
-          <span className="flex-1 min-w-[12rem]">
-            Tres toques sin respuesta en {loopPropuesto.nombre || 'la oportunidad'}. Corresponde pasarla a LOOP con fecha de recontacto.
-          </span>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setLoopPropuesto({ ...loopPropuesto, confirmando: true })}
-              className="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition text-sm"
-            >
-              Pasar a LOOP
-            </button>
-            <button
-              onClick={() => setLoopPropuesto(null)}
-              className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition text-sm"
-            >
-              Después
-            </button>
-          </div>
-        </div>
-      )}
-
       {loading ? (
         <p className="text-slate-400 text-center py-8">Cargando seguimientos...</p>
       ) : datos.seguimientos.length === 0 ? (
@@ -354,21 +565,49 @@ const SeguimientosHoyPanel = ({ token }) => {
         </div>
       )}
 
+      {!loading && (
+        <section className="space-y-3">
+          <h3 className="text-lg font-semibold">Próximas acciones ({proximas.length})</h3>
+          {proximas.length === 0 ? (
+            <p className="text-slate-500 text-sm">Nada agendado para hoy.</p>
+          ) : proximas.map((fila) => (
+            <ProximaAccionRow
+              key={fila.tarea_id} fila={fila}
+              onCompletar={setACompletar} onAbrirFicha={setFichaAbierta}
+            />
+          ))}
+        </section>
+      )}
+
+      {!loading && (
+        <section className="space-y-3">
+          <h3 className="text-lg font-semibold">LOOP a recontactar ({loops.length})</h3>
+          {loops.length === 0 ? (
+            <p className="text-slate-500 text-sm">Ningún LOOP vence hoy.</p>
+          ) : loops.map((fila) => (
+            <LoopRow key={fila.oportunidad_id} fila={fila} onAbrirFicha={setFichaAbierta} />
+          ))}
+        </section>
+      )}
+
       {aRegistrar && (
         <RegistrarModal
+          token={token}
           fila={aRegistrar}
           onCerrar={() => setARegistrar(null)}
           onConfirmar={confirmarRegistro}
         />
       )}
 
-      {loopPropuesto?.confirmando && (
-        <TransicionEstadoModal
+      {aCompletar && (
+        <CompletarProximaAccionModal
           token={token}
-          oportunidad={{ id: loopPropuesto.id }}
-          destino="LOOP"
-          onCerrar={() => setLoopPropuesto(null)}
-          onAplicada={() => { setLoopPropuesto(null); setAviso('Oportunidad pasada a LOOP'); cargar(); }}
+          tarea={{
+            id: aCompletar.tarea_id, titulo: aCompletar.titulo,
+            oportunidad_id: aCompletar.oportunidad_id, track: aCompletar.track,
+          }}
+          onCerrar={() => setACompletar(null)}
+          onCompletada={tareaCompletada}
         />
       )}
 
