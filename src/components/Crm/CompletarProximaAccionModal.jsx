@@ -14,7 +14,8 @@ import { completarTarea } from './proximaAccion';
 //
 // `tarea`: { id, titulo, oportunidad_id, track? }. El track viene en la fila
 // de "Próximas acciones"; desde la Agenda no, y se lee al elegir LOOP.
-const CompletarProximaAccionModal = ({ token, tarea, onCerrar, onCompletada }) => {
+// `zClass`: desde la ficha (que ya es un modal) va un nivel más arriba.
+const CompletarProximaAccionModal = ({ token, tarea, onCerrar, onCompletada, zClass }) => {
   const estado = useProximaAccionForm({
     token, oportunidadId: tarea.oportunidad_id, trackConocido: tarea.track || null,
   });
@@ -42,7 +43,7 @@ const CompletarProximaAccionModal = ({ token, tarea, onCerrar, onCompletada }) =
   };
 
   return (
-    <Modal title={`Completar · ${tarea.titulo || 'Próxima acción'}`} onClose={onCerrar} maxWidth="max-w-lg">
+    <Modal title={`Completar · ${tarea.titulo || 'Próxima acción'}`} onClose={onCerrar} maxWidth="max-w-lg" zClass={zClass}>
       <form onSubmit={confirmar} className="space-y-5">
         <div>
           <label className="block text-slate-400 text-sm mb-2" htmlFor="pa-completar-resultado">

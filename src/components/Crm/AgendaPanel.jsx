@@ -6,6 +6,7 @@ import { fechaCorta, fechaHora, hoyISO, diaISO } from '../../utils/fechas';
 import { TIPOS_TAREA_VALIDOS, PRIORIDADES_VALIDAS } from './oportunidadConstants';
 import { BadgeImpedida } from '../ArtCartera/Impedimento';
 import CompletarProximaAccionModal from './CompletarProximaAccionModal';
+import ConfirmarModal from '../ConfirmarModal';
 import { esTareaProximaAccion } from './proximaAccion';
 import {
   GRUPOS_AGENDA, GRUPOS_DEFAULT, TODOS_LOS_GRUPOS, PREGUNTA_COMPLETAR,
@@ -92,20 +93,23 @@ const AgendaPanel = ({ token }) => {
   const [aCompletar, setACompletar] = useState(null);
 
   // C-9g: una tarea libre o de prospección se cerraba con un click y no
-  // tiene vuelta atrás; un click accidental la perdía. Se confirma antes.
-  const completarTarea = async (tarea) => {
+  // tiene vuelta atrás; un click accidental la perdía. Se confirma antes,
+  // con el modal propio (C-9j, nada de `window.confirm`). Un error queda
+  // dentro del modal.
+  const [aConfirmar, setAConfirmar] = useState(null);
+
+  const completarTarea = (tarea) => {
     if (esTareaProximaAccion(tarea)) { setACompletar(tarea); return; }
-    if (!window.confirm(PREGUNTA_COMPLETAR)) return;
-    const id = tarea.id;
-    try {
-      const res = await fetch(`${API_URL}/api/v1/crm/tareas/${id}/completar`, {
-        method: 'PATCH', headers, body: JSON.stringify({}),
-      });
-      if (!res.ok) throw new Error(await formatApiError(res));
-      cargarAgenda();
-    } catch (err) {
-      alert('No se pudo completar la tarea: ' + err.message);
-    }
+    setAConfirmar(tarea);
+  };
+
+  const confirmarCompletar = async () => {
+    const res = await fetch(`${API_URL}/api/v1/crm/tareas/${aConfirmar.id}/completar`, {
+      method: 'PATCH', headers, body: JSON.stringify({}),
+    });
+    if (!res.ok) throw new Error('No se pudo completar la tarea: ' + await formatApiError(res));
+    setAConfirmar(null);
+    cargarAgenda();
   };
 
   const crearTarea = async (e) => {
@@ -306,6 +310,16 @@ const AgendaPanel = ({ token }) => {
           tarea={aCompletar}
           onCerrar={() => setACompletar(null)}
           onCompletada={() => { setACompletar(null); cargarAgenda(); }}
+        />
+      )}
+
+      {aConfirmar && (
+        <ConfirmarModal
+          titulo={PREGUNTA_COMPLETAR}
+          mensaje={aConfirmar.titulo}
+          textoConfirmar="Marcar como hecha"
+          onConfirmar={confirmarCompletar}
+          onCancelar={() => setAConfirmar(null)}
         />
       )}
     </div>

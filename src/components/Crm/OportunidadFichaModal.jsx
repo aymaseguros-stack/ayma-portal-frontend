@@ -5,6 +5,9 @@ import { Dato } from './FichaHelpers';
 import { authHeader, formatApiError } from '../../utils/api';
 import { fechaCorta, fechaHora } from '../../utils/fechas';
 import { PREGUNTA_COMPLETAR } from './agendaFiltros';
+import { esTareaProximaAccion } from './proximaAccion';
+import CompletarProximaAccionModal from './CompletarProximaAccionModal';
+import ConfirmarModal from '../ConfirmarModal';
 import Timeline from './Timeline';
 import DocumentosTab from './DocumentosTab';
 import { SelectorAdjuntos, AvisoSubidaFallida, AvisoDuplicadosAdjuntos } from './AdjuntosUI';
@@ -353,21 +356,31 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged, tabIn
     }
   };
 
-  // C-9g: completar no tiene vuelta atrás; un click accidental la cerraba.
-  const completarTarea = async (tareaId) => {
-    if (!window.confirm(PREGUNTA_COMPLETAR)) return;
-    try {
-      const res = await fetch(`${API_URL}/api/v1/crm/tareas/${tareaId}/completar`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({}),
-      });
-      if (!res.ok) throw new Error('Error ' + res.status);
-      await cargarDetalle();
-      onChanged?.();
-    } catch (err) {
-      alert('No se pudo completar la tarea: ' + err.message);
+  // C-9i: una tarea de próxima acción exige la siguiente (el backend
+  // rechaza el PATCH vacío con 422): abre el MISMO modal que la Agenda.
+  // C-9g/C-9j: el resto se completa tras confirmar con el modal propio.
+  const [aCompletarPA, setACompletarPA] = useState(null);
+  const [aConfirmar, setAConfirmar] = useState(null);
+
+  const completarTarea = (tarea) => {
+    if (esTareaProximaAccion(tarea)) {
+      // TareaResumen no trae la oportunidad (es ésta) ni el track (lo sabe la ficha).
+      setACompletarPA({ ...tarea, oportunidad_id: oportunidadId, track: detalle?.track || null });
+      return;
     }
+    setAConfirmar(tarea);
+  };
+
+  const confirmarCompletar = async () => {
+    const res = await fetch(`${API_URL}/api/v1/crm/tareas/${aConfirmar.id}/completar`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({}),
+    });
+    if (!res.ok) throw new Error('No se pudo completar la tarea: ' + await formatApiError(res));
+    setAConfirmar(null);
+    await cargarDetalle();
+    onChanged?.();
   };
 
   // Tras registrar el acto se RECARGA la ficha desde el backend en vez de
@@ -728,7 +741,8 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged, tabIn
                       type="checkbox"
                       checked={t.estado === 'COMPLETADA'}
                       disabled={t.estado === 'COMPLETADA'}
-                      onChange={() => completarTarea(t.id)}
+                      onChange={() => completarTarea(t)}
+                      aria-label={`Completar ${t.titulo}`}
                       className="w-4 h-4 mt-1 rounded shrink-0"
                     />
                     <div className="min-w-0 flex-1">
@@ -1031,6 +1045,26 @@ const OportunidadFichaModal = ({ token, oportunidadId, onClose, onChanged, tabIn
             </div>
           </form>
         </Modal>
+      )}
+
+      {aCompletarPA && (
+        <CompletarProximaAccionModal
+          token={token}
+          tarea={aCompletarPA}
+          zClass="z-[60]"
+          onCerrar={() => setACompletarPA(null)}
+          onCompletada={async () => { setACompletarPA(null); await cargarDetalle(); onChanged?.(); }}
+        />
+      )}
+
+      {aConfirmar && (
+        <ConfirmarModal
+          titulo={PREGUNTA_COMPLETAR}
+          mensaje={aConfirmar.titulo}
+          textoConfirmar="Marcar como hecha"
+          onConfirmar={confirmarCompletar}
+          onCancelar={() => setAConfirmar(null)}
+        />
       )}
     </Modal>
   );
