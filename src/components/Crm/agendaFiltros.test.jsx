@@ -5,7 +5,7 @@
 // confirmación antes de completar una tarea libre o de prospección.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react';
 import AgendaPanel from './AgendaPanel';
 import {
   contarPorGrupo, filtrarAgenda, grupoDeTarea, GRUPOS_DEFAULT, PREGUNTA_COMPLETAR,
@@ -91,35 +91,42 @@ describe('AgendaPanel', () => {
     expect(screen.getAllByText('28/09/2026 10:00').length).toBeGreaterThan(0);
   });
 
-  it('completar una tarea libre pide confirmación; sin confirmar no hay PATCH', async () => {
-    const confirmar = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  // C-9j: la confirmación es el modal propio, nunca `window.confirm`.
+  it('completar una tarea libre abre el modal propio; Cancelar no llama al PATCH', async () => {
+    const nativo = vi.spyOn(window, 'confirm');
     render(<AgendaPanel token="t" />);
     fireEvent.click(await screen.findByLabelText('Completar Pasar por la compañía'));
-    expect(confirmar).toHaveBeenCalledWith(PREGUNTA_COMPLETAR);
+    const dialogo = screen.getByRole('alertdialog', { name: PREGUNTA_COMPLETAR });
+    expect(within(dialogo).getByText('Pasar por la compañía')).toBeTruthy();
+    fireEvent.click(within(dialogo).getByRole('button', { name: 'Cancelar' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(patches).toHaveLength(0);
-
-    confirmar.mockReturnValue(true);
-    fireEvent.click(screen.getByLabelText('Completar Pasar por la compañía'));
-    await waitFor(() => expect(patches).toHaveLength(1));
-    expect(patches[0]).toContain('/tareas/li/completar');
+    expect(nativo).not.toHaveBeenCalled();
   });
 
-  it('completar una de prospección ART también pide confirmación', async () => {
-    const confirmar = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  it('Confirmar sí llama al PATCH y cierra el modal', async () => {
+    render(<AgendaPanel token="t" />);
+    fireEvent.click(await screen.findByLabelText('Completar Pasar por la compañía'));
+    fireEvent.click(screen.getByRole('button', { name: 'Marcar como hecha' }));
+    await waitFor(() => expect(patches).toHaveLength(1));
+    expect(patches[0]).toContain('/tareas/li/completar');
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+  });
+
+  it('completar una de prospección ART también pasa por el modal', async () => {
     render(<AgendaPanel token="t" />);
     await screen.findByText('Pasar por la compañía');
     fireEvent.click(screen.getByRole('button', { name: /Prospección ART/ }));
     fireEvent.click(screen.getByLabelText('Completar Sin cobertura ART vigente - ACME SA'));
-    expect(confirmar).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('alertdialog', { name: PREGUNTA_COMPLETAR })).toBeTruthy();
     expect(patches).toHaveLength(0);
   });
 
   it('una de próxima acción NO pide confirmación (abre su formulario)', async () => {
-    const confirmar = vi.spyOn(window, 'confirm');
     render(<AgendaPanel token="t" />);
     await screen.findByText('Pasar por la compañía');
     fireEvent.click(screen.getAllByLabelText('Completar Llamar a Juan')[0]);
-    expect(confirmar).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(patches).toHaveLength(0);
   });
 });

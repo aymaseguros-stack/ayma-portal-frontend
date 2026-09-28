@@ -70,4 +70,6 @@ export const filtrarAgenda = (agenda, grupos) => {
   return { dias, vencidas: (agenda?.vencidas || []).filter(pasa) };
 };
 
+// C-9g/C-9j: el texto del modal propio (`ConfirmarModal`) antes de
+// completar una tarea libre o de prospección.
 export const PREGUNTA_COMPLETAR = '¿Marcar como hecha?';
