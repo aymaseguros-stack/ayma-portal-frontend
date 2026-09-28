@@ -113,3 +113,12 @@ export const altaDirectorio = (token, body, { dryRun = true } = {}) => postJson(
   `${BASE}/fuentes-datos/directorios${query({ dry_run: dryRun ? 'true' : 'false' })}`,
   body,
 );
+
+// POST /art/workers/paz/saneamiento?dry_run= (ADMIN con JWT, ART-116 · PR 3).
+// Sin body. Sólo contadores y una muestra (empresa, fuente, tipo): el
+// backend no devuelve un solo valor de contacto. `dryRun` viaja SIEMPRE
+// explícito y el default es `true`.
+export const sanearTelefonosPaz = (token, { dryRun = true } = {}) => postJson(
+  token,
+  `${BASE}/workers/paz/saneamiento${query({ dry_run: dryRun ? 'true' : 'false' })}`,
+);
