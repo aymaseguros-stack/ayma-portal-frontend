@@ -68,14 +68,35 @@ const SIN_CUIT = {
 
 const DIAGNOSTICO = {
   por_fuente: {
-    ESCALAR: { total: 900, menos_6_dig: 12, no_numericos: 4, en_compartidos_3mas: 30 },
-    MATER_II: { total: 120, menos_6_dig: 0, no_numericos: 0, en_compartidos_3mas: 8 },
+    ESCALAR: { total: 900, menos_6_dig: 12, no_numericos: 4, en_compartidos_3mas: 30, estudio_contable: 0 },
+    MATER_II: { total: 120, menos_6_dig: 0, no_numericos: 0, en_compartidos_3mas: 8, estudio_contable: 5 },
   },
+  google_places_activas: { total: 30, por_tipo: { TELEFONO: 28, WEB: 2 } },
   numeros_compartidos_3mas: 9,
   empresas_en_numeros_compartidos_3mas: 41,
   mater_ii_activas: { total: 150, por_tipo: { TELEFONO: 120, EMAIL: 30 } },
   umbral_compartido: 3,
 };
+
+const bloque = (filas, over = {}) => ({
+  filas_empresa_contacto: filas, por_tipo: filas ? { TELEFONO: filas } : {}, empresas: filas,
+  muestra: filas ? [{ empresa_id: 'e9', razon_social: 'DELTA SA', fuente: 'MATER_II', tipo: 'TELEFONO' }] : [],
+  ...over,
+});
+
+const SANEO = (dryRun, vacio = false) => ({
+  escritura: !dryRun, dry_run: dryRun, umbral_compartido: 3,
+  filas_actualizadas: vacio ? 0 : 363 + 30 + 400 + 55,
+  bloques: {
+    mater_ii: bloque(vacio ? 0 : 363),
+    google_places: bloque(vacio ? 0 : 30),
+    compartidos_3mas: bloque(vacio ? 0 : 400, { numeros: vacio ? 0 : 217, escalares_no_contactables: { ESCALAR: vacio ? 0 : 120 } }),
+    basura: bloque(vacio ? 0 : 55, { escalares_no_contactables: { ESCALAR: vacio ? 0 : 1461 } }),
+  },
+});
+
+// Valores de contacto que NUNCA tienen que aparecer en pantalla.
+const VALORES_CONTACTO = [/\+54\d/, /@[a-z]+\./i, /https?:\/\//, /0341/];
 
 const mockFetch = (extra = {}) => {
   const rutas = {
@@ -83,6 +104,7 @@ const mockFetch = (extra = {}) => {
     'GET /api/v1/art/contacto-propuestas': { total: PROPUESTAS.length, limit: 100, offset: 0, items: PROPUESTAS },
     'GET /api/v1/art/workers/paz/sin-cuit': SIN_CUIT,
     'GET /api/v1/art/workers/paz/diagnostico-telefonos': DIAGNOSTICO,
+    'POST /api/v1/art/workers/paz/saneamiento': (u) => SANEO(u.searchParams.get('dry_run') !== 'false'),
     'POST /api/v1/art/contacto-propuestas/{id}/aceptar': (u) => ({
       id: Number(u.pathname.split('/').at(-2)), estado: 'ACEPTADA', empresa_id: 'e1', tipo: 'TELEFONO',
       accion: 'ALTA', contacto_id: 'c1', confianza: 'MEDIA',
@@ -279,6 +301,73 @@ describe('Bandeja Contactos propuestos', () => {
     expect(screen.getByTestId('diag-compartidos').textContent).toBe('9');
     expect(screen.getByTestId('diag-empresas-compartidos').textContent).toBe('41');
     expect(screen.getAllByTestId('fila-diagnostico')).toHaveLength(2);
+    expect(screen.getByTestId('diag-places-total').textContent).toBe('30');
+    expect(screen.getByTestId('diag-estudio-MATER_II').textContent).toBe('5');
+  });
+
+  const abrirDiagnostico = async () => {
+    render(<ArtContactoPropuestas token={TOKEN} />);
+    await screen.findByText('ACME SA');
+    fireEvent.click(screen.getByRole('button', { name: 'Diagnóstico ART-116' }));
+    await screen.findByTestId('diag-mater-total');
+  };
+
+  it('Saneamiento: sin previsualizar no se puede confirmar', async () => {
+    mockFetch();
+    await abrirDiagnostico();
+    const confirmar = screen.getByRole('button', { name: 'Confirmar saneamiento' });
+    expect(confirmar.disabled).toBe(true);
+    fireEvent.click(confirmar);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(llamadas('POST', '/api/v1/art/workers/paz/saneamiento')).toHaveLength(0);
+  });
+
+  it('Saneamiento: previsualiza en seco, confirma con modal y refresca métrica y diagnóstico', async () => {
+    mockFetch();
+    await abrirDiagnostico();
+    fireEvent.click(screen.getByRole('button', { name: 'Previsualizar saneamiento' }));
+    expect((await screen.findByTestId('saneo-filas-mater_ii')).textContent).toBe('363');
+    expect(screen.getByTestId('saneo-filas-compartidos_3mas').textContent).toBe('400');
+    expect(screen.getByTestId('saneo-escalares').textContent).toContain('No se escriben; /lista y la métrica ya no los usan');
+    const post = llamadas('POST', '/api/v1/art/workers/paz/saneamiento');
+    expect(post).toHaveLength(1);
+    expect(new URL(String(post[0][0])).searchParams.get('dry_run')).toBe('true');
+
+    const metricaAntes = llamadas('GET', '/api/v1/art/workers/paz/metrica').length;
+    const diagAntes = llamadas('GET', '/api/v1/art/workers/paz/diagnostico-telefonos').length;
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar saneamiento' }));
+    const modal = await screen.findByRole('alertdialog');
+    expect(modal.textContent).toContain('Se desactivan 448 filas y se marcan 400 como estudio contable. No se borra nada.');
+    fireEvent.click(within(modal).getByRole('button', { name: 'Sanear' }));
+    await waitFor(() => expect(llamadas('POST', '/api/v1/art/workers/paz/saneamiento')).toHaveLength(2));
+    const firme = llamadas('POST', '/api/v1/art/workers/paz/saneamiento')[1];
+    expect(new URL(String(firme[0])).searchParams.get('dry_run')).toBe('false');
+    expect(await screen.findByText(/Saneamiento aplicado/)).toBeTruthy();
+    await waitFor(() => {
+      expect(llamadas('GET', '/api/v1/art/workers/paz/metrica').length).toBeGreaterThan(metricaAntes);
+      expect(llamadas('GET', '/api/v1/art/workers/paz/diagnostico-telefonos').length).toBeGreaterThan(diagAntes);
+    });
+    // Aplicado: hay que volver a previsualizar para confirmar otra vez.
+    expect(screen.getByRole('button', { name: 'Confirmar saneamiento' }).disabled).toBe(true);
+  });
+
+  it('Saneamiento: ningún valor de contacto en pantalla', async () => {
+    mockFetch();
+    await abrirDiagnostico();
+    fireEvent.click(screen.getByRole('button', { name: 'Previsualizar saneamiento' }));
+    await screen.findByTestId('saneo-filas-mater_ii');
+    const seccion = screen.getByRole('region', { name: 'Saneamiento ART-116' });
+    VALORES_CONTACTO.forEach((re) => expect(seccion.textContent).not.toMatch(re));
+    expect(within(seccion).getAllByTestId('saneo-muestra')[0].textContent).toBe('DELTA SAMATER_IITELEFONO');
+  });
+
+  it('Saneamiento: todo en 0 dice que no hay nada y no deja confirmar', async () => {
+    mockFetch({ 'POST /api/v1/art/workers/paz/saneamiento': SANEO(true, true) });
+    await abrirDiagnostico();
+    fireEvent.click(screen.getByRole('button', { name: 'Previsualizar saneamiento' }));
+    expect((await screen.findByTestId('saneo-nada')).textContent)
+      .toBe('Nada para sanear. Si ya se aplicó antes, esto es lo esperado.');
+    expect(screen.getByRole('button', { name: 'Confirmar saneamiento' }).disabled).toBe(true);
   });
 
   it('la bandeja de cotizaciones suma la solapa con el contador de pendientes', async () => {

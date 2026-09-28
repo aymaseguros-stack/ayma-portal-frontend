@@ -8,6 +8,7 @@ import {
   obtenerDiagnosticoTelefonos,
   obtenerMetricaPaz,
   rechazarPropuestaContacto,
+  sanearTelefonosPaz,
 } from './artPazApi';
 import {
   CONFIANZA_CLASE,
@@ -544,23 +545,24 @@ const SinCuit = ({ token }) => {
 // Diagnóstico ART-116 (sólo números).
 // ---------------------------------------------------------------------------
 
-const DiagnosticoTelefonos = ({ token }) => {
+const DiagnosticoTelefonos = ({ token, recarga = 0 }) => {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     let cancelado = false;
     obtenerDiagnosticoTelefonos(token)
-      .then((r) => { if (!cancelado) setData(r); })
+      .then((r) => { if (!cancelado) { setData(r); setError(null); } })
       .catch((err) => { if (!cancelado) setError(err.message); });
     return () => { cancelado = true; };
-  }, [token]);
+  }, [token, recarga]);
 
   if (error) return <p role="alert" className="text-sm text-red-300">{error}</p>;
   if (!data) return <p className="text-sm text-slate-400">Cargando diagnóstico…</p>;
 
   const porFuente = Object.entries(data.por_fuente || {});
   const mater = data.mater_ii_activas || {};
+  const places = data.google_places_activas || {};
   return (
     <div className="space-y-3">
       <p className="text-sm text-slate-400">
@@ -579,6 +581,8 @@ const DiagnosticoTelefonos = ({ token }) => {
         />
         <Tarjeta titulo="Filas MATER II activas" valor={numeroAr(mater.total ?? 0)} testid="diag-mater-total" />
         <Conteos titulo="MATER II activas por tipo" conteos={mater.por_tipo} testid="diag-mater-por-tipo" />
+        <Tarjeta titulo="Filas GOOGLE_PLACES activas" valor={numeroAr(places.total ?? 0)} testid="diag-places-total" />
+        <Conteos titulo="GOOGLE_PLACES activas por tipo" conteos={places.por_tipo} testid="diag-places-por-tipo" />
       </div>
       <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-x-auto">
         <table className="w-full text-sm">
@@ -589,11 +593,12 @@ const DiagnosticoTelefonos = ({ token }) => {
               <th className={thClass}>Menos de 6 dígitos</th>
               <th className={thClass}>No numéricos</th>
               <th className={thClass}>En números compartidos 3+</th>
+              <th className={thClass}>Ya como estudio contable</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-700/60">
             {porFuente.length === 0 && (
-              <tr><td colSpan={5} className="px-3 py-6 text-center text-slate-500">Sin teléfonos cargados.</td></tr>
+              <tr><td colSpan={6} className="px-3 py-6 text-center text-slate-500">Sin teléfonos cargados.</td></tr>
             )}
             {porFuente.map(([f, c]) => (
               <tr key={f} data-testid="fila-diagnostico">
@@ -602,11 +607,203 @@ const DiagnosticoTelefonos = ({ token }) => {
                 <td className={`${tdClass} text-slate-300`}>{numeroAr(c?.menos_6_dig ?? 0)}</td>
                 <td className={`${tdClass} text-slate-300`}>{numeroAr(c?.no_numericos ?? 0)}</td>
                 <td className={`${tdClass} text-slate-300`}>{numeroAr(c?.en_compartidos_3mas ?? 0)}</td>
+                <td className={`${tdClass} text-slate-300`} data-testid={`diag-estudio-${f}`}>{numeroAr(c?.estudio_contable ?? 0)}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Saneamiento ART-116 (POST /art/workers/paz/saneamiento). Primero SIEMPRE en
+// seco; "Confirmar" se habilita recién con una previsualización a la vista y
+// pasa por ConfirmarModal. La respuesta trae contadores y una muestra
+// (empresa, fuente, tipo): acá no se muestra un solo valor de contacto.
+// ---------------------------------------------------------------------------
+
+// Orden y rótulo de los cuatro bloques (claves del backend).
+const BLOQUES_SANEAMIENTO = [
+  { clave: 'mater_ii', letra: 'a', titulo: 'MATER II', accion: 'Se desactivan (D-CO4-4 no acreditable)', desactiva: true },
+  { clave: 'google_places', letra: 'b', titulo: 'GOOGLE_PLACES', accion: 'Se desactivan teléfono y web (ToS Google: sólo place_id)', desactiva: true },
+  { clave: 'compartidos_3mas', letra: 'c', titulo: 'ESTUDIO_CONTABLE', accion: 'Números en 3+ empresas: se marcan como estudio contable', desactiva: false },
+  { clave: 'basura', letra: 'd', titulo: 'Basura', accion: 'Menos de 6 dígitos o no numéricos: se desactivan', desactiva: true },
+];
+
+// N filas que se desactivan y M que se marcan estudio contable.
+const conteosSaneamiento = (r) => {
+  const b = r?.bloques || {};
+  const filas = (k) => b[k]?.filas_empresa_contacto ?? 0;
+  return {
+    desactiva: filas('mater_ii') + filas('google_places') + filas('basura'),
+    estudio: filas('compartidos_3mas'),
+  };
+};
+
+const BloqueSaneamientoCard = ({ def, bloque }) => {
+  const muestra = Array.isArray(bloque?.muestra) ? bloque.muestra : [];
+  return (
+    <div className="bg-slate-800 rounded-xl border border-slate-700 p-3 space-y-2" data-testid={`saneo-bloque-${def.clave}`}>
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-white font-medium text-sm">{def.letra}) {def.titulo}</p>
+        <p className="text-lg font-bold text-white" data-testid={`saneo-filas-${def.clave}`}>
+          {numeroAr(bloque?.filas_empresa_contacto ?? 0)}
+        </p>
+      </div>
+      <p className="text-xs text-slate-400">
+        {def.accion} · {numeroAr(bloque?.empresas ?? 0)} empresas
+        {bloque?.numeros != null && ` · ${numeroAr(bloque.numeros)} números`}
+      </p>
+      {Object.keys(bloque?.por_tipo || {}).length > 0 && (
+        <p className="text-xs text-slate-400">
+          {Object.entries(bloque.por_tipo).map(([t, n]) => `${t} ${numeroAr(n)}`).join(' · ')}
+        </p>
+      )}
+      {muestra.length > 0 && (
+        <table className="w-full text-xs">
+          <thead className="text-slate-500">
+            <tr><th className="text-left py-1">Empresa</th><th className="text-left py-1">Fuente</th><th className="text-left py-1">Tipo</th></tr>
+          </thead>
+          <tbody className="divide-y divide-slate-700/60">
+            {muestra.map((m, i) => (
+              <tr key={`${m.empresa_id}-${m.fuente}-${i}`} data-testid="saneo-muestra">
+                <td className="py-1 text-slate-200">{m.razon_social || m.empresa_id}</td>
+                <td className="py-1 text-slate-300">{m.fuente}</td>
+                <td className="py-1 text-slate-300">{m.tipo}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+};
+
+const ResultadoSaneamiento = ({ r }) => {
+  const escalares = ['compartidos_3mas', 'basura']
+    .map((k) => [k, r.bloques?.[k]?.escalares_no_contactables])
+    .filter(([, e]) => e && Object.keys(e).length);
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-slate-300" data-testid="saneo-total">
+        {r.dry_run ? 'Previsualización (no se escribió nada)' : 'Saneamiento aplicado'} ·{' '}
+        {numeroAr(r.filas_actualizadas ?? 0)} filas {r.dry_run ? 'cambiarían' : 'cambiadas'}
+      </p>
+      {(r.filas_actualizadas ?? 0) === 0 && (
+        <p className="text-sm text-emerald-300" data-testid="saneo-nada">
+          Nada para sanear. Si ya se aplicó antes, esto es lo esperado.
+        </p>
+      )}
+      <div className="grid gap-3 md:grid-cols-2">
+        {BLOQUES_SANEAMIENTO.map((def) => (
+          <BloqueSaneamientoCard key={def.clave} def={def} bloque={r.bloques?.[def.clave]} />
+        ))}
+      </div>
+      {escalares.length > 0 && (
+        <div className="bg-slate-800/60 rounded-xl border border-slate-700 p-3" data-testid="saneo-escalares">
+          <p className="text-slate-300 text-sm font-medium">Teléfonos de la empresa (columnas escalares)</p>
+          <p className="text-xs text-slate-400 mb-1">No se escriben; /lista y la métrica ya no los usan.</p>
+          <ul className="text-sm space-y-0.5">
+            {escalares.map(([k, e]) => (
+              <li key={k} className="text-slate-300">
+                {BLOQUES_SANEAMIENTO.find((d) => d.clave === k)?.titulo}:{' '}
+                {Object.entries(e).map(([c, n]) => `${c} ${numeroAr(n)}`).join(' · ')}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const SaneamientoTelefonos = ({ token, onAplicado }) => {
+  const [previa, setPrevia] = useState(null);
+  const [aplicado, setAplicado] = useState(null);
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState(null);
+  const [confirmando, setConfirmando] = useState(false);
+
+  const previsualizar = async () => {
+    setCargando(true);
+    setError(null);
+    setAplicado(null);
+    try {
+      setPrevia(await sanearTelefonosPaz(token, { dryRun: true }));
+    } catch (err) {
+      setPrevia(null);
+      setError(err.message);
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  const confirmar = async () => {
+    const r = await sanearTelefonosPaz(token, { dryRun: false });
+    setConfirmando(false);
+    setAplicado(r);
+    // Una previsualización ya aplicada no habilita una segunda confirmación.
+    setPrevia(null);
+    onAplicado?.();
+  };
+
+  const puedeConfirmar = !!previa && previa.dry_run === true && (previa.filas_actualizadas ?? 0) > 0;
+  const { desactiva, estudio } = conteosSaneamiento(previa);
+
+  return (
+    <section className="bg-slate-800/40 rounded-2xl border border-slate-700 p-4 space-y-3" aria-label="Saneamiento ART-116">
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="text-white font-medium mr-auto">Saneamiento ART-116</h3>
+        <button
+          type="button"
+          onClick={previsualizar}
+          disabled={cargando}
+          className="px-3 py-1.5 rounded-lg text-sm bg-slate-600 hover:bg-slate-500 text-white disabled:opacity-50"
+        >
+          {cargando ? 'Previsualizando…' : 'Previsualizar saneamiento'}
+        </button>
+        <button
+          type="button"
+          onClick={() => setConfirmando(true)}
+          disabled={!puedeConfirmar || cargando}
+          title={puedeConfirmar ? undefined : 'Primero previsualizá el saneamiento'}
+          className="px-3 py-1.5 rounded-lg text-sm bg-red-600 hover:bg-red-500 text-white disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Confirmar saneamiento
+        </button>
+      </div>
+      <p className="text-xs text-slate-400">
+        Desactiva MATER II, GOOGLE_PLACES (teléfono y web) y teléfonos basura, y marca como estudio contable los
+        números compartidos por 3+ empresas. No se borra nada.
+      </p>
+      {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
+      {previa && <ResultadoSaneamiento r={previa} />}
+      {aplicado && <ResultadoSaneamiento r={aplicado} />}
+      {confirmando && (
+        <ConfirmarModal
+          titulo="Confirmar saneamiento"
+          mensaje={`Se desactivan ${numeroAr(desactiva)} filas y se marcan ${numeroAr(estudio)} como estudio contable. No se borra nada.`}
+          textoConfirmar="Sanear"
+          onConfirmar={confirmar}
+          onCancelar={() => setConfirmando(false)}
+        />
+      )}
+    </section>
+  );
+};
+
+const DiagnosticoArt116 = ({ token, onCambio }) => {
+  const [recarga, setRecarga] = useState(0);
+  const alAplicar = useCallback(() => {
+    setRecarga((n) => n + 1);
+    onCambio?.();
+  }, [onCambio]);
+  return (
+    <div className="space-y-4">
+      <SaneamientoTelefonos token={token} onAplicado={alAplicar} />
+      <DiagnosticoTelefonos token={token} recarga={recarga} />
     </div>
   );
 };
@@ -659,7 +856,7 @@ const ArtContactoPropuestas = ({ token, onCambio }) => {
           </nav>
           {sub === 'propuestas' && <Propuestas token={token} onCambio={alCambiar} />}
           {sub === 'sin-cuit' && <SinCuit token={token} />}
-          {sub === 'diagnostico' && <DiagnosticoTelefonos token={token} />}
+          {sub === 'diagnostico' && <DiagnosticoArt116 token={token} onCambio={alCambiar} />}
         </>
       )}
     </div>
