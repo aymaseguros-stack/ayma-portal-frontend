@@ -21,6 +21,7 @@ import { listarPuntos } from '../Comercial/comercialApi';
 import {
   Badge, Campo, Cargando, ErrorCarga, EstadoVacio, Panel, Tabla, botonPrimario, botonSecundario, inputClase,
 } from './DireccionComunes';
+import FuentesDatos from './FuentesDatos';
 
 // Chip de relación económica. NULL NO SE PINTA VACÍO: un proveedor sin
 // clasificar se muestra en ámbar como "Sin clasificar", que es una tarea
@@ -45,6 +46,9 @@ const FILTRO_SIN_CLASIFICAR = '__SIN_CLASIFICAR__';
 const VISTAS = [
   { id: 'lista', label: 'Proveedores' },
   { id: 'costos', label: 'Costos por rubro' },
+  // @PAZ (OPERACIONES-0016): de dónde puede sacar contactos el worker. Es
+  // una vista más de Proveedores y no una ruta nueva (navegación congelada).
+  { id: 'fuentes', label: 'Fuentes de datos' },
 ];
 
 // Pantalla 3: padrón de proveedores. Lista con filtros, alta/edición,
@@ -80,9 +84,9 @@ const DireccionProveedores = ({ token }) => {
         </nav>
       </div>
 
-      {vista === 'lista'
-        ? <ListaProveedores token={token} onAbrir={setDetalleId} />
-        : <CostosPorRubro token={token} />}
+      {vista === 'lista' && <ListaProveedores token={token} onAbrir={setDetalleId} />}
+      {vista === 'costos' && <CostosPorRubro token={token} />}
+      {vista === 'fuentes' && <FuentesDatos token={token} />}
     </div>
   );
 };

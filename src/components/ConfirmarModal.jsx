@@ -11,7 +11,11 @@ import Modal from './Modal';
 // Si sale bien, quien lo abrió lo cierra (en su `onConfirmar`).
 //
 // `zClass`: arriba de otro modal (la ficha) va un nivel más alto.
+//
+// `children`: un campo que la confirmación necesita (el motivo de un
+// rechazo). Se valida en `onConfirmar`: si tira, el error queda a la vista.
 const ConfirmarModal = ({
+  children,
   titulo = 'Confirmar',
   mensaje,
   textoConfirmar = 'Confirmar',
@@ -38,6 +42,7 @@ const ConfirmarModal = ({
     <Modal title={titulo} onClose={enCurso ? () => {} : onCancelar} maxWidth="max-w-sm" zClass={zClass}>
       <div className="space-y-5" role="alertdialog" aria-label={titulo}>
         {mensaje && <p className="text-slate-300 text-sm">{mensaje}</p>}
+        {children && <div>{children}</div>}
         {error && (
           <div role="alert" className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-2 rounded-lg text-sm">{error}</div>
         )}

@@ -89,7 +89,8 @@ describe('Bandejas', () => {
     const nav = screen.getByRole('navigation', { name: 'Bandejas' });
     await waitFor(() => expect(screen.getByTestId('contador-DOTACION').textContent).toBe('7'));
     const solapas = within(nav).getAllByRole('button').map((b) => b.textContent);
-    expect(solapas).toEqual(['Pedidas4', 'En técnica1', 'Recibidas2', 'Entregadas1', 'Cerradas1', 'Dotación propuesta7']);
+    // Sin mock de la métrica de @PAZ el contador de Contactos queda en '—': no inventa un 0.
+    expect(solapas).toEqual(['Pedidas4', 'En técnica1', 'Recibidas2', 'Entregadas1', 'Cerradas1', 'Dotación propuesta7', 'Contactos propuestos—']);
     expect(screen.getByTestId('contador-RECIBIDA').textContent).toBe('2');
   });
 
