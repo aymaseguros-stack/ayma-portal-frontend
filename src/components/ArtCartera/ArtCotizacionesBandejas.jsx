@@ -14,6 +14,8 @@ import { ASEGURADORAS_ART, aseguradoraLabel, decimalAr, numeroAr } from './artCa
 import { fechaCorta } from '../../utils/fechas';
 import ArtRespuestaCotizacionModal from './ArtRespuestaCotizacionModal';
 import ArtDotacionPropuestas from './ArtDotacionPropuestas';
+import ArtContactoPropuestas from './ArtContactoPropuestas';
+import { obtenerMetricaPaz } from './artPazApi';
 import { BadgeImpedida } from './Impedimento';
 
 const labelClass = 'block text-slate-400 text-xs mb-1';
@@ -57,12 +59,18 @@ const ArtCotizacionesBandejas = ({ token }) => {
   const [recarga, setRecarga] = useState(0);
   const [parRespuesta, setParRespuesta] = useState(null);
   const [aviso, setAviso] = useState(null);
-  // La bandeja "Dotación propuesta" (@CERVI, OPERACIONES-0009) no es una
-  // etapa del circuito: es una solapa más que reemplaza filtros y tabla.
-  const [dotacion, setDotacion] = useState(false);
+  // Las bandejas de los workers -"Dotación propuesta" (@CERVI,
+  // OPERACIONES-0009) y "Contactos propuestos" (@PAZ, OPERACIONES-0016)- no
+  // son etapas del circuito: son solapas que reemplazan filtros y tabla.
+  const [worker, setWorker] = useState(null);
+  const dotacion = worker === 'dotacion';
+  const contactos = worker === 'contactos';
   const [nDotacion, setNDotacion] = useState(null);
   const [recargaDotacion, setRecargaDotacion] = useState(0);
   const refrescarDotacion = useCallback(() => setRecargaDotacion((n) => n + 1), []);
+  const [nContactos, setNContactos] = useState(null);
+  const [recargaContactos, setRecargaContactos] = useState(0);
+  const refrescarContactos = useCallback(() => setRecargaContactos((n) => n + 1), []);
 
   // El filtro de respuesta sólo existe en Recibidas.
   const respuestaEfectiva = etapa === 'RECIBIDA' ? respuesta : '';
@@ -88,8 +96,17 @@ const ArtCotizacionesBandejas = ({ token }) => {
     return () => { cancelado = true; };
   }, [token, recargaDotacion]);
 
+  // (n) de @PAZ = pendientes de la métrica (ADMIN o EMPLEADO).
   useEffect(() => {
-    if (dotacion) return undefined;
+    let cancelado = false;
+    obtenerMetricaPaz(token)
+      .then((r) => { if (!cancelado) setNContactos(r?.pendientes?.total ?? null); })
+      .catch(() => { if (!cancelado) setNContactos(null); });
+    return () => { cancelado = true; };
+  }, [token, recargaContactos]);
+
+  useEffect(() => {
+    if (worker) return undefined;
     let cancelado = false;
     (async () => {
       setLoading(true);
@@ -106,7 +123,7 @@ const ArtCotizacionesBandejas = ({ token }) => {
       }
     })();
     return () => { cancelado = true; };
-  }, [token, etapa, canal, tandaId, aseguradora, respuestaEfectiva, recarga, dotacion]);
+  }, [token, etapa, canal, tandaId, aseguradora, respuestaEfectiva, recarga, worker]);
 
   const items = Array.isArray(data?.items) ? data.items : [];
   const porEtapa = data?.resumen?.por_etapa || {};
@@ -120,9 +137,9 @@ const ArtCotizacionesBandejas = ({ token }) => {
           <button
             key={e.id}
             type="button"
-            onClick={() => { setDotacion(false); setEtapa(e.id); }}
-            className={solapaClass(!dotacion && etapa === e.id)}
-            aria-pressed={!dotacion && etapa === e.id}
+            onClick={() => { setWorker(null); setEtapa(e.id); }}
+            className={solapaClass(!worker && etapa === e.id)}
+            aria-pressed={!worker && etapa === e.id}
           >
             {e.label}
             <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full bg-slate-900/60" data-testid={`contador-${e.id}`}>
@@ -132,7 +149,7 @@ const ArtCotizacionesBandejas = ({ token }) => {
         ))}
         <button
           type="button"
-          onClick={() => setDotacion(true)}
+          onClick={() => setWorker('dotacion')}
           className={solapaClass(dotacion)}
           aria-pressed={dotacion}
         >
@@ -141,11 +158,24 @@ const ArtCotizacionesBandejas = ({ token }) => {
             {nDotacion ?? '—'}
           </span>
         </button>
+        <button
+          type="button"
+          onClick={() => setWorker('contactos')}
+          className={solapaClass(contactos)}
+          aria-pressed={contactos}
+        >
+          Contactos propuestos
+          <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full bg-slate-900/60" data-testid="contador-CONTACTOS">
+            {nContactos ?? '—'}
+          </span>
+        </button>
       </nav>
 
       {dotacion && <ArtDotacionPropuestas token={token} onCambio={refrescarDotacion} />}
 
-      {!dotacion && (<>
+      {contactos && <ArtContactoPropuestas token={token} onCambio={refrescarContactos} />}
+
+      {!worker && (<>
       <div className="bg-slate-800 rounded-2xl border border-slate-700 p-4 flex items-end gap-4 flex-wrap">
         <div>
           <label className={labelClass} htmlFor="bj-canal">Canal</label>
